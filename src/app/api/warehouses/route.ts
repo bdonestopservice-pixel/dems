@@ -14,7 +14,14 @@ export async function GET(request: NextRequest) {
     .order('id')
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ warehouses: data })
+  return NextResponse.json(
+    { warehouses: data },
+    {
+      headers: {
+        'Cache-Control': 'private, max-age=15, stale-while-revalidate=60',
+      },
+    }
+  )
 }
 
 // POST /api/warehouses — super_admin only

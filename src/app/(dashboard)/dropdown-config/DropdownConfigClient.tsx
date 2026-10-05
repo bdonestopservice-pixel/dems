@@ -110,29 +110,18 @@ export function DropdownConfigClient({ session }: Props) {
     }
   }, [allowedWarehouses, selectedWarehouse])
 
-  // โหลด counts สำหรับแต่ละ category
+  // โหลด counts สำหรับแต่ละ category ด้วย 1 request เดียว
   const refreshCounts = useCallback(() => {
     if (!selectedWarehouse) return
 
-    const wq = `?warehouse=${selectedWarehouse}`
-
-    Promise.allSettled([
-      fetch(`/api/dropdown/departments${wq}`).then((r) => r.json()),
-      fetch(`/api/dropdown/shifts${wq}`).then((r) => r.json()),
-      fetch(`/api/dropdown/oa-options${wq}`).then((r) => r.json()),
-      fetch(`/api/dropdown/work-statuses`).then((r) => r.json()),
-      fetch(`/api/dropdown/banks`).then((r) => r.json()),
-      fetch(`/api/warehouses`).then((r) => r.json()),
-    ]).then(([depts, shifts, oa, statuses, banks, whs]) => {
-      setCounts({
-        departments: depts.status === 'fulfilled' ? (depts.value.departments?.length ?? 0) : 0,
-        shifts: shifts.status === 'fulfilled' ? (shifts.value.shifts?.length ?? 0) : 0,
-        oa_options: oa.status === 'fulfilled' ? (oa.value.oa_options?.length ?? 0) : 0,
-        work_statuses: statuses.status === 'fulfilled' ? (statuses.value.work_statuses?.length ?? 0) : 0,
-        banks: banks.status === 'fulfilled' ? (banks.value.banks?.length ?? 0) : 0,
-        warehouses: whs.status === 'fulfilled' ? (whs.value.warehouses?.length ?? 0) : 0,
+    fetch(`/api/dropdown/counts?warehouse=${selectedWarehouse}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data && !data.error) {
+          setCounts(data)
+        }
       })
-    })
+      .catch(() => {})
   }, [selectedWarehouse])
 
   useEffect(() => {

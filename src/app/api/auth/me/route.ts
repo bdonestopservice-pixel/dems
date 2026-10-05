@@ -21,17 +21,31 @@ export async function GET(request: NextRequest) {
       .single()
 
     if (dbUser) {
-      return NextResponse.json({
-        user: {
-          userId: dbUser.id,
-          name: dbUser.name,
-          email: dbUser.email,
-          role: dbUser.role,
-          warehouses: dbUser.warehouses || [],
+      return NextResponse.json(
+        {
+          user: {
+            userId: dbUser.id,
+            name: dbUser.name,
+            email: dbUser.email,
+            role: dbUser.role,
+            warehouses: dbUser.warehouses || [],
+          },
         },
-      })
+        {
+          headers: {
+            'Cache-Control': 'private, max-age=15, stale-while-revalidate=60',
+          },
+        }
+      )
     }
   } catch {}
 
-  return NextResponse.json({ user: session })
+  return NextResponse.json(
+    { user: session },
+    {
+      headers: {
+        'Cache-Control': 'private, max-age=15, stale-while-revalidate=60',
+      },
+    }
+  )
 }
