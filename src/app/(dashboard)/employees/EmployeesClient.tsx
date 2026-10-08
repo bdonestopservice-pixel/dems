@@ -14,8 +14,9 @@ import {
   CheckSquare,
   Square,
   Users,
+  Bell,
 } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn, getInitials } from '@/lib/utils'
 import type { Employee, Warehouse, AuthSession } from '@/types'
 import { exportCustomerRegistryCSV, exportOpsCSV } from '@/lib/export-csv'
 
@@ -211,13 +212,32 @@ export function EmployeesClient({ session }: EmployeesClientProps) {
   }, [totalPages, page])
 
   return (
-    <div className="flex flex-col h-full bg-[#F4F6FA] px-6 py-5">
+    <div className="flex flex-col h-full bg-[#F4F6FA] px-8 pt-7 pb-6">
       {/* Page Header */}
-      <div className="mb-4">
-        <h1 className="text-xl font-bold text-[#16233D] tracking-tight">ข้อมูลพนักงาน</h1>
-        <p className="text-xs text-[#5B6B85] mt-0.5">
-          ค้นหาและจัดการข้อมูลพนักงานทั้งหมด · {total.toLocaleString('th-TH')} รายชื่อ
-        </p>
+      <div className="flex items-center justify-between mb-5 flex-shrink-0">
+        <div>
+          <h1 className="text-2xl font-bold text-[#16233D] tracking-tight">ข้อมูลพนักงาน</h1>
+          <p className="text-xs text-[#5B6B85] mt-1">
+            ค้นหาและจัดการข้อมูลพนักงานทั้งหมด · {total.toLocaleString('th-TH')} รายชื่อ
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            className="w-9 h-9 rounded-full bg-white border border-[#E1E6EF] flex items-center justify-center text-[#5B6B85] hover:bg-[#F4F6FA] hover:text-[#16233D] transition-colors shadow-2xs relative"
+            title="การแจ้งเตือน"
+          >
+            <Bell size={16} />
+            <span className="absolute top-2 right-2 w-1.5 h-1.5 bg-[#F5A623] rounded-full" />
+          </button>
+          <div
+            className="w-9 h-9 rounded-full bg-[#2E6FE0] text-white flex items-center justify-center text-xs font-bold shadow-sm"
+            title={`${session.name} (${session.role})`}
+          >
+            {getInitials(session.name)}
+          </div>
+        </div>
       </div>
 
       {/* Main Card Container */}
