@@ -76,8 +76,8 @@ SELECT setval('employees_po_id_seq', (SELECT MAX(po_id) FROM employees) + 1);
 | 0 | Project Setup + Supabase Schema | ✅ Done |
 | 1 | Auth + Login | ✅ Done |
 | 2 | จัดการผู้ใช้งาน | ✅ Done |
-| 3 | จัดการข้อมูล Dropdown | 🔨 Next |
-| 4 | ข้อมูลพนักงาน | ⏳ Planned |
+| 3 | จัดการข้อมูล Dropdown | ✅ Done  |
+| 4 | ข้อมูลพนักงาน | ✅ Done |
 | 5 | จัดแพลนพนักงาน | ⏳ Planned |
 | 6 | Namelist | ⏳ Planned |
 | 7 | Export CSV | ⏳ Planned |

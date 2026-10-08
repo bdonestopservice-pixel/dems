@@ -1,15 +1,17 @@
 -- ============================================================
--- DEMS Database Schema v1.2  (อัปเดต 1 ต.ค. 2569)
--- แก้ไขจาก v1.1:
---   ✅ แก้ password hash ของ Super Admin ให้ถูกต้อง (admin1234)
---   ✅ เพิ่ม GRANT statements — แก้ปัญหา "permission denied for table users"
---   ✅ po_id เป็น TEXT (รอยืนยัน format กับทีมก่อน)
---   ✅ ลบ po_id_reservations และ SEQUENCE ออก (เพิ่มทีหลังได้)
+-- DEMS Database Schema (Unified Schema)
+-- ระบบ DEMS (Daily Employee Management System)
+-- รวม Schema ทั้งหมด: Warehouses, Users, Banks, Departments,
+-- Shifts, OA Options, Work Statuses, Employees, Plans, Namelist
+-- พร้อม RLS Policies และ Permissions ครบถ้วน
 -- ============================================================
+
+-- 0. เปิดใช้งาน Extension สำหรับสร้าง UUID
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 
 -- ============================================================
--- 1. คลัง (Warehouses) — ข้อมูลกลาง, Super Admin เท่านั้น
+-- 1. คลังสินค้า (Warehouses) — ข้อมูลกลาง (Super Admin เท่านั้น)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS warehouses (
   id         TEXT PRIMARY KEY,
@@ -17,6 +19,7 @@ CREATE TABLE IF NOT EXISTS warehouses (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- ข้อมูลคลังเริ่มต้น
 INSERT INTO warehouses (id, name) VALUES
   ('SOCE',    'SOCE - คลังตะวันออก'),
   ('SOCW',    'SOCW - คลังตะวันตก'),
@@ -44,8 +47,7 @@ CREATE TABLE IF NOT EXISTS users (
 
 -- Seed: Super Admin เริ่มต้น
 -- email: admin@dems.co.th | password: admin1234
--- ⚠️  เปลี่ยนรหัสผ่านหลัง login ครั้งแรก
--- hash นี้ generate จาก bcrypt.hash('admin1234', 10) จริง
+-- (Hash นี้สร้างจาก bcrypt.hash('admin1234', 10) แนะนำเปลี่ยนรหัสผ่านหลังเข้าใช้งาน)
 INSERT INTO users (name, email, password, role, warehouses)
 VALUES (
   'Super Admin',
@@ -58,29 +60,35 @@ ON CONFLICT (email) DO NOTHING;
 
 
 -- ============================================================
--- 3. ธนาคาร (Banks) — ข้อมูลกลาง, Super Admin เท่านั้น
+-- 3. ธนาคาร (Banks) — ข้อมูลกลาง (Super Admin เท่านั้น)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS banks (
   id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name       TEXT NOT NULL,
-  code       TEXT NOT NULL,
+  code       TEXT UNIQUE NOT NULL,
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
 INSERT INTO banks (name, code) VALUES
-  ('ธนาคารกรุงเทพ',       'BBL'),
-  ('ธนาคารกสิกรไทย',      'KBANK'),
-  ('ธนาคารไทยพาณิชย์',    'SCB'),
-  ('ธนาคารกรุงไทย',       'KTB'),
-  ('ธนาคารกรุงศรีอยุธยา', 'BAY'),
-  ('ธนาคารออมสิน',        'GSB'),
-  ('ธนาคาร ทีทีบี',       'TTB'),
-  ('ธนาคารทิสโก้',        'TISCO')
-ON CONFLICT DO NOTHING;
+  ('ธนาคารกรุงเทพ',                         'BBL'),
+  ('ธนาคารกสิกรไทย',                        'KBANK'),
+  ('ธนาคารไทยพาณิชย์',                      'SCB'),
+  ('ธนาคารกรุงไทย',                         'KTB'),
+  ('ธนาคารกรุงศรีอยุธยา',                   'BAY'),
+  ('ธนาคารออมสิน',                          'GSB'),
+  ('ธนาคาร ทีทีบี',                         'TTB'),
+  ('ธนาคารทิสโก้',                          'TISCO'),
+  ('ธนาคารเพื่อการเกษตรและสหกรณ์การเกษตร', 'BAAC'),
+  ('ธนาคารเกียรตินาคินภัทร',                 'KKP'),
+  ('ธนาคารซีไอเอ็มบีไทย',                   'CIMBT'),
+  ('ธนาคารยูโอบี',                          'UOB'),
+  ('ธนาคารอิสลามแห่งประเทศไทย',           'IBANK'),
+  ('ธนาคารไอซีบีซี (ไทย)',                  'ICBC')
+ON CONFLICT (code) DO NOTHING;
 
 
 -- ============================================================
--- 4. แผนก (Departments) — scope ตามคลัง
+-- 4. แผนก (Departments) — Scope ตามคลัง
 -- ============================================================
 CREATE TABLE IF NOT EXISTS departments (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -92,7 +100,7 @@ CREATE TABLE IF NOT EXISTS departments (
 
 
 -- ============================================================
--- 5. กะ (Shifts) — scope ตามคลัง
+-- 5. กะการทำงาน (Shifts) — Scope ตามคลัง
 -- ============================================================
 CREATE TABLE IF NOT EXISTS shifts (
   id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -105,7 +113,18 @@ CREATE TABLE IF NOT EXISTS shifts (
 
 
 -- ============================================================
--- 6. Status การทำงาน (Work Statuses) — ข้อมูลกลาง
+-- 6. ค่าต่างพื้นที่ / OA (OA Options) — Scope ตามคลัง
+-- ============================================================
+CREATE TABLE IF NOT EXISTS oa_options (
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  warehouse  TEXT REFERENCES warehouses(id) ON DELETE CASCADE,
+  name       TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+
+-- ============================================================
+-- 7. Status การทำงาน (Work Statuses) — ข้อมูลกลาง
 -- ============================================================
 CREATE TABLE IF NOT EXISTS work_statuses (
   id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -126,22 +145,14 @@ ON CONFLICT DO NOTHING;
 
 
 -- ============================================================
--- 7. พนักงาน (Employees) — Master Database, ใช้ร่วมทุกคลัง
---
--- ⚠️  po_id เป็น TEXT รอยืนยัน format กับทีมก่อน
---     format ที่เป็นไปได้: "PO-00001", "10001", "00001" ฯลฯ
---
--- TODO (หลังยืนยัน format):
---   ถ้าเป็น TEXT format (เช่น PO-00001):
---     ไม่ต้องเปลี่ยนอะไร ใส่ค่าโดยตรงได้เลย
---   ถ้าต้องการ auto-generate:
---     CREATE SEQUENCE po_id_seq START [ตัวเลขต่อจากข้อมูลเก่า];
---     ALTER TABLE employees ALTER COLUMN po_id SET DEFAULT ...;
+-- 8. พนักงาน (Employees) — Master Database ร่วมทุกคลัง
 -- ============================================================
+CREATE SEQUENCE IF NOT EXISTS employees_po_id_seq START WITH 112840;
+
 CREATE TABLE IF NOT EXISTS employees (
   id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  po_id            TEXT UNIQUE,            -- รอ format จากทีม
-  ops_id           TEXT,
+  po_id            TEXT UNIQUE DEFAULT ('PO' || nextval('employees_po_id_seq')),
+  ops_id           TEXT,                   -- รหัส OPS
   -- ข้อมูลส่วนตัว
   id_card          TEXT UNIQUE NOT NULL,   -- เลขบัตรประชาชน 13 หลัก
   prefix           TEXT,
@@ -151,14 +162,17 @@ CREATE TABLE IF NOT EXISTS employees (
   first_name_en    TEXT,
   last_name_en     TEXT,
   dob              DATE,
-  -- ที่อยู่ตามทะเบียนบ้าน (ไม่บังคับ)
+  -- ที่อยู่ตามทะเบียนบ้าน
   address_no       TEXT,
   address_moo      TEXT,
+  address_trok     TEXT,                   -- ตรอก
+  address_soi      TEXT,                   -- ซอย
   address_road     TEXT,
   address_tambon   TEXT,
   address_amphoe   TEXT,
   address_province TEXT,
   address_zipcode  TEXT,
+  address_full     TEXT,                   -- ที่อยู่รวมแบบเต็ม
   -- ข้อมูลการทำงาน
   warehouse        TEXT REFERENCES warehouses(id),
   start_date       DATE,
@@ -166,6 +180,7 @@ CREATE TABLE IF NOT EXISTS employees (
   -- ข้อมูลธนาคาร
   bank_id          UUID REFERENCES banks(id),
   bank_account     TEXT,
+  promptpay_status TEXT,                   -- ยืนยันพร้อมเพย์แล้วหรือยัง
   -- อื่นๆ
   note             TEXT,
   is_active        BOOLEAN DEFAULT true,
@@ -175,7 +190,24 @@ CREATE TABLE IF NOT EXISTS employees (
 
 
 -- ============================================================
--- 8. แพลน (Plans)
+-- 9. ประวัติการจองช่วงเลขรหัสพนักงาน (PO ID Reservations)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS po_id_reservations (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  start_po_id  TEXT NOT NULL,
+  end_po_id    TEXT NOT NULL,
+  total_count  INT NOT NULL,
+  note         TEXT,
+  created_at   TIMESTAMPTZ DEFAULT now()
+);
+
+INSERT INTO po_id_reservations (start_po_id, end_po_id, total_count, note)
+VALUES ('PO108840', 'PO112839', 4000, 'จอง 4,000 เลข สำหรับข้อมูลนำเข้าภายนอก/Google Sheet')
+ON CONFLICT DO NOTHING;
+
+
+-- ============================================================
+-- 10. แพลนการทำงาน (Plans)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS plans (
   id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -190,7 +222,7 @@ CREATE TABLE IF NOT EXISTS plans (
 
 
 -- ============================================================
--- 9. พนักงานในแพลน (Plan Roster)
+-- 11. พนักงานในแพลน (Plan Roster)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS plan_employees (
   id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -203,7 +235,7 @@ CREATE TABLE IF NOT EXISTS plan_employees (
 
 
 -- ============================================================
--- 10. Namelist (รายชื่อประจำวัน)
+-- 12. Namelist (รายชื่อทำงานประจำวัน)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS namelist (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -212,7 +244,7 @@ CREATE TABLE IF NOT EXISTS namelist (
   department_id UUID REFERENCES departments(id),
   shift_id      UUID REFERENCES shifts(id),
   work_status   TEXT DEFAULT NULL,   -- CXDP, Hold, หนีหาย ฯลฯ
-  oa_status     TEXT DEFAULT '-',    -- '-' หรือ 'OA'
+  oa_status     TEXT DEFAULT '-',    -- '-' หรือชื่อ OA
   note          TEXT,
   created_by    UUID REFERENCES users(id),
   created_at    TIMESTAMPTZ DEFAULT now(),
@@ -223,50 +255,69 @@ CREATE TABLE IF NOT EXISTS namelist (
 
 -- ============================================================
 -- Row Level Security (RLS)
--- Architecture: ทุก request ผ่าน Next.js API Routes
--- ใช้ SUPABASE_SERVICE_ROLE_KEY (Legacy JWT format: eyJ...)
--- anon/authenticated ไม่มีสิทธิ์เข้าถึงตรงๆ เลย
+-- ทุก Request ผ่าน Next.js API Routes ด้วย SUPABASE_SERVICE_ROLE_KEY
+-- ป้องกันการเข้าถึงฐานข้อมูลโดยตรงจากภายนอก
 -- ============================================================
-ALTER TABLE warehouses     ENABLE ROW LEVEL SECURITY;
-ALTER TABLE users          ENABLE ROW LEVEL SECURITY;
-ALTER TABLE banks          ENABLE ROW LEVEL SECURITY;
-ALTER TABLE departments    ENABLE ROW LEVEL SECURITY;
-ALTER TABLE shifts         ENABLE ROW LEVEL SECURITY;
-ALTER TABLE work_statuses  ENABLE ROW LEVEL SECURITY;
-ALTER TABLE employees      ENABLE ROW LEVEL SECURITY;
-ALTER TABLE plans          ENABLE ROW LEVEL SECURITY;
-ALTER TABLE plan_employees ENABLE ROW LEVEL SECURITY;
-ALTER TABLE namelist       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE warehouses         ENABLE ROW LEVEL SECURITY;
+ALTER TABLE users              ENABLE ROW LEVEL SECURITY;
+ALTER TABLE banks              ENABLE ROW LEVEL SECURITY;
+ALTER TABLE departments        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE shifts             ENABLE ROW LEVEL SECURITY;
+ALTER TABLE oa_options         ENABLE ROW LEVEL SECURITY;
+ALTER TABLE work_statuses      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE employees          ENABLE ROW LEVEL SECURITY;
+ALTER TABLE po_id_reservations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE plans              ENABLE ROW LEVEL SECURITY;
+ALTER TABLE plan_employees     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE namelist           ENABLE ROW LEVEL SECURITY;
 
--- RLS Policy: service_role bypass ได้ทุกตาราง
-CREATE POLICY "service_role_all" ON warehouses     FOR ALL TO service_role USING (true) WITH CHECK (true);
-CREATE POLICY "service_role_all" ON users          FOR ALL TO service_role USING (true) WITH CHECK (true);
-CREATE POLICY "service_role_all" ON banks          FOR ALL TO service_role USING (true) WITH CHECK (true);
-CREATE POLICY "service_role_all" ON departments    FOR ALL TO service_role USING (true) WITH CHECK (true);
-CREATE POLICY "service_role_all" ON shifts         FOR ALL TO service_role USING (true) WITH CHECK (true);
-CREATE POLICY "service_role_all" ON work_statuses  FOR ALL TO service_role USING (true) WITH CHECK (true);
-CREATE POLICY "service_role_all" ON employees      FOR ALL TO service_role USING (true) WITH CHECK (true);
-CREATE POLICY "service_role_all" ON plans          FOR ALL TO service_role USING (true) WITH CHECK (true);
-CREATE POLICY "service_role_all" ON plan_employees FOR ALL TO service_role USING (true) WITH CHECK (true);
-CREATE POLICY "service_role_all" ON namelist       FOR ALL TO service_role USING (true) WITH CHECK (true);
+-- นโยบาย RLS: service_role มีสิทธิ์จัดการได้ครบทุกตาราง
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'service_role_all' AND tablename = 'warehouses') THEN
+    CREATE POLICY "service_role_all" ON warehouses FOR ALL TO service_role USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'service_role_all' AND tablename = 'users') THEN
+    CREATE POLICY "service_role_all" ON users FOR ALL TO service_role USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'service_role_all' AND tablename = 'banks') THEN
+    CREATE POLICY "service_role_all" ON banks FOR ALL TO service_role USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'service_role_all' AND tablename = 'departments') THEN
+    CREATE POLICY "service_role_all" ON departments FOR ALL TO service_role USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'service_role_all' AND tablename = 'shifts') THEN
+    CREATE POLICY "service_role_all" ON shifts FOR ALL TO service_role USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'service_role_all' AND tablename = 'oa_options') THEN
+    CREATE POLICY "service_role_all" ON oa_options FOR ALL TO service_role USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'service_role_all' AND tablename = 'work_statuses') THEN
+    CREATE POLICY "service_role_all" ON work_statuses FOR ALL TO service_role USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'service_role_all' AND tablename = 'employees') THEN
+    CREATE POLICY "service_role_all" ON employees FOR ALL TO service_role USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'service_role_all' AND tablename = 'po_id_reservations') THEN
+    CREATE POLICY "service_role_all" ON po_id_reservations FOR ALL TO service_role USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'service_role_all' AND tablename = 'plans') THEN
+    CREATE POLICY "service_role_all" ON plans FOR ALL TO service_role USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'service_role_all' AND tablename = 'plan_employees') THEN
+    CREATE POLICY "service_role_all" ON plan_employees FOR ALL TO service_role USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'service_role_all' AND tablename = 'namelist') THEN
+    CREATE POLICY "service_role_all" ON namelist FOR ALL TO service_role USING (true) WITH CHECK (true);
+  END IF;
+END $$;
 
 
 -- ============================================================
--- ⚠️  GRANT — จำเป็นมาก! ถ้าขาดส่วนนี้จะเกิด:
---     "permission denied for table users"
---     แม้จะมี RLS policy และ service_role key ถูกต้องแล้ว
+-- สิทธิ์การเข้าถึง (GRANT PERMISSIONS)
+-- ป้องกันข้อผิดพลาด "permission denied for table ..." บน Supabase
 -- ============================================================
 GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
 GRANT ALL ON ALL TABLES    IN SCHEMA public TO service_role;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO service_role;
 GRANT ALL ON ALL ROUTINES  IN SCHEMA public TO service_role;
-
-
--- ============================================================
--- หลัง Import ข้อมูลพนักงานจาก CSV (10,000 คน):
---
--- 1. ตรวจสอบ po_id format ของข้อมูลเก่า
--- 2. ถ้าต้องการ auto-generate po_id ต่อจากเก่า:
---    CREATE SEQUENCE po_id_seq START [max_po_id + 1];
---
--- ============================================================

@@ -60,28 +60,32 @@ export interface OaOption {
 
 export interface Employee {
   id: string
-  po_id?: string        // TEXT — format ยังรอยืนยันกับทีม (เช่น PO-00001 / 10001)
-  ops_id?: string
-  id_card: string
-  prefix?: string
+  po_id?: string        // TEXT (เช่น PO100001, PO112840)
+  ops_id?: string       // TEXT (เช่น OPS-10234)
+  id_card: string       // เลขบัตรประชาชน 13 หลัก
+  prefix?: string       // นาย, นาง, นางสาว
   first_name: string
   last_name: string
-  gender?: string
+  gender?: string       // ชาย, หญิง
   first_name_en?: string
   last_name_en?: string
-  dob?: string
+  dob?: string          // YYYY-MM-DD (ค.ศ.)
   address_no?: string
   address_moo?: string
+  address_trok?: string
+  address_soi?: string
   address_road?: string
   address_tambon?: string
   address_amphoe?: string
   address_province?: string
   address_zipcode?: string
+  address_full?: string
   warehouse: string
-  start_date?: string
+  start_date?: string   // YYYY-MM-DD
   phone?: string
   bank_id?: string
   bank_account?: string
+  promptpay_status?: string // 'ยืนยันแล้ว' | 'ยังไม่ยืนยัน'
   note?: string
   is_active: boolean
   created_at: string
