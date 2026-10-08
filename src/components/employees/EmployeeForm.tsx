@@ -164,6 +164,18 @@ export function EmployeeForm({ initialData, mode }: EmployeeFormProps) {
       return
     }
 
+    // กรณีไม่ยืนยันพร้อมเพย์ บังคับระบุธนาคารและเลขที่บัญชี
+    if (formData.promptpay_status === 'ยังไม่ยืนยัน') {
+      if (!formData.bank_id) {
+        setError('กรณีไม่ยืนยันพร้อมเพย์ กรุณาเลือกธนาคาร')
+        return
+      }
+      if (!formData.bank_account || !formData.bank_account.trim()) {
+        setError('กรณีไม่ยืนยันพร้อมเพย์ กรุณากรอกเลขที่บัญชีธนาคาร')
+        return
+      }
+    }
+
     setSaving(true)
 
     try {
@@ -646,11 +658,17 @@ export function EmployeeForm({ initialData, mode }: EmployeeFormProps) {
 
             {/* ธนาคาร */}
             <div>
-              <label className="label text-xs">ธนาคาร</label>
+              <label className={cn('label text-xs', formData.promptpay_status === 'ยังไม่ยืนยัน' && 'label-required')}>
+                ธนาคาร
+              </label>
               <select
                 value={formData.bank_id}
                 onChange={(e) => handleChange('bank_id', e.target.value)}
-                className="input text-sm"
+                className={cn(
+                  'input text-sm',
+                  formData.promptpay_status === 'ยังไม่ยืนยัน' && !formData.bank_id && 'border-[#E5484D]/60'
+                )}
+                required={formData.promptpay_status === 'ยังไม่ยืนยัน'}
               >
                 <option value="">-- เลือกธนาคาร --</option>
                 {banks.map((b) => (
@@ -663,16 +681,29 @@ export function EmployeeForm({ initialData, mode }: EmployeeFormProps) {
 
             {/* เลขที่บัญชี */}
             <div>
-              <label className="label text-xs">เลขที่บัญชี</label>
+              <label className={cn('label text-xs', formData.promptpay_status === 'ยังไม่ยืนยัน' && 'label-required')}>
+                เลขที่บัญชี
+              </label>
               <input
                 type="text"
                 value={formData.bank_account}
                 onChange={(e) => handleChange('bank_account', e.target.value)}
                 placeholder="เช่น 123-4-56789-0"
-                className="input text-sm"
+                className={cn(
+                  'input text-sm',
+                  formData.promptpay_status === 'ยังไม่ยืนยัน' && !formData.bank_account && 'border-[#E5484D]/60'
+                )}
+                required={formData.promptpay_status === 'ยังไม่ยืนยัน'}
               />
             </div>
           </div>
+
+          {formData.promptpay_status === 'ยังไม่ยืนยัน' && (
+            <p className="text-[11px] text-[#B45F17] mt-3 bg-[#FEF3E2] px-3.5 py-2 rounded-xl flex items-center gap-1.5">
+              <AlertCircle size={14} className="flex-shrink-0" />
+              <span>เนื่องจากยังไม่ยืนยันพร้อมเพย์ จำเป็นต้องระบุธนาคารและเลขที่บัญชี</span>
+            </p>
+          )}
         </div>
 
         {/* ============================================================ */}

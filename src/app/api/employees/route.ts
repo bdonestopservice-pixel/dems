@@ -170,6 +170,16 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // 1.1 Validate unconfirmed promptpay requires bank & account
+    if (promptpay_status === 'ยังไม่ยืนยัน') {
+      if (!bank_id || !bank_account || !bank_account.trim()) {
+        return NextResponse.json(
+          { error: 'กรณีไม่ยืนยันพร้อมเพย์ จำเป็นต้องระบุธนาคารและเลขที่บัญชี' },
+          { status: 400 }
+        )
+      }
+    }
+
     // Clean id_card & phone
     const cleanIdCard = id_card.replace(/[^0-9]/g, '')
     if (cleanIdCard.length !== 13) {

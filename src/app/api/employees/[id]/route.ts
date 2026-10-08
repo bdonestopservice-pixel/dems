@@ -72,6 +72,16 @@ export async function PUT(
       )
     }
 
+    // Validate unconfirmed promptpay requires bank & account
+    if (body.promptpay_status === 'ยังไม่ยืนยัน') {
+      if (!body.bank_id || !body.bank_account || !body.bank_account.trim()) {
+        return NextResponse.json(
+          { error: 'กรณีไม่ยืนยันพร้อมเพย์ จำเป็นต้องระบุธนาคารและเลขที่บัญชี' },
+          { status: 400 }
+        )
+      }
+    }
+
     const supabase = createServerSupabaseClient()
 
     // Security check: Never allow changing id_card or id
