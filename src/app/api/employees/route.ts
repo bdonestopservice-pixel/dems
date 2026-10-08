@@ -59,12 +59,19 @@ export async function GET(request: NextRequest) {
     query = query.eq('is_active', false)
   }
 
-  // 4. Search query (first_name, last_name, po_id, id_card)
+  // 4. Search query (supports multi-word search e.g. "พงศกร เล็กดวง" or "นาย สมชาย")
   if (search) {
-    const s = `%${search}%`
-    query = query.or(
-      `first_name.ilike.${s},last_name.ilike.${s},po_id.ilike.${s},id_card.ilike.${s},first_name_en.ilike.${s},last_name_en.ilike.${s}`
-    )
+    const words = search
+      .split(/\s+/)
+      .map((w) => w.replace(/[,()]/g, '').trim())
+      .filter(Boolean)
+
+    for (const word of words) {
+      const s = `%${word}%`
+      query = query.or(
+        `first_name.ilike.${s},last_name.ilike.${s},prefix.ilike.${s},po_id.ilike.${s},id_card.ilike.${s},first_name_en.ilike.${s},last_name_en.ilike.${s},phone.ilike.${s},ops_id.ilike.${s}`
+      )
+    }
   }
 
   // Order by po_id ascending or created_at descending
