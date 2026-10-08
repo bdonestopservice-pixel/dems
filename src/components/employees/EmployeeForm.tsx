@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ChevronLeft, Loader2, Save, X, AlertCircle } from 'lucide-react'
+import { ChevronLeft, Loader2, Save, X, AlertCircle, Check } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import type { Employee, Warehouse, Bank } from '@/types'
 
 interface EmployeeFormProps {
@@ -102,6 +103,53 @@ export function EmployeeForm({ initialData, mode }: EmployeeFormProps) {
       .catch(() => {})
   }, [mode])
 
+  // Real-time ID card duplicate check state
+  const [idCardChecking, setIdCardChecking] = useState(false)
+  const [idCardDuplicate, setIdCardDuplicate] = useState(false)
+  const [idCardDuplicateMsg, setIdCardDuplicateMsg] = useState('')
+  const [idCardValid, setIdCardValid] = useState(false)
+
+  // ตรวจสอบเลขบัตรประชาชนซ้ำทันทีเมื่อกรอกครบ 13 หลัก
+  useEffect(() => {
+    if (mode !== 'create') return
+
+    const clean = formData.id_card.replace(/[^0-9]/g, '')
+    if (clean.length === 13) {
+      let isMounted = true
+      setIdCardChecking(true)
+
+      fetch(`/api/employees/check-id-card?id_card=${clean}`)
+        .then((r) => r.json())
+        .then((data) => {
+          if (!isMounted) return
+          setIdCardChecking(false)
+          if (data.exists) {
+            setIdCardDuplicate(true)
+            setIdCardDuplicateMsg(
+              `เลขบัตรประชาชนนี้มีอยู่ในระบบแล้ว (${data.employee?.name || ''} · รหัส ${data.employee?.po_id || '-'})`
+            )
+            setIdCardValid(false)
+          } else {
+            setIdCardDuplicate(false)
+            setIdCardDuplicateMsg('')
+            setIdCardValid(true)
+          }
+        })
+        .catch(() => {
+          if (isMounted) setIdCardChecking(false)
+        })
+
+      return () => {
+        isMounted = false
+      }
+    } else {
+      setIdCardChecking(false)
+      setIdCardDuplicate(false)
+      setIdCardDuplicateMsg('')
+      setIdCardValid(false)
+    }
+  }, [formData.id_card, mode])
+
   function handleChange(field: string, val: string) {
     setFormData((prev) => ({ ...prev, [field]: val }))
   }
@@ -109,6 +157,13 @@ export function EmployeeForm({ initialData, mode }: EmployeeFormProps) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
+
+    // ป้องกันการบันทึกถ้าเลขบัตรซ้ำ
+    if (mode === 'create' && idCardDuplicate) {
+      setError(idCardDuplicateMsg || 'เลขบัตรประชาชนนี้มีอยู่ในระบบแล้ว กรุณาตรวจสอบ')
+      return
+    }
+
     setSaving(true)
 
     try {
@@ -242,16 +297,59 @@ export function EmployeeForm({ initialData, mode }: EmployeeFormProps) {
             {/* เลขบัตรประชาชน (13 หลัก) */}
             <div>
               <label className="label text-xs label-required">เลขบัตรประชาชน</label>
-              <input
-                type="text"
-                maxLength={13}
-                value={formData.id_card}
-                onChange={(e) => handleChange('id_card', e.target.value.replace(/[^0-9]/g, ''))}
-                placeholder="กรอกตัวเลข 13 หลัก"
-                disabled={mode === 'edit'}
-                className={mode === 'edit' ? 'input text-sm bg-[#F4F6FA] cursor-not-allowed text-[#5B6B85]' : 'input text-sm'}
-                required
-              />
+              <div className="relative">
+                <input
+                  type="text"
+                  maxLength={13}
+                  value={formData.id_card}
+                  onChange={(e) => handleChange('id_card', e.target.value.replace(/[^0-9]/g, ''))}
+                  placeholder="กรอกตัวเลข 13 หลัก"
+                  disabled={mode === 'edit'}
+                  className={cn(
+                    'input text-sm transition-all',
+                    mode === 'edit' && 'bg-[#F4F6FA] cursor-not-allowed text-[#5B6B85]',
+                    idCardDuplicate &&
+                      'border-[#E5484D] ring-2 ring-[#E5484D]/20 focus:border-[#E5484D] focus:ring-[#E5484D]/30 bg-[#FCE8E8]/10 text-[#E5484D]',
+                    idCardValid && !idCardChecking && 'border-[#2E9E5B] focus:border-[#2E9E5B] focus:ring-[#2E9E5B]/20 pr-8'
+                  )}
+                  required
+                />
+                {idCardChecking && (
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[#5B6B85]">
+                    <Loader2 size={15} className="animate-spin text-[#2E6FE0]" />
+                  </div>
+                )}
+                {idCardValid && !idCardChecking && (
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[#2E9E5B]">
+                    <Check size={16} />
+                  </div>
+                )}
+              </div>
+
+              {/* Duplicate Error Message (กรอบแดง + ข้อความแจ้งเตือน) */}
+              {idCardDuplicate && (
+                <div className="text-[11px] text-[#E5484D] font-medium mt-1.5 flex items-center gap-1.5 animate-in fade-in">
+                  <AlertCircle size={13} className="flex-shrink-0" />
+                  <span>{idCardDuplicateMsg}</span>
+                </div>
+              )}
+
+              {/* Checking spinner label */}
+              {idCardChecking && (
+                <div className="text-[11px] text-[#5B6B85] mt-1.5 flex items-center gap-1.5">
+                  <Loader2 size={12} className="animate-spin text-[#2E6FE0]" />
+                  <span>กำลังตรวจสอบเลขบัตรประชาชน...</span>
+                </div>
+              )}
+
+              {/* Valid success message */}
+              {idCardValid && !idCardChecking && (
+                <div className="text-[11px] text-[#2E9E5B] font-medium mt-1.5 flex items-center gap-1.5 animate-in fade-in">
+                  <Check size={13} className="flex-shrink-0" />
+                  <span>เลขบัตรประชาชนนี้สามารถใช้งานได้</span>
+                </div>
+              )}
+
               {mode === 'edit' && (
                 <span className="text-[10px] text-[#9AA5B8] mt-1 block">
                   * เลขบัตรประชาชนไม่อนุญาตให้แก้ไข
@@ -609,7 +707,7 @@ export function EmployeeForm({ initialData, mode }: EmployeeFormProps) {
           </Link>
           <button
             type="submit"
-            disabled={saving}
+            disabled={saving || (mode === 'create' && idCardDuplicate)}
             className="btn-primary px-6 py-2.5 text-sm shadow-sm"
           >
             {saving ? (
