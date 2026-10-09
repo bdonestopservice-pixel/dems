@@ -33,10 +33,25 @@ export function getInitials(name: string): string {
     .slice(0, 2)
 }
 
-// po_id เป็น TEXT ใน DB — รอยืนยัน format กับทีม
-// ฟังก์ชันนี้แค่ return ค่าตรงๆ หรือ fallback เป็น '-'
-export function formatPOId(poId: string | null | undefined): string {
-  if (!poId) return '-'
-  return poId
+export function formatThaiDate(dateStr: string | Date | null | undefined): string {
+  if (!dateStr) return '-'
+  try {
+    // Treat YYYY-MM-DD as local date to prevent timezone shift
+    let d: Date
+    if (typeof dateStr === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      const [y, m, day] = dateStr.split('-').map(Number)
+      d = new Date(y, m - 1, day)
+    } else {
+      d = new Date(dateStr)
+    }
+    return d.toLocaleDateString('th-TH', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    })
+  } catch {
+    return String(dateStr)
+  }
 }
+
 

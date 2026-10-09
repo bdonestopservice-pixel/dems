@@ -122,9 +122,12 @@ export interface PlanEmployee {
   created_at: string
   // joined
   po_id?: string
+  prefix?: string
   first_name?: string
   last_name?: string
   phone?: string
+  position?: string
+  warehouse?: string
 }
 
 export interface NamelistEntry {
