@@ -13,10 +13,12 @@ import {
   AlertCircle,
   CheckCircle2,
   Users,
+  Pencil,
 } from 'lucide-react'
 import { Topbar } from '@/components/layout/Topbar'
 import { formatThaiDate } from '@/lib/utils'
 import { exportPlanAttendanceSheet } from '@/lib/export-plan-pdf'
+import { EditPlanModal } from '@/components/planning/EditPlanModal'
 import type { AuthSession, Plan, PlanEmployee } from '@/types'
 
 interface PlanRosterClientProps {
@@ -36,6 +38,13 @@ export function PlanRosterClient({ session, planId }: PlanRosterClientProps) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [sendingNamelist, setSendingNamelist] = useState(false)
   const [deletingEmpId, setDeletingEmpId] = useState<string | null>(null)
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+
+  const handlePlanUpdated = (updatedPlan: any) => {
+    setPlan((prev) => (prev ? { ...prev, ...updatedPlan } : updatedPlan))
+    setSuccessMsg('แก้ไขข้อมูลแผนก กะ และรายละเอียดแพลนสำเร็จแล้ว')
+    setTimeout(() => setSuccessMsg(null), 3500)
+  }
 
   // Fetch plan & roster
   const fetchPlanData = useCallback(async () => {
@@ -244,6 +253,16 @@ export function PlanRosterClient({ session, planId }: PlanRosterClientProps) {
               <span className="text-xs font-semibold px-2.5 py-0.5 rounded-md bg-[#F4F6FA] text-[#5B6B85] border border-[#E1E6EF]">
                 {plan.warehouse}
               </span>
+
+              <button
+                type="button"
+                onClick={() => setIsEditModalOpen(true)}
+                title="แก้ไขแผนก / กะ / จำนวนคนที่ต้องการ"
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#2E6FE0] hover:text-[#1D4490] bg-white border border-[#E1E6EF] hover:border-[#2E6FE0] hover:bg-[#EEF3FC] px-2.5 py-1 rounded-lg transition-all shadow-sm"
+              >
+                <Pencil className="w-3 h-3" />
+                แก้ไขแผนก/กะ
+              </button>
             </div>
 
             {/* Right Progress & Status */}
@@ -450,6 +469,14 @@ export function PlanRosterClient({ session, planId }: PlanRosterClientProps) {
           </button>
         </div>
       </div>
+
+      {/* Edit Plan Modal */}
+      <EditPlanModal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        plan={plan}
+        onUpdated={handlePlanUpdated}
+      />
     </>
   )
 }

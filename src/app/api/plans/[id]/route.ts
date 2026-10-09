@@ -90,6 +90,111 @@ export async function GET(
   return NextResponse.json({ plan: formattedPlan })
 }
 
+// PATCH /api/plans/[id]
+// Updates plan details: department_id, shift_id, required_count, date
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const token = request.cookies.get('dems_session')?.value
+  const session = token ? await verifySession(token) : null
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { id } = await params
+  const supabase = createServerSupabaseClient()
+
+  // 1. Fetch current plan to check warehouse permission
+  const { data: currentPlan, error: fetchErr } = await supabase
+    .from('plans')
+    .select('*')
+    .eq('id', id)
+    .single()
+
+  if (fetchErr || !currentPlan) {
+    return NextResponse.json({ error: 'ไม่พบแพลนนี้' }, { status: 404 })
+  }
+
+  const hasAccess = await hasWarehouseAccess(session, currentPlan.warehouse)
+  if (!hasAccess) {
+    return NextResponse.json({ error: 'ไม่มีสิทธิ์แก้ไขแพลนในคลังนี้' }, { status: 403 })
+  }
+
+  // 2. Parse payload
+  const body = await request.json()
+  const { department_id, shift_id, required_count, date } = body
+
+  const updateFields: Record<string, any> = {}
+
+  if (department_id) {
+    const { data: dept } = await supabase
+      .from('departments')
+      .select('id, warehouse')
+      .eq('id', department_id)
+      .single()
+    if (!dept) {
+      return NextResponse.json({ error: 'ไม่พบแผนกที่เลือก' }, { status: 400 })
+    }
+    updateFields.department_id = department_id
+  }
+
+  if (shift_id) {
+    const { data: shift } = await supabase
+      .from('shifts')
+      .select('id, warehouse')
+      .eq('id', shift_id)
+      .single()
+    if (!shift) {
+      return NextResponse.json({ error: 'ไม่พบกะที่เลือก' }, { status: 400 })
+    }
+    updateFields.shift_id = shift_id
+  }
+
+  if (required_count !== undefined && required_count !== '') {
+    const countNum = Number(required_count)
+    if (isNaN(countNum) || countNum <= 0) {
+      return NextResponse.json({ error: 'จำนวนคนที่ต้องการต้องมากกว่า 0' }, { status: 400 })
+    }
+    updateFields.required_count = countNum
+  }
+
+  if (date) {
+    updateFields.date = date
+  }
+
+  if (Object.keys(updateFields).length === 0) {
+    return NextResponse.json({ error: 'ไม่มีข้อมูลที่ต้องอัปเดต' }, { status: 400 })
+  }
+
+  const { data: updated, error: updateErr } = await supabase
+    .from('plans')
+    .update(updateFields)
+    .eq('id', id)
+    .select(`
+      *,
+      warehouses:warehouse (id, name),
+      shifts:shift_id (id, start_time, end_time, type),
+      departments:department_id (id, name)
+    `)
+    .single()
+
+  if (updateErr) {
+    console.error('Error updating plan:', updateErr)
+    return NextResponse.json({ error: updateErr.message }, { status: 500 })
+  }
+
+  return NextResponse.json({
+    success: true,
+    plan: {
+      ...updated,
+      warehouse_name: updated.warehouses?.name || updated.warehouse,
+      shift_start: updated.shifts?.start_time,
+      shift_end: updated.shifts?.end_time,
+      shift_type: updated.shifts?.type,
+      department_name: updated.departments?.name || '—',
+    },
+  })
+}
+
 // DELETE /api/plans/[id]
 export async function DELETE(
   request: NextRequest,
@@ -125,3 +230,4 @@ export async function DELETE(
 
   return NextResponse.json({ success: true })
 }
+

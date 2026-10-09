@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Plus, Search, Pencil, Users, Calendar, AlertCircle, CheckCircle2 } from 'lucide-react'
 import { Topbar } from '@/components/layout/Topbar'
 import { formatThaiDate } from '@/lib/utils'
+import { EditPlanModal } from '@/components/planning/EditPlanModal'
 import type { AuthSession, Plan, Warehouse } from '@/types'
 
 interface PlanningOverviewClientProps {
@@ -21,6 +22,16 @@ export function PlanningOverviewClient({ session }: PlanningOverviewClientProps)
   const [selectedWarehouse, setSelectedWarehouse] = useState<string>('all')
   const [selectedDate, setSelectedDate] = useState<string>('')
   const [searchTerm, setSearchTerm] = useState<string>('')
+
+  // Edit Modal State
+  const [editingPlan, setEditingPlan] = useState<Plan | null>(null)
+
+  const handlePlanUpdated = (updatedPlan: any) => {
+    setPlans((prev) =>
+      prev.map((item) => (item.id === updatedPlan.id ? { ...item, ...updatedPlan } : item))
+    )
+    fetchPlans()
+  }
 
   // Permitted warehouses for current user
   const isSuperAdmin = session.role === 'super_admin'
@@ -229,13 +240,14 @@ export function PlanningOverviewClient({ session }: PlanningOverviewClientProps)
                       <span className="text-xs font-bold text-[#5B6B85]">
                         {formatThaiDate(p.date)}
                       </span>
-                      <Link
-                        href={`/planning/${p.id}`}
-                        title="ดูรายละเอียด / แก้ไขแพลน"
+                      <button
+                        type="button"
+                        onClick={() => setEditingPlan(p)}
+                        title="แก้ไขแผนก / กะ / รายละเอียดแพลน"
                         className="w-7 h-7 flex items-center justify-center rounded-lg text-[#5B6B85] hover:text-[#2E6FE0] hover:bg-[#EEF3FC] border border-transparent hover:border-[#E1E6EF] transition-colors"
                       >
                         <Pencil className="w-3.5 h-3.5" />
-                      </Link>
+                      </button>
                     </div>
 
                     {/* Department Title */}
@@ -317,6 +329,14 @@ export function PlanningOverviewClient({ session }: PlanningOverviewClientProps)
           </div>
         )}
       </div>
+
+      {/* Edit Plan Modal */}
+      <EditPlanModal
+        isOpen={Boolean(editingPlan)}
+        onClose={() => setEditingPlan(null)}
+        plan={editingPlan}
+        onUpdated={handlePlanUpdated}
+      />
     </>
   )
 }
