@@ -134,19 +134,22 @@ export interface NamelistEntry {
   id: string
   date: string
   employee_id: string
-  department_id?: string
-  shift_id?: string
-  work_status?: string
+  department_id?: string | null
+  shift_id?: string | null
+  work_status?: string | null
   oa_status: string
-  note?: string
+  note?: string | null
   created_at: string
   updated_at: string
   // joined
   po_id?: string
+  prefix?: string
   first_name?: string
   last_name?: string
   department_name?: string
   shift_start?: string
   shift_end?: string
   shift_type?: 'D' | 'N'
+  /** คลังของรายการ (อนุมานจาก กะ → แผนก → คลังของพนักงาน) */
+  warehouse?: string | null
 }

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ChevronLeft, Plus, X, Check, AlertCircle } from 'lucide-react'
 import { Topbar } from '@/components/layout/Topbar'
+import { todayLocal } from '@/lib/utils'
 import type { AuthSession, Warehouse, Shift, Department } from '@/types'
 
 interface CreatePlanClientProps {
@@ -25,7 +26,7 @@ export function CreatePlanClient({ session }: CreatePlanClientProps) {
   const isSuperAdmin = session.role === 'super_admin'
   const userWarehouses = session.warehouses || []
 
-  const todayStr = new Date().toISOString().split('T')[0]
+  const todayStr = todayLocal()
 
   const [warehouses, setWarehouses] = useState<Warehouse[]>([])
   // Cache shifts and departments by warehouse ID
