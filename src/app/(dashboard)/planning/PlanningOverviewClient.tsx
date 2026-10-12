@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
-import { Plus, Search, Pencil, Users, Calendar, AlertCircle, CheckCircle2 } from 'lucide-react'
+import { Plus, Search, Pencil, Users, Calendar, AlertCircle, CheckCircle2, Trash2, Loader2 } from 'lucide-react'
 import { Topbar } from '@/components/layout/Topbar'
 import { formatThaiDate } from '@/lib/utils'
 import { EditPlanModal } from '@/components/planning/EditPlanModal'
@@ -25,12 +25,40 @@ export function PlanningOverviewClient({ session }: PlanningOverviewClientProps)
 
   // Edit Modal State
   const [editingPlan, setEditingPlan] = useState<Plan | null>(null)
+  const [deletingPlanId, setDeletingPlanId] = useState<string | null>(null)
+  const [feedbackMsg, setFeedbackMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   const handlePlanUpdated = (updatedPlan: any) => {
     setPlans((prev) =>
       prev.map((item) => (item.id === updatedPlan.id ? { ...item, ...updatedPlan } : item))
     )
+    setFeedbackMsg({ type: 'success', text: 'แก้ไขข้อมูลแพลนเรียบร้อยแล้ว' })
+    setTimeout(() => setFeedbackMsg(null), 3000)
     fetchPlans()
+  }
+
+  const handleDeletePlan = async (p: Plan) => {
+    const confirmText = `ต้องการลบแพลน "${p.department_name}" (${formatThaiDate(p.date)}) คลัง ${p.warehouse} หรือไม่?\n\n⚠️ การลบแพลนจะนำรายชื่อพนักงานออกจากแพลนนี้ด้วย (ไม่ส่งผลต่อข้อมูลพนักงานในระบบ)`
+    if (!confirm(confirmText)) return
+
+    setDeletingPlanId(p.id)
+    try {
+      const res = await fetch(`/api/plans/${p.id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error || 'ไม่สามารถลบแพลนได้')
+      }
+
+      setPlans((prev) => prev.filter((item) => item.id !== p.id))
+      setFeedbackMsg({ type: 'success', text: `ลบแพลน ${p.department_name} เรียบร้อยแล้ว` })
+      setTimeout(() => setFeedbackMsg(null), 3000)
+      fetchPlans()
+    } catch (err: any) {
+      setFeedbackMsg({ type: 'error', text: err.message || 'เกิดข้อผิดพลาดในการลบแพลน' })
+      setTimeout(() => setFeedbackMsg(null), 4000)
+    } finally {
+      setDeletingPlanId(null)
+    }
   }
 
   // Permitted warehouses for current user
@@ -171,6 +199,24 @@ export function PlanningOverviewClient({ session }: PlanningOverviewClientProps)
           </div>
         </div>
 
+        {/* Feedback Toast Banner */}
+        {feedbackMsg && (
+          <div
+            className={`mb-5 p-3.5 rounded-xl border flex items-center gap-2.5 text-xs font-semibold animate-in fade-in ${
+              feedbackMsg.type === 'success'
+                ? 'bg-[#E7F6ED] border-[#2E9E5B] text-[#2E9E5B]'
+                : 'bg-[#FCE8E8] border-[#F87171] text-[#E5484D]'
+            }`}
+          >
+            {feedbackMsg.type === 'success' ? (
+              <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+            ) : (
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+            )}
+            <span>{feedbackMsg.text}</span>
+          </div>
+        )}
+
         {/* Loading State */}
         {loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -234,20 +280,36 @@ export function PlanningOverviewClient({ session }: PlanningOverviewClientProps)
                   key={p.id}
                   className="bg-white rounded-2xl border border-[#E1E6EF] p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between"
                 >
-                  {/* Card Header: Date & Edit Button */}
+                  {/* Card Header: Date & Actions (Edit + Delete) */}
                   <div>
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold text-[#5B6B85]">
                         {formatThaiDate(p.date)}
                       </span>
-                      <button
-                        type="button"
-                        onClick={() => setEditingPlan(p)}
-                        title="แก้ไขแผนก / กะ / รายละเอียดแพลน"
-                        className="w-7 h-7 flex items-center justify-center rounded-lg text-[#5B6B85] hover:text-[#2E6FE0] hover:bg-[#EEF3FC] border border-transparent hover:border-[#E1E6EF] transition-colors"
-                      >
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setEditingPlan(p)}
+                          title="แก้ไขแผนก / กะ / รายละเอียดแพลน"
+                          className="w-7 h-7 flex items-center justify-center rounded-lg text-[#5B6B85] hover:text-[#2E6FE0] hover:bg-[#EEF3FC] border border-transparent hover:border-[#E1E6EF] transition-colors"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleDeletePlan(p)}
+                          disabled={deletingPlanId === p.id}
+                          title="ลบแพลนนี้"
+                          className="w-7 h-7 flex items-center justify-center rounded-lg text-[#9AA5B8] hover:text-[#E5484D] hover:bg-[#FCE8E8] border border-transparent hover:border-[#F87171]/40 transition-colors disabled:opacity-50"
+                        >
+                          {deletingPlanId === p.id ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin text-[#E5484D]" />
+                          ) : (
+                            <Trash2 className="w-3.5 h-3.5" />
+                          )}
+                        </button>
+                      </div>
                     </div>
 
                     {/* Department Title */}
@@ -298,29 +360,36 @@ export function PlanningOverviewClient({ session }: PlanningOverviewClientProps)
                     </div>
                   </div>
 
-                  {/* Bottom Action Button */}
+                  {/* Bottom Action Buttons */}
                   <div className="mt-5">
                     {isFull ? (
                       <Link
                         href={`/planning/${p.id}`}
                         className="w-full block text-center py-2 px-3 rounded-xl text-xs font-semibold border border-[#E1E6EF] text-[#5B6B85] hover:bg-[#F4F6FA] hover:text-[#16233D] transition-colors"
                       >
-                        ดูรายชื่อ
-                      </Link>
-                    ) : isZero ? (
-                      <Link
-                        href={`/planning/${p.id}/add`}
-                        className="w-full block text-center py-2 px-3 rounded-xl text-xs font-semibold border border-[#F87171] bg-white text-[#E5484D] hover:bg-[#FCE8E8] transition-colors"
-                      >
-                        + เพิ่มพนักงาน ด่วน
+                        ดูรายละเอียดหน้ารายชื่อ ({current} คน)
                       </Link>
                     ) : (
-                      <Link
-                        href={`/planning/${p.id}/add`}
-                        className="w-full block text-center py-2 px-3 rounded-xl text-xs font-semibold border border-[#2E6FE0] bg-white text-[#2E6FE0] hover:bg-[#EEF3FC] transition-colors"
-                      >
-                        + เพิ่มพนักงาน
-                      </Link>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Link
+                          href={`/planning/${p.id}`}
+                          title="ดูรายละเอียดหน้ารายชื่อแพลน"
+                          className="w-full block text-center py-2 px-2 rounded-xl text-xs font-semibold border border-[#E1E6EF] text-[#5B6B85] hover:bg-[#F4F6FA] hover:text-[#16233D] transition-colors"
+                        >
+                          ดูรายละเอียด
+                        </Link>
+                        <Link
+                          href={`/planning/${p.id}/add`}
+                          title="เพิ่มพนักงานเข้าแพลน"
+                          className={`w-full block text-center py-2 px-2 rounded-xl text-xs font-semibold border transition-colors ${
+                            isZero
+                              ? 'border-[#F87171] bg-white text-[#E5484D] hover:bg-[#FCE8E8]'
+                              : 'border-[#2E6FE0] bg-white text-[#2E6FE0] hover:bg-[#EEF3FC]'
+                          }`}
+                        >
+                          {isZero ? '+ เพิ่มด่วน' : '+ เพิ่มพนักงาน'}
+                        </Link>
+                      </div>
                     )}
                   </div>
                 </div>
