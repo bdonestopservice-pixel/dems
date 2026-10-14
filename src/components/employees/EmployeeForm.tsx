@@ -4,12 +4,13 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronLeft, Loader2, Save, X, AlertCircle, Check } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import type { Employee, Warehouse, Bank } from '@/types'
+import { cn, getInitials } from '@/lib/utils'
+import type { Employee, Warehouse, Bank, AuthSession } from '@/types'
 
 interface EmployeeFormProps {
   initialData?: Employee
   mode: 'create' | 'edit'
+  session?: AuthSession
 }
 
 // Convert YYYY-MM-DD to DD/MM/YYYY
@@ -44,9 +45,10 @@ function thaiDisplayToIsoDate(displayStr?: string, isBuddhistYear = false): stri
   return displayStr
 }
 
-export function EmployeeForm({ initialData, mode }: EmployeeFormProps) {
+export function EmployeeForm({ initialData, mode, session }: EmployeeFormProps) {
   const router = useRouter()
   const [saving, setSaving] = useState(false)
+  const [showSuccessModal, setShowSuccessModal] = useState(false)
   const [error, setError] = useState('')
   const [warehouses, setWarehouses] = useState<Warehouse[]>([])
   const [banks, setBanks] = useState<Bank[]>([])
@@ -215,13 +217,58 @@ export function EmployeeForm({ initialData, mode }: EmployeeFormProps) {
         return
       }
 
-      // Success -> navigate to employees list
-      router.push('/employees')
-      router.refresh()
+      // Success -> show success popup
+      setSaving(false)
+      setShowSuccessModal(true)
     } catch {
       setError('เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์')
       setSaving(false)
     }
+  }
+
+  function handleAddNewAnother() {
+    setFormData({
+      ops_id: '',
+      id_card: '',
+      prefix: 'นาย',
+      first_name: '',
+      last_name: '',
+      gender: 'ชาย',
+      first_name_en: '',
+      last_name_en: '',
+      dob: '',
+      address_no: '',
+      address_moo: '',
+      address_trok: '',
+      address_soi: '',
+      address_road: '',
+      address_tambon: '',
+      address_amphoe: '',
+      address_province: '',
+      address_zipcode: '',
+      warehouse: warehouses[0]?.id || 'SOCE',
+      start_date: '',
+      phone: '',
+      promptpay_status: 'ยืนยันแล้ว',
+      bank_id: banks[0]?.id || '',
+      bank_account: '',
+      note: '',
+    })
+    setIdCardChecking(false)
+    setIdCardDuplicate(false)
+    setIdCardDuplicateMsg('')
+    setIdCardValid(false)
+    setError('')
+    setShowSuccessModal(false)
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    }
+  }
+
+  function handleGoToEmployees() {
+    setShowSuccessModal(false)
+    router.push('/employees')
+    router.refresh()
   }
 
   return (
@@ -242,7 +289,7 @@ export function EmployeeForm({ initialData, mode }: EmployeeFormProps) {
               <h1 className="text-2xl font-bold text-[#16233D] tracking-tight">
                 {mode === 'create'
                   ? 'เพิ่มพนักงานใหม่'
-                  : `${initialData?.first_name} ${initialData?.last_name}`}
+                  : `${formData.first_name || initialData?.first_name || ''} ${formData.last_name || initialData?.last_name || ''}`}
               </h1>
               {mode === 'edit' && initialData?.po_id && (
                 <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-[#F4F6FA] text-[#16233D] border border-[#E1E6EF]">
@@ -251,11 +298,22 @@ export function EmployeeForm({ initialData, mode }: EmployeeFormProps) {
               )}
             </div>
             <p className="text-xs text-[#5B6B85] mt-1">
-              {mode === 'create'
+              {showSuccessModal
+                ? 'บันทึกข้อมูลเรียบร้อย'
+                : mode === 'create'
                 ? 'กรอกข้อมูลให้ครบตามฟิลด์ที่มีเครื่องหมาย * ก่อนบันทึก'
                 : 'แก้ไขข้อมูลพนักงานได้ทุกฟิลด์ ยกเว้น เลขบัตรประชาชน ซึ่งแก้ไขไม่ได้'}
             </p>
           </div>
+
+          {session && (
+            <div
+              className="w-9 h-9 rounded-full bg-[#2E6FE0] text-white flex items-center justify-center text-xs font-bold shadow-sm"
+              title={`${session.name} (${session.role})`}
+            >
+              {getInitials(session.name)}
+            </div>
+          )}
         </div>
       </div>
 
@@ -755,6 +813,69 @@ export function EmployeeForm({ initialData, mode }: EmployeeFormProps) {
           </button>
         </div>
       </form>
+
+      {/* ============================================================ */}
+      {/* Success Popup Modal */}
+      {/* ============================================================ */}
+      {showSuccessModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-in fade-in duration-200"
+          onClick={() => setShowSuccessModal(false)}
+        >
+          <div
+            className="bg-white rounded-3xl border border-[#E1E6EF] shadow-2xl max-w-[440px] w-full p-8 sm:p-10 text-center animate-in zoom-in-95 duration-200 relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Green Success Icon Halo & Circle */}
+            <div className="w-20 h-20 rounded-full bg-[#DEF7EC] flex items-center justify-center mx-auto mb-6">
+              <div className="w-14 h-14 rounded-full bg-[#16A34A] flex items-center justify-center shadow-xs">
+                <Check className="w-7 h-7 text-white stroke-[3]" />
+              </div>
+            </div>
+
+            {/* Title */}
+            <h3 className="text-xl sm:text-2xl font-bold text-[#16233D] tracking-tight mb-2">
+              บันทึกข้อมูลพนักงานสำเร็จ
+            </h3>
+
+            {/* Subtitle */}
+            <p className="text-xs sm:text-sm text-[#5B6B85] mb-8">
+              {mode === 'create'
+                ? 'ข้อมูลพนักงานใหม่ถูกเพิ่มเข้าระบบเรียบร้อยแล้ว'
+                : 'ข้อมูลพนักงานถูกอัปเดตเรียบร้อยแล้ว'}
+            </p>
+
+            {/* Action Buttons */}
+            <div className="grid grid-cols-2 gap-3.5 w-full">
+              {mode === 'create' ? (
+                <button
+                  type="button"
+                  onClick={handleAddNewAnother}
+                  className="w-full py-3 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-semibold border border-[#E1E6EF] text-[#16233D] bg-white hover:bg-[#F4F6FA] active:bg-[#EEF3FC] transition-colors"
+                >
+                  เพิ่มพนักงานอีกคน
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowSuccessModal(false)}
+                  className="w-full py-3 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-semibold border border-[#E1E6EF] text-[#16233D] bg-white hover:bg-[#F4F6FA] active:bg-[#EEF3FC] transition-colors"
+                >
+                  แก้ไขข้อมูลต่อ
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={handleGoToEmployees}
+                className="w-full py-3 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-bold text-white bg-[#16A34A] hover:bg-[#15803D] active:bg-[#166534] transition-colors shadow-xs"
+              >
+                ไปหน้าข้อมูลพนักงาน
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

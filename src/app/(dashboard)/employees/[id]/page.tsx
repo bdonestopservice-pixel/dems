@@ -38,7 +38,7 @@ export default async function EditEmployeePage({
 
   return (
     <div className="flex-1 overflow-y-auto">
-      <EmployeeForm initialData={employee} mode="edit" />
+      <EmployeeForm initialData={employee} mode="edit" session={session} />
     </div>
   )
 }

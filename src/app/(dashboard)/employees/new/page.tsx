@@ -8,7 +8,7 @@ export default async function NewEmployeePage() {
 
   return (
     <div className="flex-1 overflow-y-auto">
-      <EmployeeForm mode="create" />
+      <EmployeeForm mode="create" session={session} />
     </div>
   )
 }
