@@ -128,7 +128,7 @@ CREATE TABLE IF NOT EXISTS oa_options (
 -- ============================================================
 CREATE TABLE IF NOT EXISTS work_statuses (
   id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name       TEXT NOT NULL,
+  name       TEXT UNIQUE NOT NULL,
   sort_order INT  DEFAULT 0
 );
 
@@ -141,7 +141,7 @@ INSERT INTO work_statuses (name, sort_order) VALUES
   ('CXDP เงินสด',  6),
   ('CXDP 0.5 วัน', 7),
   ('CXDP+OT',      8)
-ON CONFLICT DO NOTHING;
+ON CONFLICT (name) DO NOTHING;
 
 
 -- ============================================================
@@ -194,7 +194,7 @@ CREATE TABLE IF NOT EXISTS employees (
 -- ============================================================
 CREATE TABLE IF NOT EXISTS po_id_reservations (
   id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  start_po_id  TEXT NOT NULL,
+  start_po_id  TEXT UNIQUE NOT NULL,
   end_po_id    TEXT NOT NULL,
   total_count  INT NOT NULL,
   note         TEXT,
@@ -203,7 +203,7 @@ CREATE TABLE IF NOT EXISTS po_id_reservations (
 
 INSERT INTO po_id_reservations (start_po_id, end_po_id, total_count, note)
 VALUES ('PO108840', 'PO112839', 4000, 'จอง 4,000 เลข สำหรับข้อมูลนำเข้าภายนอก/Google Sheet')
-ON CONFLICT DO NOTHING;
+ON CONFLICT (start_po_id) DO NOTHING;
 
 
 -- ============================================================
@@ -251,6 +251,22 @@ CREATE TABLE IF NOT EXISTS namelist (
   updated_at    TIMESTAMPTZ DEFAULT now(),
   UNIQUE(date, employee_id)
 );
+
+
+-- ============================================================
+-- 13. ดัชนีเพิ่มความเร็วการค้นหา (Performance Indexes)
+-- ============================================================
+CREATE INDEX IF NOT EXISTS idx_employees_warehouse   ON employees(warehouse);
+CREATE INDEX IF NOT EXISTS idx_employees_is_active   ON employees(is_active);
+CREATE INDEX IF NOT EXISTS idx_employees_po_id       ON employees(po_id);
+CREATE INDEX IF NOT EXISTS idx_plans_date_warehouse  ON plans(date, warehouse);
+CREATE INDEX IF NOT EXISTS idx_plan_employees_plan   ON plan_employees(plan_id);
+CREATE INDEX IF NOT EXISTS idx_plan_employees_emp    ON plan_employees(employee_id);
+CREATE INDEX IF NOT EXISTS idx_namelist_date         ON namelist(date);
+CREATE INDEX IF NOT EXISTS idx_namelist_employee     ON namelist(employee_id);
+CREATE INDEX IF NOT EXISTS idx_departments_warehouse ON departments(warehouse);
+CREATE INDEX IF NOT EXISTS idx_shifts_warehouse      ON shifts(warehouse);
+CREATE INDEX IF NOT EXISTS idx_oa_options_warehouse  ON oa_options(warehouse);
 
 
 -- ============================================================

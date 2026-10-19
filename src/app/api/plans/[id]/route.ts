@@ -30,6 +30,7 @@ export async function GET(
         employees:employee_id (
           id,
           po_id,
+          ops_id,
           prefix,
           first_name,
           last_name,
@@ -61,6 +62,7 @@ export async function GET(
     sent_to_namelist: Boolean(pe.sent_to_namelist),
     created_at: pe.created_at,
     po_id: pe.employees?.po_id || '—',
+    ops_id: pe.employees?.ops_id || '—',
     prefix: pe.employees?.prefix || '',
     first_name: pe.employees?.first_name || '',
     last_name: pe.employees?.last_name || '',

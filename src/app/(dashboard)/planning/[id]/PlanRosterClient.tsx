@@ -168,7 +168,7 @@ export function PlanRosterClient({ session, planId }: PlanRosterClientProps) {
   // Export PDF Attendance Sheet
   const handleExportPDF = () => {
     if (!plan) return
-    exportPlanAttendanceSheet({ plan, roster })
+    exportPlanAttendanceSheet({ plan, roster, adminName: session.name })
   }
 
   if (loading) {
