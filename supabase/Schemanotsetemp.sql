@@ -343,51 +343,91 @@ GRANT ALL ON ALL ROUTINES  IN SCHEMA public TO service_role;
 -- 8. เปิดใช้งาน Supabase Realtime (CDC)
 -- ช่วยให้การ Grant สิทธิ์คลัง, การสร้าง/แก้ไขแพลน, Namelist, และข้อมูลพนักงานอัปเดตแบบ Realtime ทุกหน้าจอ
 -- ============================================================
+-- ตั้งค่า REPLICA IDENTITY FULL เพื่อให้ส่งข้อมูลครบทุกฟิลด์เมื่อเกิดการ UPDATE/DELETE
+ALTER TABLE users          REPLICA IDENTITY FULL;
+ALTER TABLE employees      REPLICA IDENTITY FULL;
+ALTER TABLE plans          REPLICA IDENTITY FULL;
+ALTER TABLE plan_employees REPLICA IDENTITY FULL;
+ALTER TABLE namelist       REPLICA IDENTITY FULL;
+ALTER TABLE warehouses     REPLICA IDENTITY FULL;
+ALTER TABLE departments    REPLICA IDENTITY FULL;
+ALTER TABLE shifts         REPLICA IDENTITY FULL;
+ALTER TABLE banks          REPLICA IDENTITY FULL;
+ALTER TABLE oa_options     REPLICA IDENTITY FULL;
+ALTER TABLE work_statuses  REPLICA IDENTITY FULL;
+
 DO $$
 BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_publication_tables 
-    WHERE pubname = 'supabase_realtime' AND tablename = 'users'
-  ) THEN
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'users') THEN
     ALTER PUBLICATION supabase_realtime ADD TABLE users;
   END IF;
 
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_publication_tables 
-    WHERE pubname = 'supabase_realtime' AND tablename = 'employees'
-  ) THEN
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'employees') THEN
     ALTER PUBLICATION supabase_realtime ADD TABLE employees;
   END IF;
 
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_publication_tables 
-    WHERE pubname = 'supabase_realtime' AND tablename = 'plans'
-  ) THEN
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'plans') THEN
     ALTER PUBLICATION supabase_realtime ADD TABLE plans;
   END IF;
 
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_publication_tables 
-    WHERE pubname = 'supabase_realtime' AND tablename = 'plan_employees'
-  ) THEN
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'plan_employees') THEN
     ALTER PUBLICATION supabase_realtime ADD TABLE plan_employees;
   END IF;
 
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_publication_tables 
-    WHERE pubname = 'supabase_realtime' AND tablename = 'namelist'
-  ) THEN
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'namelist') THEN
     ALTER PUBLICATION supabase_realtime ADD TABLE namelist;
   END IF;
 
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_publication_tables 
-    WHERE pubname = 'supabase_realtime' AND tablename = 'warehouses'
-  ) THEN
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'warehouses') THEN
     ALTER PUBLICATION supabase_realtime ADD TABLE warehouses;
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'departments') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE departments;
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'shifts') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE shifts;
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'banks') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE banks;
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'oa_options') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE oa_options;
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'work_statuses') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE work_statuses;
   END IF;
 EXCEPTION
   WHEN undefined_object THEN
     -- กรณีฐานข้อมูลยังไม่มี publication supabase_realtime ให้ข้ามไปโดยไม่ติด error
+    NULL;
+END $$;
+
+
+-- ============================================================
+-- 9. Storage Bucket สำหรับเก็บภาพและโลโก้ (Images & Logos)
+-- ============================================================
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('images_logo', 'images_logo', true)
+ON CONFLICT (id) DO NOTHING;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies 
+    WHERE policyname = 'Public Access images_logo' 
+      AND tablename = 'objects' 
+      AND schemaname = 'storage'
+  ) THEN
+    CREATE POLICY "Public Access images_logo" 
+    ON storage.objects FOR SELECT TO public 
+    USING (bucket_id = 'images_logo');
+  END IF;
+EXCEPTION
+  WHEN undefined_table THEN
     NULL;
 END $$;
