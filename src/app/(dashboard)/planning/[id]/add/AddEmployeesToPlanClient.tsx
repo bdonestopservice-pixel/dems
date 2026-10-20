@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { ChevronLeft, Search, Check, AlertCircle, Loader2, Users } from 'lucide-react'
 import { Topbar } from '@/components/layout/Topbar'
 import { formatThaiDate } from '@/lib/utils'
+import { broadcastRealtime } from '@/lib/realtime'
 import type { AuthSession, Plan, Warehouse } from '@/types'
 
 interface AddEmployeesToPlanClientProps {
@@ -158,6 +159,9 @@ export function AddEmployeesToPlanClient({ session, planId }: AddEmployeesToPlan
 
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'เกิดข้อผิดพลาดในการเพิ่มพนักงาน')
+
+      broadcastRealtime('plan-roster-updated')
+      broadcastRealtime('plan-updated')
 
       // Redirect back to plan roster view
       router.push(`/planning/${planId}`)

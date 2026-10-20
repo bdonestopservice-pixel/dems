@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { X, RefreshCw, Eye, EyeOff, Loader2, AlertTriangle } from 'lucide-react'
 import { generatePassword } from '@/lib/utils'
+import { broadcastRealtime } from '@/lib/realtime'
 import type { Warehouse, SystemUser } from '@/types'
 
 interface EditUserModalProps {
@@ -69,6 +70,15 @@ export function EditUserModal({ user, onClose, onSuccess, onDelete }: EditUserMo
         setError(data.error || 'เกิดข้อผิดพลาด')
         return
       }
+
+      // ส่งสัญญาณ Realtime ทันที
+      broadcastRealtime('user-updated', {
+        userId: user.id,
+        warehouses: form.selectedWarehouses,
+        role: form.role,
+        passwordChanged: !!newPassword,
+      })
+
       onSuccess(data.user)
     } finally {
       setLoading(false)
@@ -84,7 +94,13 @@ export function EditUserModal({ user, onClose, onSuccess, onDelete }: EditUserMo
       body: JSON.stringify({ is_active: !user.is_active }),
     })
     const data = await res.json()
-    if (res.ok) onSuccess(data.user)
+    if (res.ok) {
+      broadcastRealtime('user-updated', {
+        userId: user.id,
+        is_active: !user.is_active,
+      })
+      onSuccess(data.user)
+    }
     setLoading(false)
   }
 

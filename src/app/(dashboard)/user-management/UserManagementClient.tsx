@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Search, Plus, Pencil, Trash2, ChevronDown } from 'lucide-react'
 import { cn, getInitials } from '@/lib/utils'
+import { broadcastRealtime } from '@/lib/realtime'
+import { useRealtimeListener } from '@/components/providers/RealtimeProvider'
 import type { SystemUser } from '@/types'
 import { AddUserModal } from './AddUserModal'
 import { EditUserModal } from './EditUserModal'
@@ -42,6 +44,11 @@ export function UserManagementClient() {
     fetchUsers()
   }, [fetchUsers])
 
+  // อัปเดตข้อมูลผู้ใช้งานในตารางทันทีแบบ Realtime
+  useRealtimeListener('user-updated', () => {
+    fetchUsers()
+  })
+
   const filtered = users.filter((u) => {
     const q = search.toLowerCase()
     const matchSearch =
@@ -56,6 +63,7 @@ export function UserManagementClient() {
     if (!confirm(`ลบบัญชี "${user.name}" ออกจากระบบ?`)) return
     const res = await fetch(`/api/users/${user.id}`, { method: 'DELETE' })
     if (res.ok) {
+      broadcastRealtime('user-updated', { userId: user.id, is_active: false })
       setUsers((prev) => prev.filter((u) => u.id !== user.id))
     } else {
       const data = await res.json()

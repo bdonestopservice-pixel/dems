@@ -6,13 +6,16 @@ import { Plus, Search, Pencil, Users, Calendar, AlertCircle, CheckCircle2, Trash
 import { Topbar } from '@/components/layout/Topbar'
 import { formatThaiDate } from '@/lib/utils'
 import { EditPlanModal } from '@/components/planning/EditPlanModal'
+import { broadcastRealtime } from '@/lib/realtime'
+import { useRealtimeListener, useRealtimeSession } from '@/components/providers/RealtimeProvider'
 import type { AuthSession, Plan, Warehouse } from '@/types'
 
 interface PlanningOverviewClientProps {
   session: AuthSession
 }
 
-export function PlanningOverviewClient({ session }: PlanningOverviewClientProps) {
+export function PlanningOverviewClient({ session: initialSession }: PlanningOverviewClientProps) {
+  const { session } = useRealtimeSession()
   const [plans, setPlans] = useState<Plan[]>([])
   const [warehouses, setWarehouses] = useState<Warehouse[]>([])
   const [loading, setLoading] = useState(true)
@@ -34,6 +37,7 @@ export function PlanningOverviewClient({ session }: PlanningOverviewClientProps)
     )
     setFeedbackMsg({ type: 'success', text: 'แก้ไขข้อมูลแพลนเรียบร้อยแล้ว' })
     setTimeout(() => setFeedbackMsg(null), 3000)
+    broadcastRealtime('plan-updated')
     fetchPlans()
   }
 
@@ -52,6 +56,7 @@ export function PlanningOverviewClient({ session }: PlanningOverviewClientProps)
       setPlans((prev) => prev.filter((item) => item.id !== p.id))
       setFeedbackMsg({ type: 'success', text: `ลบแพลน ${p.department_name} เรียบร้อยแล้ว` })
       setTimeout(() => setFeedbackMsg(null), 3000)
+      broadcastRealtime('plan-updated')
       fetchPlans()
     } catch (err: any) {
       setFeedbackMsg({ type: 'error', text: err.message || 'เกิดข้อผิดพลาดในการลบแพลน' })
@@ -115,6 +120,11 @@ export function PlanningOverviewClient({ session }: PlanningOverviewClientProps)
   useEffect(() => {
     fetchPlans()
   }, [fetchPlans])
+
+  // โหลดข้อมูลแพลนใหม่ทันทีเมื่อมีการอัปเดตแบบ Realtime
+  useRealtimeListener(['plan-updated', 'plan-roster-updated'], () => {
+    fetchPlans()
+  })
 
   return (
     <>

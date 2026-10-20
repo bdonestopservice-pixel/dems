@@ -17,6 +17,8 @@ export interface AuthSession {
   email: string
   role: Role
   warehouses: string[]
+  rememberMe?: boolean
+  pwSig?: string
 }
 
 export interface Warehouse {

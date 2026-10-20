@@ -34,13 +34,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' }, { status: 401 })
     }
 
-    // Create session token
+    // Create session token with password signature for invalidation on password change
+    const pwSig = user.password.slice(-10)
     const session = {
       userId: user.id,
       name: user.name,
       email: user.email,
       role: user.role,
       warehouses: user.warehouses || [],
+      rememberMe: !!rememberMe,
+      pwSig,
     }
 
     const token = await createSession(session)
@@ -51,15 +54,20 @@ export async function POST(request: NextRequest) {
       user: { id: user.id, name: user.name, email: user.email, role: user.role },
     })
 
-    const maxAge = rememberMe ? 60 * 60 * 24 * 7 : 60 * 60 * 8 // 7 days or 8 hours
-
-    response.cookies.set('dems_session', token, {
+    // If rememberMe: keep until manual logout / password change (10 years)
+    // If not rememberMe: session cookie (expires when browser is closed)
+    const cookieOptions: any = {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge,
       path: '/',
-    })
+    }
+
+    if (rememberMe) {
+      cookieOptions.maxAge = 60 * 60 * 24 * 365 * 10 // 10 years
+    }
+
+    response.cookies.set('dems_session', token, cookieOptions)
 
     return response
   } catch (err: unknown) {

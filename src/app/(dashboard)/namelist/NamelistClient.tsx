@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { Plus, Search, Pencil, Loader2, AlertCircle, CheckCircle2, ClipboardList } from 'lucide-react'
 import { Topbar } from '@/components/layout/Topbar'
 import { employeeFullName, formatShiftRange } from '@/lib/namelist'
+import { broadcastRealtime } from '@/lib/realtime'
+import { useRealtimeListener, useRealtimeSession } from '@/components/providers/RealtimeProvider'
 import type { AuthSession, NamelistEntry, Warehouse } from '@/types'
 
 interface NamelistClientProps {
@@ -54,7 +56,8 @@ function NoteInput({
   )
 }
 
-export function NamelistClient({ session, initialDate, initialWarehouse }: NamelistClientProps) {
+export function NamelistClient({ session: initialSession, initialDate, initialWarehouse }: NamelistClientProps) {
+  const { session } = useRealtimeSession()
   const isSuperAdmin = session.role === 'super_admin'
   const userWarehouses = session.warehouses || []
 
@@ -126,6 +129,11 @@ export function NamelistClient({ session, initialDate, initialWarehouse }: Namel
     if (date) fetchEntries()
   }, [date, fetchEntries])
 
+  // ซิงค์ข้อมูล Realtime สำหรับ Namelist
+  useRealtimeListener('namelist-updated', () => {
+    fetchEntries()
+  })
+
   // ค้นหาแบบ real-time ในรายชื่อวันนั้น (รหัส/ชื่อ รองรับพิมพ์เว้นวรรคชื่อ นามสกุล)
   const visible = useMemo(() => {
     const words = search.toLowerCase().split(/\s+/).filter(Boolean)
@@ -163,6 +171,7 @@ export function NamelistClient({ session, initialDate, initialWarehouse }: Namel
       if (data.entry) {
         setEntries((prev) => prev.map((e) => (e.id === entry.id ? { ...e, ...data.entry } : e)))
       }
+      broadcastRealtime('namelist-updated')
     } catch (err: any) {
       setEntries((prev) => prev.map((e) => (e.id === entry.id ? previous : e)))
       showToast({ type: 'error', text: err.message || 'บันทึกไม่สำเร็จ' })

@@ -17,6 +17,7 @@ import {
   Bell,
 } from 'lucide-react'
 import { cn, getInitials } from '@/lib/utils'
+import { useRealtimeListener } from '@/components/providers/RealtimeProvider'
 import type { Employee, Warehouse, AuthSession } from '@/types'
 import { exportCustomerRegistryCSV, exportOpsCSV } from '@/lib/export-csv'
 
@@ -102,6 +103,11 @@ export function EmployeesClient({ session }: EmployeesClientProps) {
   useEffect(() => {
     fetchEmployees()
   }, [fetchEmployees])
+
+  // ซิงค์ข้อมูลพนักงานใหม่ทันทีแบบ Realtime
+  useRealtimeListener('employee-updated', () => {
+    fetchEmployees()
+  })
 
   // Select all / Deselect all in current view
   const isAllCurrentSelected = useMemo(() => {

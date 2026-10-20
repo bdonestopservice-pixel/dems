@@ -4,19 +4,21 @@ import { useState } from 'react'
 import { Sidebar } from './Sidebar'
 import { cn } from '@/lib/utils'
 import type { AuthSession } from '@/types'
+import { RealtimeProvider, useRealtimeSession } from '@/components/providers/RealtimeProvider'
 
 interface DashboardShellProps {
   session: AuthSession
   children: React.ReactNode
 }
 
-export function DashboardShell({ session, children }: DashboardShellProps) {
+function DashboardShellContent({ children }: { children: React.ReactNode }) {
   const [isCollapsed, setIsCollapsed] = useState(false)
+  const { session: liveSession } = useRealtimeSession()
 
   return (
     <div className="flex h-screen bg-[#F4F6FA] overflow-hidden">
       <Sidebar
-        session={session}
+        session={liveSession}
         isCollapsed={isCollapsed}
         onToggle={() => setIsCollapsed(!isCollapsed)}
       />
@@ -31,4 +33,13 @@ export function DashboardShell({ session, children }: DashboardShellProps) {
     </div>
   )
 }
+
+export function DashboardShell({ session, children }: DashboardShellProps) {
+  return (
+    <RealtimeProvider initialSession={session}>
+      <DashboardShellContent>{children}</DashboardShellContent>
+    </RealtimeProvider>
+  )
+}
+
 

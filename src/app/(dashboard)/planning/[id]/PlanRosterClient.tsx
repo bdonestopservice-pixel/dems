@@ -19,6 +19,8 @@ import { Topbar } from '@/components/layout/Topbar'
 import { formatThaiDate } from '@/lib/utils'
 import { exportPlanAttendanceSheet } from '@/lib/export-plan-pdf'
 import { EditPlanModal } from '@/components/planning/EditPlanModal'
+import { broadcastRealtime } from '@/lib/realtime'
+import { useRealtimeListener } from '@/components/providers/RealtimeProvider'
 import type { AuthSession, Plan, PlanEmployee } from '@/types'
 
 interface PlanRosterClientProps {
@@ -44,6 +46,7 @@ export function PlanRosterClient({ session, planId }: PlanRosterClientProps) {
     setPlan((prev) => (prev ? { ...prev, ...updatedPlan } : updatedPlan))
     setSuccessMsg('แก้ไขข้อมูลแผนก กะ และรายละเอียดแพลนสำเร็จแล้ว')
     setTimeout(() => setSuccessMsg(null), 3500)
+    broadcastRealtime('plan-updated')
   }
 
   // Fetch plan & roster
@@ -64,6 +67,11 @@ export function PlanRosterClient({ session, planId }: PlanRosterClientProps) {
   useEffect(() => {
     fetchPlanData()
   }, [fetchPlanData])
+
+  // ซิงค์ข้อมูล Realtime เมื่อมีการเปลี่ยนแปลงแพลนหรือรายชื่อพนักงาน
+  useRealtimeListener(['plan-updated', 'plan-roster-updated'], () => {
+    fetchPlanData()
+  })
 
   // Select / Deselect individual employee for Namelist
   const toggleSelect = (empId: string) => {
@@ -117,6 +125,8 @@ export function PlanRosterClient({ session, planId }: PlanRosterClientProps) {
 
       // Refresh roster data
       await fetchPlanData()
+      broadcastRealtime('plan-roster-updated')
+      broadcastRealtime('plan-updated')
       setSuccessMsg(`นำ ${fullName} ออกจากแพลนเรียบร้อยแล้ว`)
       setTimeout(() => setSuccessMsg(null), 3500)
     } catch (err: any) {
@@ -145,6 +155,9 @@ export function PlanRosterClient({ session, planId }: PlanRosterClientProps) {
 
       setSelectedIds(new Set())
       await fetchPlanData()
+
+      broadcastRealtime('namelist-updated')
+      broadcastRealtime('plan-roster-updated')
 
       const inserted = data.inserted_count || 0
       const existed = data.already_in_namelist_count || 0

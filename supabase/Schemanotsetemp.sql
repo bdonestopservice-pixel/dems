@@ -337,3 +337,57 @@ GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
 GRANT ALL ON ALL TABLES    IN SCHEMA public TO service_role;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO service_role;
 GRANT ALL ON ALL ROUTINES  IN SCHEMA public TO service_role;
+
+
+-- ============================================================
+-- 8. เปิดใช้งาน Supabase Realtime (CDC)
+-- ช่วยให้การ Grant สิทธิ์คลัง, การสร้าง/แก้ไขแพลน, Namelist, และข้อมูลพนักงานอัปเดตแบบ Realtime ทุกหน้าจอ
+-- ============================================================
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables 
+    WHERE pubname = 'supabase_realtime' AND tablename = 'users'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE users;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables 
+    WHERE pubname = 'supabase_realtime' AND tablename = 'employees'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE employees;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables 
+    WHERE pubname = 'supabase_realtime' AND tablename = 'plans'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE plans;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables 
+    WHERE pubname = 'supabase_realtime' AND tablename = 'plan_employees'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE plan_employees;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables 
+    WHERE pubname = 'supabase_realtime' AND tablename = 'namelist'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE namelist;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables 
+    WHERE pubname = 'supabase_realtime' AND tablename = 'warehouses'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE warehouses;
+  END IF;
+EXCEPTION
+  WHEN undefined_object THEN
+    -- กรณีฐานข้อมูลยังไม่มี publication supabase_realtime ให้ข้ามไปโดยไม่ติด error
+    NULL;
+END $$;

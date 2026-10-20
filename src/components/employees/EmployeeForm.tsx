@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronLeft, Loader2, Save, X, AlertCircle, Check } from 'lucide-react'
 import { cn, getInitials } from '@/lib/utils'
+import { broadcastRealtime } from '@/lib/realtime'
 import type { Employee, Warehouse, Bank, AuthSession } from '@/types'
 
 interface EmployeeFormProps {
@@ -228,7 +229,8 @@ export function EmployeeForm({ initialData, mode, session }: EmployeeFormProps) 
         return
       }
 
-      // Success -> show success popup
+      // Success -> broadcast realtime and show success popup
+      broadcastRealtime('employee-updated', { employeeId: data.employee?.id })
       setSaving(false)
       setShowSuccessModal(true)
     } catch {

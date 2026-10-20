@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { X, RefreshCw, Eye, EyeOff, Loader2 } from 'lucide-react'
 import { generatePassword } from '@/lib/utils'
+import { broadcastRealtime } from '@/lib/realtime'
 import type { Warehouse, SystemUser } from '@/types'
 
 interface AddUserModalProps {
@@ -65,6 +66,7 @@ export function AddUserModal({ onClose, onSuccess }: AddUserModalProps) {
         setError(data.error || 'เกิดข้อผิดพลาด')
         return
       }
+      broadcastRealtime('user-updated', { userId: data.user?.id })
       onSuccess(data.user)
     } finally {
       setLoading(false)
