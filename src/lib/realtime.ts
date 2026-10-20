@@ -23,13 +23,13 @@ export interface RealtimePayload {
 let activeChannel: ReturnType<typeof supabase.channel> | null = null
 
 export function getOrCreateRealtimeChannel() {
+  if (typeof window === 'undefined') return null
   if (!activeChannel) {
     activeChannel = supabase.channel(REALTIME_CHANNEL_NAME, {
       config: {
         broadcast: { ack: true, self: true },
       },
     })
-    activeChannel.subscribe()
   }
   return activeChannel
 }
@@ -39,7 +39,10 @@ export function getOrCreateRealtimeChannel() {
  */
 export function broadcastRealtime(event: RealtimeEventType, payload: RealtimePayload = {}) {
   try {
+    if (typeof window === 'undefined') return
     const channel = getOrCreateRealtimeChannel()
+    if (!channel) return
+
     const enrichedPayload = {
       ...payload,
       timestamp: Date.now(),
@@ -53,13 +56,11 @@ export function broadcastRealtime(event: RealtimeEventType, payload: RealtimePay
     })
 
     // 2. กระจาย CustomEvent ภายในเบราว์เซอร์เดียวกันทันที (ไม่ต้องรอรอบ socket)
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(
-        new CustomEvent('dems:realtime', {
-          detail: { event, payload: enrichedPayload },
-        })
-      )
-    }
+    window.dispatchEvent(
+      new CustomEvent('dems:realtime', {
+        detail: { event, payload: enrichedPayload },
+      })
+    )
   } catch (err) {
     console.warn('Realtime broadcast error:', err)
   }

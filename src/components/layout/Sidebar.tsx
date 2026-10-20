@@ -19,7 +19,7 @@ import { LOGO_URL } from '@/lib/brand'
 import { useActiveWarehouse } from '@/lib/use-active-warehouse'
 
 interface SidebarProps {
-  session: AuthSession
+  session?: AuthSession | null
   isCollapsed: boolean
   onToggle: () => void
 }
@@ -59,16 +59,16 @@ export function Sidebar({ session, isCollapsed, onToggle }: SidebarProps) {
   }
 
   const roleLabel =
-    session.role === 'super_admin'
+    session?.role === 'super_admin'
       ? 'Super Admin'
-      : session.role === 'admin'
+      : session?.role === 'admin'
       ? 'Admin'
       : 'Payroll'
 
-  const [activeWarehouse] = useActiveWarehouse(session.warehouses?.[0] || '')
+  const [activeWarehouse] = useActiveWarehouse(session?.warehouses?.[0] || '')
   // หมายเหตุ: ไม่ตรวจกับ session.warehouses เพราะ JWT อาจเก่ากว่าคลังที่เพิ่งได้รับสิทธิ์
   // (หน้า Dropdown ตรวจสิทธิ์จาก DB และแก้ค่านี้ให้ถูกต้องอยู่แล้ว)
-  const userWarehouse = activeWarehouse || session.warehouses?.[0] || '—'
+  const userWarehouse = activeWarehouse || session?.warehouses?.[0] || '—'
 
   return (
     <aside
@@ -146,7 +146,7 @@ export function Sidebar({ session, isCollapsed, onToggle }: SidebarProps) {
         </div>
 
         {/* Group 2: การจัดการ */}
-        {adminNav.some((n) => n.roles.includes(session.role)) && (
+        {adminNav.some((n) => !!session?.role && n.roles.includes(session.role)) && (
           <div>
             {!isCollapsed && (
               <div className="px-3 pb-2 text-[11px] font-semibold text-[#5B6B85]">
@@ -155,7 +155,7 @@ export function Sidebar({ session, isCollapsed, onToggle }: SidebarProps) {
             )}
             <div className="space-y-1">
               {adminNav.map((item) => {
-                if (!item.roles.includes(session.role)) return null
+                if (!session?.role || !item.roles.includes(session.role)) return null
                 const Icon = item.icon
                 const isActive = pathname.startsWith(item.href)
                 return (
@@ -207,19 +207,19 @@ export function Sidebar({ session, isCollapsed, onToggle }: SidebarProps) {
           <div
             className={cn(
               'w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 shadow-sm',
-              session.role === 'super_admin' ? 'bg-[#7C3AED]' : 'bg-[#2E6FE0]'
+              session?.role === 'super_admin' ? 'bg-[#7C3AED]' : 'bg-[#2E6FE0]'
             )}
           >
-            {getInitials(session.name)}
+            {getInitials(session?.name || 'U')}
           </div>
 
           {!isCollapsed && (
             <div className="flex-1 min-w-0">
               <div className="text-sm font-semibold text-[#16233D] truncate leading-tight">
-                {session.name}
+                {session?.name || '—'}
               </div>
               <div className="text-xs text-[#5B6B85] truncate leading-tight mt-0.5">
-                {session.role === 'super_admin'
+                {session?.role === 'super_admin'
                   ? 'Super Admin · ทุกคลัง'
                   : `${roleLabel} · ${userWarehouse}`}
               </div>

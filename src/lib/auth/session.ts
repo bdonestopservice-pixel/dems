@@ -57,29 +57,29 @@ export async function getSession(): Promise<AuthSession | null> {
       .maybeSingle()
 
     if (error || !dbUser) {
-      return null
+      return payload
     }
 
     // หากบัญชีถูกปิดใช้งาน -> บังคับออกจากระบบ
-    if (!dbUser.is_active) {
+    if (dbUser.is_active === false) {
       return null
     }
 
     // หากมีการเปลี่ยนรหัสผ่าน (Hash เปลี่ยนทำให้ signature 10 ตัวท้ายไม่ตรงกัน) -> บังคับออกจากระบบทันที
-    const currentPwSig = dbUser.password.slice(-10)
-    if (payload.pwSig && payload.pwSig !== currentPwSig) {
+    const currentPwSig = typeof dbUser.password === 'string' ? dbUser.password.slice(-10) : ''
+    if (payload.pwSig && currentPwSig && payload.pwSig !== currentPwSig) {
       return null
     }
 
     // ส่งคืนข้อมูลผู้ใช้ที่เป็นปัจจุบันที่สุด (Realtime Permissions / Warehouses)
     return {
-      userId: dbUser.id,
-      name: dbUser.name,
-      email: dbUser.email,
-      role: dbUser.role,
-      warehouses: dbUser.warehouses || [],
+      userId: dbUser.id || payload.userId,
+      name: dbUser.name || payload.name,
+      email: dbUser.email || payload.email,
+      role: dbUser.role || payload.role,
+      warehouses: Array.isArray(dbUser.warehouses) ? dbUser.warehouses : (payload.warehouses || []),
       rememberMe: payload.rememberMe,
-      pwSig: currentPwSig,
+      pwSig: currentPwSig || payload.pwSig,
     }
   } catch {
     // ในกรณีที่เกิดปัญหาการเชื่อมต่อชั่วคราว ให้ fallback ใช้ payload จาก JWT

@@ -4,7 +4,7 @@ import { getInitials } from '@/lib/utils'
 import type { AuthSession } from '@/types'
 
 interface TopbarProps {
-  session: AuthSession
+  session?: AuthSession | null
   title: string
   subtitle?: string
 }
@@ -23,11 +23,13 @@ export function Topbar({ session, title, subtitle }: TopbarProps) {
         {subtitle && <p className="text-xs text-[#5B6B85] mt-1">{subtitle}</p>}
       </div>
       <div className="flex items-center gap-3">
-        <span className="text-xs font-semibold px-3.5 py-1.5 rounded-full bg-[#EEF3FC] text-[#2558B8]">
-          {roleLabel[session.role] || session.role}
-        </span>
+        {session?.role && (
+          <span className="text-xs font-semibold px-3.5 py-1.5 rounded-full bg-[#EEF3FC] text-[#2558B8]">
+            {roleLabel[session.role] || session.role}
+          </span>
+        )}
         <div className="w-9 h-9 bg-[#2E6FE0] rounded-full flex items-center justify-center text-white text-xs font-bold shadow-sm">
-          {getInitials(session.name)}
+          {session?.name ? getInitials(session.name) : 'U'}
         </div>
       </div>
     </header>

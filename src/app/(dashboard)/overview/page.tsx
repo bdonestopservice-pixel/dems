@@ -1,13 +1,15 @@
+import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth/session'
 import { Topbar } from '@/components/layout/Topbar'
 
 export default async function OverviewPage() {
   const session = await getSession()
+  if (!session) redirect('/login')
 
   return (
     <>
       <Topbar
-        session={session!}
+        session={session}
         title="ภาพรวม"
         subtitle="สรุปข้อมูลพนักงานและกิจกรรมวันนี้"
       />

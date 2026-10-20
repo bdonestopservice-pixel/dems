@@ -22,38 +22,40 @@ export async function GET(request: NextRequest) {
       .eq('id', session.userId)
       .maybeSingle()
 
-    if (!dbUser || !dbUser.is_active) {
+    if (dbUser && dbUser.is_active === false) {
       const res = NextResponse.json({ user: null, error: 'บัญชีถูกปิดใช้งาน' }, { status: 401 })
       res.cookies.delete(COOKIE_NAME)
       return res
     }
 
     // หากรหัสผ่านถูกเปลี่ยนแปลง ให้บังคับ logout
-    const currentPwSig = dbUser.password.slice(-10)
-    if (session.pwSig && session.pwSig !== currentPwSig) {
+    const currentPwSig = typeof dbUser?.password === 'string' ? dbUser.password.slice(-10) : ''
+    if (session.pwSig && currentPwSig && session.pwSig !== currentPwSig) {
       const res = NextResponse.json({ user: null, error: 'รหัสผ่านถูกเปลี่ยนแปลง กรุณาเข้าสู่ระบบใหม่' }, { status: 401 })
       res.cookies.delete(COOKIE_NAME)
       return res
     }
 
-    return NextResponse.json(
-      {
-        user: {
-          userId: dbUser.id,
-          name: dbUser.name,
-          email: dbUser.email,
-          role: dbUser.role,
-          warehouses: dbUser.warehouses || [],
-          rememberMe: session.rememberMe,
-          pwSig: currentPwSig,
+    if (dbUser) {
+      return NextResponse.json(
+        {
+          user: {
+            userId: dbUser.id || session.userId,
+            name: dbUser.name || session.name,
+            email: dbUser.email || session.email,
+            role: dbUser.role || session.role,
+            warehouses: Array.isArray(dbUser.warehouses) ? dbUser.warehouses : (session.warehouses || []),
+            rememberMe: session.rememberMe,
+            pwSig: currentPwSig || session.pwSig,
+          },
         },
-      },
-      {
-        headers: {
-          'Cache-Control': 'no-store, no-cache, must-revalidate',
-        },
-      }
-    )
+        {
+          headers: {
+            'Cache-Control': 'no-store, no-cache, must-revalidate',
+          },
+        }
+      )
+    }
   } catch {}
 
   return NextResponse.json(

@@ -22,7 +22,16 @@ const RealtimeContext = createContext<RealtimeContextValue | null>(null)
 export function useRealtimeSession() {
   const ctx = useContext(RealtimeContext)
   if (!ctx) {
-    throw new Error('useRealtimeSession must be used within RealtimeProvider')
+    return {
+      session: {
+        userId: '',
+        name: '',
+        email: '',
+        role: 'admin' as const,
+        warehouses: [],
+      },
+      refreshSession: async () => null,
+    }
   }
   return ctx
 }
@@ -65,6 +74,7 @@ export function RealtimeProvider({ initialSession, children }: RealtimeProviderP
   const router = useRouter()
   const sessionRef = useRef(session)
   sessionRef.current = session
+  const isSubscribedRef = useRef(false)
 
   const refreshSession = useCallback(async (): Promise<AuthSession | null> => {
     try {
@@ -88,116 +98,130 @@ export function RealtimeProvider({ initialSession, children }: RealtimeProviderP
   }, [router])
 
   useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (isSubscribedRef.current) return
+
     const channel = getOrCreateRealtimeChannel()
+    if (!channel) return
 
-    // 1. รับสัญญาณ Realtime Broadcast
-    const broadcastSubscription = channel
-      .on('broadcast', { event: 'user-updated' }, async ({ payload }: { payload: RealtimePayload }) => {
-        const curUser = sessionRef.current
-        if (payload?.userId === curUser.userId) {
-          if (payload.passwordChanged) {
-            setNotification({
-              title: 'รหัสผ่านถูกเปลี่ยนแปลง',
-              text: 'รหัสผ่านของคุณถูกเปลี่ยนโดยผู้ดูแลระบบ กำลังนำคุณไปยังหน้าเข้าสู่ระบบ...',
-              type: 'warning',
-            })
-            setTimeout(() => {
-              window.location.href = '/login'
-            }, 1800)
-            return
-          }
-
-          if (payload.is_active === false) {
-            setNotification({
-              title: 'บัญชีถูกปิดการใช้งาน',
-              text: 'บัญชีของคุณถูกระงับสิทธิ์การใช้งานโดยผู้ดูแลระบบ',
-              type: 'warning',
-            })
-            setTimeout(() => {
-              window.location.href = '/login'
-            }, 1800)
-            return
-          }
-
-          // กรณีอัปเดตสิทธิ์คลัง (Warehouses grant) หรือข้อมูลอื่น
-          const updated = await refreshSession()
-          if (updated) {
-            const whList = updated.warehouses?.length ? updated.warehouses.join(', ') : 'ไม่มีคลัง'
-            setNotification({
-              title: 'สิทธิ์คลังได้รับการอัปเดตแบบ Realtime',
-              text: `ผู้ดูแลระบบได้ปรับสิทธิ์คลังของคุณเป็น: ${whList}`,
-              type: 'success',
-            })
-            setTimeout(() => setNotification(null), 5000)
-
-            // ซิงค์ Active Warehouse ถ้าคลังที่เลือกอยู่เดิมถูกตัดสิทธิ์
-            try {
-              const currentActive = window.localStorage.getItem('dems_active_warehouse')
-              if (currentActive && !updated.warehouses.includes(currentActive)) {
-                const nextWh = updated.warehouses[0] || ''
-                window.localStorage.setItem('dems_active_warehouse', nextWh)
-                window.dispatchEvent(new CustomEvent('dems:active-warehouse', { detail: nextWh }))
+    try {
+      if (channel.state !== 'joined' && channel.state !== 'joining') {
+        // 1. รับสัญญาณ Realtime Broadcast
+        channel
+          .on('broadcast', { event: 'user-updated' }, async ({ payload }: { payload: RealtimePayload }) => {
+            const curUser = sessionRef.current
+            if (payload?.userId === curUser.userId) {
+              if (payload.passwordChanged) {
+                setNotification({
+                  title: 'รหัสผ่านถูกเปลี่ยนแปลง',
+                  text: 'รหัสผ่านของคุณถูกเปลี่ยนโดยผู้ดูแลระบบ กำลังนำคุณไปยังหน้าเข้าสู่ระบบ...',
+                  type: 'warning',
+                })
+                setTimeout(() => {
+                  window.location.href = '/login'
+                }, 1800)
+                return
               }
-            } catch {}
 
-            router.refresh()
+              if (payload.is_active === false) {
+                setNotification({
+                  title: 'บัญชีถูกปิดการใช้งาน',
+                  text: 'บัญชีของคุณถูกระงับสิทธิ์การใช้งานโดยผู้ดูแลระบบ',
+                  type: 'warning',
+                })
+                setTimeout(() => {
+                  window.location.href = '/login'
+                }, 1800)
+                return
+              }
+
+              // กรณีอัปเดตสิทธิ์คลัง (Warehouses grant) หรือข้อมูลอื่น
+              const updated = await refreshSession()
+              if (updated) {
+                const whList = updated.warehouses?.length ? updated.warehouses.join(', ') : 'ไม่มีคลัง'
+                setNotification({
+                  title: 'สิทธิ์คลังได้รับการอัปเดตแบบ Realtime',
+                  text: `ผู้ดูแลระบบได้ปรับสิทธิ์คลังของคุณเป็น: ${whList}`,
+                  type: 'success',
+                })
+                setTimeout(() => setNotification(null), 5000)
+
+                // ซิงค์ Active Warehouse ถ้าคลังที่เลือกอยู่เดิมถูกตัดสิทธิ์
+                try {
+                  const currentActive = window.localStorage.getItem('dems_active_warehouse')
+                  if (currentActive && !updated.warehouses.includes(currentActive)) {
+                    const nextWh = updated.warehouses[0] || ''
+                    window.localStorage.setItem('dems_active_warehouse', nextWh)
+                    window.dispatchEvent(new CustomEvent('dems:active-warehouse', { detail: nextWh }))
+                  }
+                } catch {}
+
+                router.refresh()
+              }
+            }
+          })
+          .on('broadcast', { event: '*' }, (msg) => {
+            // กระจาย event ไปยัง window เพื่อให้ hooks ในแต่ละหน้าทำงาน
+            if (typeof window !== 'undefined' && msg.event) {
+              window.dispatchEvent(
+                new CustomEvent('dems:realtime', {
+                  detail: { event: msg.event, payload: msg.payload },
+                })
+              )
+            }
+          })
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, async (payload) => {
+            const newRecord = payload.new as any
+            const curUser = sessionRef.current
+            if (newRecord && newRecord.id === curUser.userId) {
+              await refreshSession()
+              router.refresh()
+            }
+            window.dispatchEvent(
+              new CustomEvent('dems:realtime', {
+                detail: { event: 'user-updated', payload: { userId: newRecord?.id } },
+              })
+            )
+          })
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'plans' }, () => {
+            window.dispatchEvent(
+              new CustomEvent('dems:realtime', {
+                detail: { event: 'plan-updated', payload: {} },
+              })
+            )
+          })
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'plan_employees' }, () => {
+            window.dispatchEvent(
+              new CustomEvent('dems:realtime', {
+                detail: { event: 'plan-roster-updated', payload: {} },
+              })
+            )
+          })
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'employees' }, () => {
+            window.dispatchEvent(
+              new CustomEvent('dems:realtime', {
+                detail: { event: 'employee-updated', payload: {} },
+              })
+            )
+          })
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'namelist' }, () => {
+            window.dispatchEvent(
+              new CustomEvent('dems:realtime', {
+                detail: { event: 'namelist-updated', payload: {} },
+              })
+            )
+          })
+
+        channel.subscribe((status, err) => {
+          if (err) {
+            console.warn('Realtime channel subscription status:', status, err)
           }
-        }
-      })
-      .on('broadcast', { event: '*' }, (msg) => {
-        // กระจาย event ไปยัง window เพื่อให้ hooks ในแต่ละหน้าทำงาน
-        if (typeof window !== 'undefined' && msg.event) {
-          window.dispatchEvent(
-            new CustomEvent('dems:realtime', {
-              detail: { event: msg.event, payload: msg.payload },
-            })
-          )
-        }
-      })
-
-    // 2. รับสัญญาณ Postgres Changes จากฐานข้อมูล Supabase โดยตรง (CDC)
-    channel
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, async (payload) => {
-        const newRecord = payload.new as any
-        const curUser = sessionRef.current
-        if (newRecord && newRecord.id === curUser.userId) {
-          await refreshSession()
-          router.refresh()
-        }
-        window.dispatchEvent(
-          new CustomEvent('dems:realtime', {
-            detail: { event: 'user-updated', payload: { userId: newRecord?.id } },
-          })
-        )
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'plans' }, () => {
-        window.dispatchEvent(
-          new CustomEvent('dems:realtime', {
-            detail: { event: 'plan-updated', payload: {} },
-          })
-        )
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'plan_employees' }, () => {
-        window.dispatchEvent(
-          new CustomEvent('dems:realtime', {
-            detail: { event: 'plan-roster-updated', payload: {} },
-          })
-        )
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'employees' }, () => {
-        window.dispatchEvent(
-          new CustomEvent('dems:realtime', {
-            detail: { event: 'employee-updated', payload: {} },
-          })
-        )
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'namelist' }, () => {
-        window.dispatchEvent(
-          new CustomEvent('dems:realtime', {
-            detail: { event: 'namelist-updated', payload: {} },
-          })
-        )
-      })
+        })
+        isSubscribedRef.current = true
+      }
+    } catch (err) {
+      console.warn('Realtime setup error:', err)
+    }
 
     return () => {
       // ไม่ remove channel เพื่อแชร์ connection เดียวกันตลอด session
