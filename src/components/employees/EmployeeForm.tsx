@@ -75,10 +75,10 @@ export function EmployeeForm({ initialData, mode, session }: EmployeeFormProps) 
     address_zipcode: initialData?.address_zipcode || '',
     warehouse: initialData?.warehouse || 'SOCE',
     start_date: isoToThaiDisplayDate(initialData?.start_date, false), // แสดงเป็น ค.ศ.
-    phone: initialData?.phone || '',
+    phone: initialData?.phone ? initialData.phone.replace(/[^0-9]/g, '').slice(0, 10) : '',
     promptpay_status: initialData?.promptpay_status || 'ยืนยันแล้ว',
     bank_id: initialData?.bank_id || '',
-    bank_account: initialData?.bank_account || '',
+    bank_account: initialData?.bank_account ? initialData.bank_account.replace(/[^0-9]/g, '') : '',
     note: initialData?.note || '',
   })
 
@@ -166,14 +166,15 @@ export function EmployeeForm({ initialData, mode, session }: EmployeeFormProps) 
       return
     }
 
-    // กรณีไม่ยืนยันพร้อมเพย์ บังคับระบุธนาคารและเลขที่บัญชี
+    // กรณีไม่ยืนยันพร้อมเพย์ บังคับระบุธนาคารและเลขที่บัญชี (ตัวเลขเท่านั้น)
+    const cleanBankAccount = formData.bank_account ? formData.bank_account.replace(/[^0-9]/g, '') : ''
     if (formData.promptpay_status === 'ยังไม่ยืนยัน') {
       if (!formData.bank_id) {
         setError('กรณีไม่ยืนยันพร้อมเพย์ กรุณาเลือกธนาคาร')
         return
       }
-      if (!formData.bank_account || !formData.bank_account.trim()) {
-        setError('กรณีไม่ยืนยันพร้อมเพย์ กรุณากรอกเลขที่บัญชีธนาคาร')
+      if (!cleanBankAccount) {
+        setError('กรณีไม่ยืนยันพร้อมเพย์ กรุณากรอกเลขที่บัญชีธนาคาร (เฉพาะตัวเลข ไม่ต้องมีขีด)')
         return
       }
     }
@@ -189,6 +190,14 @@ export function EmployeeForm({ initialData, mode, session }: EmployeeFormProps) 
         return
       }
 
+      // Validate phone (exactly 10 digits, numeric only)
+      const cleanPhone = formData.phone.replace(/[^0-9]/g, '')
+      if (cleanPhone.length !== 10) {
+        setError('เบอร์ติดต่อต้องเป็นตัวเลข 10 หลัก (เฉพาะตัวเลขเท่านั้น เช่น 0812345678)')
+        setSaving(false)
+        return
+      }
+
       // Convert date strings
       const isoDob = thaiDisplayToIsoDate(formData.dob, true)
       const isoStartDate = thaiDisplayToIsoDate(formData.start_date, false)
@@ -196,6 +205,8 @@ export function EmployeeForm({ initialData, mode, session }: EmployeeFormProps) 
       const payload = {
         ...formData,
         id_card: cleanIdCard,
+        phone: cleanPhone,
+        bank_account: cleanBankAccount || null,
         dob: isoDob,
         start_date: isoStartDate,
       }
@@ -678,15 +689,25 @@ export function EmployeeForm({ initialData, mode, session }: EmployeeFormProps) 
 
             {/* เบอร์ติดต่อ */}
             <div>
-              <label className="label text-xs label-required">เบอร์ติดต่อ</label>
+              <label className="label text-xs label-required">เบอร์ติดต่อ (10 หลัก)</label>
               <input
-                type="text"
+                type="tel"
+                inputMode="numeric"
+                maxLength={10}
                 value={formData.phone}
-                onChange={(e) => handleChange('phone', e.target.value)}
-                placeholder="เช่น 081-234-5678"
-                className="input text-sm"
+                onChange={(e) => handleChange('phone', e.target.value.replace(/[^0-9]/g, '').slice(0, 10))}
+                placeholder="กรอกตัวเลข 10 หลัก เช่น 0812345678"
+                className={cn(
+                  'input text-sm',
+                  formData.phone && formData.phone.length > 0 && formData.phone.length < 10 && 'border-[#E5484D]/60'
+                )}
                 required
               />
+              {formData.phone && formData.phone.length > 0 && formData.phone.length < 10 && (
+                <span className="text-[11px] text-[#E5484D] mt-1 block">
+                  กรอกแล้ว {formData.phone.length}/10 หลัก (ต้องมี 10 หลัก)
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -740,13 +761,14 @@ export function EmployeeForm({ initialData, mode, session }: EmployeeFormProps) 
             {/* เลขที่บัญชี */}
             <div>
               <label className={cn('label text-xs', formData.promptpay_status === 'ยังไม่ยืนยัน' && 'label-required')}>
-                เลขที่บัญชี
+                เลขที่บัญชี (เฉพาะตัวเลข)
               </label>
               <input
                 type="text"
+                inputMode="numeric"
                 value={formData.bank_account}
-                onChange={(e) => handleChange('bank_account', e.target.value)}
-                placeholder="เช่น 123-4-56789-0"
+                onChange={(e) => handleChange('bank_account', e.target.value.replace(/[^0-9]/g, ''))}
+                placeholder="กรอกเฉพาะตัวเลข (ไม่ต้องมีขีด) เช่น 1234567890"
                 className={cn(
                   'input text-sm',
                   formData.promptpay_status === 'ยังไม่ยืนยัน' && !formData.bank_account && 'border-[#E5484D]/60'

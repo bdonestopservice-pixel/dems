@@ -170,23 +170,33 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 1.1 Validate unconfirmed promptpay requires bank & account
-    if (promptpay_status === 'ยังไม่ยืนยัน') {
-      if (!bank_id || !bank_account || !bank_account.trim()) {
-        return NextResponse.json(
-          { error: 'กรณีไม่ยืนยันพร้อมเพย์ จำเป็นต้องระบุธนาคารและเลขที่บัญชี' },
-          { status: 400 }
-        )
-      }
-    }
-
-    // Clean id_card & phone
+    // Clean id_card, phone & bank_account
     const cleanIdCard = id_card.replace(/[^0-9]/g, '')
     if (cleanIdCard.length !== 13) {
       return NextResponse.json(
         { error: 'เลขบัตรประชาชนต้องเป็นตัวเลข 13 หลัก' },
         { status: 400 }
       )
+    }
+
+    const cleanPhone = phone ? phone.replace(/[^0-9]/g, '') : ''
+    if (cleanPhone.length !== 10) {
+      return NextResponse.json(
+        { error: 'เบอร์ติดต่อต้องเป็นตัวเลข 10 หลัก (เฉพาะตัวเลขเท่านั้น เช่น 0812345678)' },
+        { status: 400 }
+      )
+    }
+
+    const cleanBankAccount = bank_account ? bank_account.replace(/[^0-9]/g, '') : null
+
+    // 1.1 Validate unconfirmed promptpay requires bank & account
+    if (promptpay_status === 'ยังไม่ยืนยัน') {
+      if (!bank_id || !cleanBankAccount) {
+        return NextResponse.json(
+          { error: 'กรณีไม่ยืนยันพร้อมเพย์ จำเป็นต้องระบุธนาคารและเลขที่บัญชี (เฉพาะตัวเลข ไม่ต้องมีขีด)' },
+          { status: 400 }
+        )
+      }
     }
 
     const supabase = createServerSupabaseClient()
@@ -247,7 +257,7 @@ export async function POST(request: NextRequest) {
       dob,
       warehouse,
       start_date,
-      phone: phone.trim(),
+      phone: cleanPhone,
       ops_id: ops_id?.trim() || null,
       address_no: address_no?.trim() || null,
       address_moo: address_moo?.trim() || null,
@@ -260,7 +270,7 @@ export async function POST(request: NextRequest) {
       address_zipcode: address_zipcode?.trim() || null,
       address_full: address_full?.trim() || null,
       bank_id: bank_id || null,
-      bank_account: bank_account?.trim() || null,
+      bank_account: cleanBankAccount || null,
       promptpay_status: promptpay_status || 'ยังไม่ยืนยัน',
       note: note?.trim() || null,
       is_active: true,

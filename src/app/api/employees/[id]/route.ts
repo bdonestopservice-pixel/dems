@@ -72,11 +72,22 @@ export async function PUT(
       )
     }
 
+    // Clean and validate phone (10 digits)
+    const cleanPhone = body.phone ? body.phone.replace(/[^0-9]/g, '') : ''
+    if (cleanPhone.length !== 10) {
+      return NextResponse.json(
+        { error: 'เบอร์ติดต่อต้องเป็นตัวเลข 10 หลัก (เฉพาะตัวเลขเท่านั้น เช่น 0812345678)' },
+        { status: 400 }
+      )
+    }
+
+    const cleanBankAccount = body.bank_account ? body.bank_account.replace(/[^0-9]/g, '') : null
+
     // Validate unconfirmed promptpay requires bank & account
     if (body.promptpay_status === 'ยังไม่ยืนยัน') {
-      if (!body.bank_id || !body.bank_account || !body.bank_account.trim()) {
+      if (!body.bank_id || !cleanBankAccount) {
         return NextResponse.json(
-          { error: 'กรณีไม่ยืนยันพร้อมเพย์ จำเป็นต้องระบุธนาคารและเลขที่บัญชี' },
+          { error: 'กรณีไม่ยืนยันพร้อมเพย์ จำเป็นต้องระบุธนาคารและเลขที่บัญชี (เฉพาะตัวเลข ไม่ต้องมีขีด)' },
           { status: 400 }
         )
       }
@@ -95,7 +106,7 @@ export async function PUT(
       dob: body.dob,
       warehouse: body.warehouse,
       start_date: body.start_date,
-      phone: body.phone.trim(),
+      phone: cleanPhone,
       ops_id: body.ops_id?.trim() || null,
       address_no: body.address_no?.trim() || null,
       address_moo: body.address_moo?.trim() || null,
@@ -108,7 +119,7 @@ export async function PUT(
       address_zipcode: body.address_zipcode?.trim() || null,
       address_full: body.address_full?.trim() || null,
       bank_id: body.bank_id || null,
-      bank_account: body.bank_account?.trim() || null,
+      bank_account: cleanBankAccount || null,
       promptpay_status: body.promptpay_status || 'ยังไม่ยืนยัน',
       note: body.note?.trim() || null,
       is_active: body.is_active !== undefined ? body.is_active : true,
