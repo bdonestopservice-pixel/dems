@@ -163,8 +163,8 @@ export default function LoginPage() {
                   onClick={() => setRememberMe(!rememberMe)}
                   className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
                     rememberMe
-                      ? 'bg-blue-600 border-blue-600'
-                      : 'border-gray-300 group-hover:border-blue-400'
+                      ? 'bg-[#7C3AED] border-[#7C3AED]'
+                      : 'border-gray-300 group-hover:border-[#7C3AED]'
                   }`}
                 >
                   {rememberMe && (

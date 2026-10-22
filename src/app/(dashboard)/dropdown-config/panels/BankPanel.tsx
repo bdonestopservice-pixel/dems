@@ -325,7 +325,7 @@ export function BankPanel({ warehouses: initialWarehouses, onCountChange }: Prop
                           <div className="flex flex-wrap items-center gap-1.5">
                             <label
                               className={cn(
-                                'flex items-center gap-1 px-2.5 py-1 rounded-lg border text-xs font-medium cursor-pointer transition-colors',
+                                'flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-medium cursor-pointer transition-colors select-none',
                                 isEditAllSelected
                                   ? 'border-[#7C3AED] bg-[#FAF5FF] text-[#7C3AED] font-semibold'
                                   : 'border-[#E1E6EF] bg-white text-[#16233D] hover:bg-[#F4F6FA]'
@@ -335,8 +335,20 @@ export function BankPanel({ warehouses: initialWarehouses, onCountChange }: Prop
                                 type="checkbox"
                                 checked={isEditAllSelected}
                                 onChange={toggleEditSelectAll}
-                                className="rounded text-[#7C3AED] focus:ring-[#7C3AED] w-3.5 h-3.5"
+                                className="sr-only"
                               />
+                              <span
+                                className={cn(
+                                  'w-3.5 h-3.5 rounded flex items-center justify-center transition-all flex-shrink-0',
+                                  isEditAllSelected
+                                    ? 'bg-[#7C3AED] border border-[#7C3AED] text-white shadow-xs'
+                                    : 'border border-[#CBD5E1] bg-white'
+                                )}
+                              >
+                                {isEditAllSelected && (
+                                  <Check size={10} strokeWidth={3.5} className="text-white" />
+                                )}
+                              </span>
                               <span>เลือกทั้งหมด</span>
                             </label>
                             {allWarehouseIds.map((whId) => {
@@ -345,7 +357,7 @@ export function BankPanel({ warehouses: initialWarehouses, onCountChange }: Prop
                                 <label
                                   key={whId}
                                   className={cn(
-                                    'flex items-center gap-1 px-2 py-1 rounded-lg border text-xs font-medium cursor-pointer transition-colors',
+                                    'flex items-center gap-1.5 px-2 py-1 rounded-lg border text-xs font-medium cursor-pointer transition-colors select-none',
                                     checked
                                       ? 'border-[#7C3AED] bg-[#FAF5FF] text-[#7C3AED] font-semibold'
                                       : 'border-[#E1E6EF] bg-white text-[#16233D] hover:bg-[#F4F6FA]'
@@ -355,8 +367,20 @@ export function BankPanel({ warehouses: initialWarehouses, onCountChange }: Prop
                                     type="checkbox"
                                     checked={checked}
                                     onChange={() => toggleEditWarehouse(whId)}
-                                    className="rounded text-[#7C3AED] focus:ring-[#7C3AED] w-3.5 h-3.5"
+                                    className="sr-only"
                                   />
+                                  <span
+                                    className={cn(
+                                      'w-3.5 h-3.5 rounded flex items-center justify-center transition-all flex-shrink-0',
+                                      checked
+                                        ? 'bg-[#7C3AED] border border-[#7C3AED] text-white shadow-xs'
+                                        : 'border border-[#CBD5E1] bg-white'
+                                    )}
+                                  >
+                                    {checked && (
+                                      <Check size={10} strokeWidth={3.5} className="text-white" />
+                                    )}
+                                  </span>
                                   <span>{whId}</span>
                                 </label>
                               )
@@ -452,7 +476,7 @@ export function BankPanel({ warehouses: initialWarehouses, onCountChange }: Prop
           {/* เลือกทั้งหมด */}
           <label
             className={cn(
-              'flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-medium cursor-pointer transition-all',
+              'flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-medium cursor-pointer transition-all select-none',
               (editingId ? isEditAllSelected : isNewAllSelected)
                 ? 'border-[#7C3AED] bg-[#FAF5FF] text-[#7C3AED] font-semibold ring-1 ring-[#7C3AED]/20 shadow-sm'
                 : 'border-[#E1E6EF] bg-white text-[#16233D] hover:bg-[#F4F6FA]'
@@ -462,8 +486,20 @@ export function BankPanel({ warehouses: initialWarehouses, onCountChange }: Prop
               type="checkbox"
               checked={editingId ? isEditAllSelected : isNewAllSelected}
               onChange={editingId ? toggleEditSelectAll : toggleNewSelectAll}
-              className="rounded text-[#7C3AED] focus:ring-[#7C3AED] w-4 h-4"
+              className="sr-only"
             />
+            <span
+              className={cn(
+                'w-4 h-4 rounded-md flex items-center justify-center transition-all flex-shrink-0',
+                (editingId ? isEditAllSelected : isNewAllSelected)
+                  ? 'bg-[#7C3AED] border border-[#7C3AED] text-white shadow-xs'
+                  : 'border border-[#CBD5E1] bg-white'
+              )}
+            >
+              {(editingId ? isEditAllSelected : isNewAllSelected) && (
+                <Check size={11} strokeWidth={3.5} className="text-white" />
+              )}
+            </span>
             <span>เลือกทั้งหมด</span>
           </label>
 
@@ -478,7 +514,7 @@ export function BankPanel({ warehouses: initialWarehouses, onCountChange }: Prop
               <label
                 key={whId}
                 className={cn(
-                  'flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-medium cursor-pointer transition-all',
+                  'flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-medium cursor-pointer transition-all select-none',
                   isChecked
                     ? 'border-[#7C3AED] bg-[#FAF5FF] text-[#7C3AED] font-semibold ring-1 ring-[#7C3AED]/20 shadow-sm'
                     : 'border-[#E1E6EF] bg-white text-[#16233D] hover:bg-[#F4F6FA]'
@@ -490,8 +526,18 @@ export function BankPanel({ warehouses: initialWarehouses, onCountChange }: Prop
                   onChange={() =>
                     editingId ? toggleEditWarehouse(whId) : toggleNewWarehouse(whId)
                   }
-                  className="rounded text-[#7C3AED] focus:ring-[#7C3AED] w-4 h-4"
+                  className="sr-only"
                 />
+                <span
+                  className={cn(
+                    'w-4 h-4 rounded-md flex items-center justify-center transition-all flex-shrink-0',
+                    isChecked
+                      ? 'bg-[#7C3AED] border border-[#7C3AED] text-white shadow-xs'
+                      : 'border border-[#CBD5E1] bg-white'
+                  )}
+                >
+                  {isChecked && <Check size={11} strokeWidth={3.5} className="text-white" />}
+                </span>
                 <span>{getWarehouseLabel(whId, whObj?.name)}</span>
               </label>
             )
