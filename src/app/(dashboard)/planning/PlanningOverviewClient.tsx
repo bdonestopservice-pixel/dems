@@ -7,6 +7,7 @@ import { Topbar } from '@/components/layout/Topbar'
 import { formatThaiDate } from '@/lib/utils'
 import { EditPlanModal } from '@/components/planning/EditPlanModal'
 import { DeletePlanModal } from '@/components/planning/DeletePlanModal'
+import { DateInput } from '@/components/ui/DateInput'
 import { broadcastRealtime } from '@/lib/realtime'
 import { useRealtimeListener, useRealtimeSession } from '@/components/providers/RealtimeProvider'
 import type { AuthSession, Plan, Warehouse } from '@/types'
@@ -142,15 +143,13 @@ export function PlanningOverviewClient({ session: initialSession }: PlanningOver
           {/* Left filters */}
           <div className="flex flex-wrap items-center gap-3">
             {/* Date filter */}
-            <div className="relative">
-              <input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="bg-white border border-[#E1E6EF] text-[#16233D] text-xs font-medium rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#2E6FE0] shadow-sm cursor-pointer"
-                title="กรองตั้งแต่วันที่"
-              />
-            </div>
+            <DateInput
+              value={selectedDate}
+              onChange={(val) => setSelectedDate(val)}
+              clearable={true}
+              placeholder="วว/ดด/ปปปป"
+              title="กรองตามวันที่ (วัน/เดือน/ปี)"
+            />
 
             {/* Warehouse filter */}
             <select

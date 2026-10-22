@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { X, Check, Loader2, AlertCircle, Calendar, Clock, Building2, Users } from 'lucide-react'
+import { DateInput } from '@/components/ui/DateInput'
 import type { Plan, Department, Shift } from '@/types'
 
 interface EditPlanModalProps {
@@ -142,12 +143,11 @@ export function EditPlanModal({ isOpen, onClose, plan, onUpdated }: EditPlanModa
               <Calendar className="w-3.5 h-3.5 text-[#5B6B85]" />
               วันที่
             </label>
-            <input
-              type="date"
+            <DateInput
               value={date}
-              onChange={(e) => setDate(e.target.value)}
+              onChange={setDate}
               required
-              className="w-full bg-white border border-[#E1E6EF] text-[#16233D] text-xs font-medium rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#2E6FE0] shadow-sm"
+              className="w-full"
             />
           </div>
 

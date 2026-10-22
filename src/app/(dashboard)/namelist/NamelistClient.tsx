@@ -19,6 +19,7 @@ import { employeeFullName, formatShiftRange } from '@/lib/namelist'
 import { broadcastRealtime } from '@/lib/realtime'
 import { useRealtimeListener, useRealtimeSession } from '@/components/providers/RealtimeProvider'
 import { cn } from '@/lib/utils'
+import { DateInput } from '@/components/ui/DateInput'
 import type { AuthSession, NamelistEntry, Warehouse } from '@/types'
 
 interface NamelistClientProps {
@@ -273,18 +274,16 @@ export function NamelistClient({ session: initialSession, initialDate, initialWa
       <div className="flex-1 overflow-y-auto px-8 pb-10">
         {/* Filter bar */}
         <div className="flex flex-col lg:flex-row lg:items-center gap-3 mb-4">
-          <input
-            type="date"
+          <DateInput
             value={date}
-            onChange={(e) => {
-              if (e.target.value) {
-                setDate(e.target.value)
+            onChange={(val) => {
+              if (val) {
+                setDate(val)
                 setSelectedDept(null)
                 setPage(1)
               }
             }}
-            className="bg-white border border-[#E1E6EF] text-[#16233D] text-xs font-medium rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#2E6FE0] shadow-sm cursor-pointer"
-            title="เลือกวันที่"
+            title="เลือกวันที่ (วัน/เดือน/ปี)"
           />
 
           <select

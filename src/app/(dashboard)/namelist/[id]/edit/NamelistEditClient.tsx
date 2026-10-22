@@ -7,6 +7,7 @@ import { ChevronLeft, Check, Trash2, Loader2, AlertCircle } from 'lucide-react'
 import { Topbar } from '@/components/layout/Topbar'
 import { employeeFullName, formatShiftRange } from '@/lib/namelist'
 import { formatThaiDate, getInitials } from '@/lib/utils'
+import { DateInput } from '@/components/ui/DateInput'
 import type { AuthSession, NamelistEntry, Department, Shift } from '@/types'
 
 interface NamelistEditClientProps {
@@ -209,7 +210,7 @@ export function NamelistEditClient({ session, entryId, backWarehouse }: Namelist
           <div className="bg-white rounded-2xl border border-[#E1E6EF] shadow-sm p-5 space-y-4">
             <div>
               <label className="block text-[11px] font-bold text-[#16233D] mb-1.5">วันที่</label>
-              <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={fieldCls} />
+              <DateInput value={date} onChange={setDate} className="w-full" />
               {date !== entry.date && (
                 <p className="text-[11px] text-[#B45F17] mt-1">
                   รายการนี้จะย้ายไปแสดงในวันที่ {formatThaiDate(date)} (ไม่ค้างในวันเดิม)

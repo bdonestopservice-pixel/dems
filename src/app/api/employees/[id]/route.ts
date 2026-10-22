@@ -72,6 +72,17 @@ export async function PUT(
       )
     }
 
+    // Check user's warehouse permission if not super_admin
+    if (
+      session.role !== 'super_admin' &&
+      (!session.warehouses || !session.warehouses.includes(body.warehouse))
+    ) {
+      return NextResponse.json(
+        { error: `คุณไม่มีสิทธิ์แก้ไขหรือย้ายพนักงานไปยังคลัง ${body.warehouse}` },
+        { status: 403 }
+      )
+    }
+
     // Clean and validate phone (10 digits)
     const cleanPhone = body.phone ? body.phone.replace(/[^0-9]/g, '') : ''
     if (cleanPhone.length !== 10) {

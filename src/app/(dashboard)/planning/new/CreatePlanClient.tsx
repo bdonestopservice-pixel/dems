@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { ChevronLeft, Plus, X, Check, AlertCircle } from 'lucide-react'
 import { Topbar } from '@/components/layout/Topbar'
 import { todayLocal } from '@/lib/utils'
+import { DateInput } from '@/components/ui/DateInput'
 import type { AuthSession, Warehouse, Shift, Department } from '@/types'
 
 interface CreatePlanClientProps {
@@ -277,13 +278,12 @@ export function CreatePlanClient({ session }: CreatePlanClientProps) {
                     >
                       {/* Date */}
                       <td className="py-3 pr-3">
-                        <input
-                          type="date"
+                        <DateInput
                           value={r.date}
-                          onChange={(e) => updateRow(r.id, 'date', e.target.value)}
-                          className={`w-full bg-white border ${
-                            isInvalid && !r.date ? 'border-[#E5484D]' : 'border-[#E1E6EF]'
-                          } text-[#16233D] text-xs font-medium rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#2E6FE0] shadow-sm`}
+                          onChange={(val) => updateRow(r.id, 'date', val)}
+                          className={`w-full ${
+                            isInvalid && !r.date ? 'border-[#E5484D]' : ''
+                          }`}
                         />
                       </td>
 

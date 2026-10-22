@@ -170,6 +170,17 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Check user's warehouse permission if not super_admin
+    if (
+      session.role !== 'super_admin' &&
+      (!session.warehouses || !session.warehouses.includes(warehouse))
+    ) {
+      return NextResponse.json(
+        { error: `คุณไม่มีสิทธิ์เพิ่มพนักงานในคลัง ${warehouse}` },
+        { status: 403 }
+      )
+    }
+
     // Clean id_card, phone & bank_account
     const cleanIdCard = id_card.replace(/[^0-9]/g, '')
     if (cleanIdCard.length !== 13) {

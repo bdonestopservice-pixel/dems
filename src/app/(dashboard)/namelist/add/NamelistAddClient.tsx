@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { ChevronLeft, Search, Plus, Loader2, AlertCircle, Users } from 'lucide-react'
 import { Topbar } from '@/components/layout/Topbar'
 import { employeeFullName, formatShiftRange } from '@/lib/namelist'
+import { DateInput } from '@/components/ui/DateInput'
 import type { AuthSession, Warehouse, Department, Shift } from '@/types'
 
 interface NamelistAddClientProps {
@@ -258,11 +259,10 @@ export function NamelistAddClient({ session, initialDate, initialWarehouse }: Na
           <div className="flex flex-col lg:flex-row lg:items-end gap-4">
             <div>
               <label className="block text-[11px] font-bold text-[#5B6B85] mb-1.5">วันที่</label>
-              <input
-                type="date"
+              <DateInput
                 value={date}
-                onChange={(e) => e.target.value && setDate(e.target.value)}
-                className={fieldCls}
+                onChange={(val) => val && setDate(val)}
+                className="w-full sm:w-auto"
               />
             </div>
             <div>

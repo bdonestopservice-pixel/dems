@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { ChevronLeft, Loader2, Save, X, AlertCircle, Check } from 'lucide-react'
 import { cn, getInitials } from '@/lib/utils'
 import { broadcastRealtime } from '@/lib/realtime'
-import { useRealtimeListener } from '@/components/providers/RealtimeProvider'
+import { useRealtimeListener, useRealtimeSession } from '@/components/providers/RealtimeProvider'
 import type { Employee, Warehouse, Bank, AuthSession } from '@/types'
 
 interface EmployeeFormProps {
@@ -47,8 +47,11 @@ function thaiDisplayToIsoDate(displayStr?: string, isBuddhistYear = false): stri
   return displayStr
 }
 
-export function EmployeeForm({ initialData, mode, session }: EmployeeFormProps) {
+export function EmployeeForm({ initialData, mode, session: propSession }: EmployeeFormProps) {
   const router = useRouter()
+  const { session: realtimeSession } = useRealtimeSession()
+  const session = propSession || realtimeSession
+
   const [saving, setSaving] = useState(false)
   const [showSuccessModal, setShowSuccessModal] = useState(false)
   const [error, setError] = useState('')
@@ -75,7 +78,10 @@ export function EmployeeForm({ initialData, mode, session }: EmployeeFormProps) 
     address_amphoe: initialData?.address_amphoe || '',
     address_province: initialData?.address_province || '',
     address_zipcode: initialData?.address_zipcode || '',
-    warehouse: initialData?.warehouse || 'SOCE',
+    warehouse:
+      initialData?.warehouse ||
+      (session && session.role !== 'super_admin' && session.warehouses?.[0]) ||
+      'SOCE',
     start_date: isoToThaiDisplayDate(initialData?.start_date, false), // แสดงเป็น ค.ศ.
     phone: initialData?.phone ? initialData.phone.replace(/[^0-9]/g, '').slice(0, 10) : '',
     promptpay_status: initialData?.promptpay_status || 'ยืนยันแล้ว',
@@ -112,6 +118,28 @@ export function EmployeeForm({ initialData, mode, session }: EmployeeFormProps) 
       })
       .catch(() => {})
   })
+
+  // กรองคลังที่สามารถเลือกได้: Super Admin เห็นทุกคลัง ส่วน Admin/Payroll เห็นเฉพาะคลังที่ตนเองดูแล
+  const availableWarehouses = useMemo(() => {
+    if (!session || session.role === 'super_admin') {
+      return warehouses
+    }
+    const permitted = session.warehouses || []
+    return warehouses.filter((w) => permitted.includes(w.id))
+  }, [warehouses, session])
+
+  // ซิงค์ formData.warehouse ให้ตรงกับคลังที่ตนเองมีสิทธิ์
+  useEffect(() => {
+    if (availableWarehouses.length > 0) {
+      const isValid = availableWarehouses.some((w) => w.id === formData.warehouse)
+      if (!isValid) {
+        setFormData((prev) => ({
+          ...prev,
+          warehouse: availableWarehouses[0].id,
+        }))
+      }
+    }
+  }, [availableWarehouses, formData.warehouse])
 
   // กรองรายชื่อธนาคารตามคลังที่เลือก (formData.warehouse)
   const filteredBanks = useMemo(() => {
@@ -720,12 +748,17 @@ export function EmployeeForm({ initialData, mode, session }: EmployeeFormProps) 
                 className="input text-sm"
                 required
               >
-                {warehouses.map((w) => (
+                {availableWarehouses.map((w) => (
                   <option key={w.id} value={w.id}>
                     {w.name}
                   </option>
                 ))}
               </select>
+              {availableWarehouses.length === 0 && (
+                <p className="text-[11px] text-[#E5484D] mt-1">
+                  ไม่พบคลังที่คุณมีสิทธิ์ดูแล กรุณาติดต่อ Super Admin เพื่อกำหนดสิทธิ์คลัง
+                </p>
+              )}
             </div>
 
             {/* วันที่เริ่มงาน (ค.ศ.) */}
