@@ -2,11 +2,23 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import Link from 'next/link'
-import { Plus, Search, Pencil, Loader2, AlertCircle, CheckCircle2, ClipboardList } from 'lucide-react'
+import {
+  Plus,
+  Search,
+  Pencil,
+  Trash2,
+  Loader2,
+  AlertCircle,
+  CheckCircle2,
+  ClipboardList,
+  ChevronLeft,
+  ChevronRight,
+} from 'lucide-react'
 import { Topbar } from '@/components/layout/Topbar'
 import { employeeFullName, formatShiftRange } from '@/lib/namelist'
 import { broadcastRealtime } from '@/lib/realtime'
 import { useRealtimeListener, useRealtimeSession } from '@/components/providers/RealtimeProvider'
+import { cn } from '@/lib/utils'
 import type { AuthSession, NamelistEntry, Warehouse } from '@/types'
 
 interface NamelistClientProps {
@@ -56,6 +68,8 @@ function NoteInput({
   )
 }
 
+const PAGE_SIZE = 10
+
 export function NamelistClient({ session: initialSession, initialDate, initialWarehouse }: NamelistClientProps) {
   const { session } = useRealtimeSession()
   const isSuperAdmin = session.role === 'super_admin'
@@ -66,8 +80,10 @@ export function NamelistClient({ session: initialSession, initialDate, initialWa
     initialWarehouse || (isSuperAdmin ? 'all' : userWarehouses[0] || 'all')
   )
   const [search, setSearch] = useState('')
-  const [warehouses, setWarehouses] = useState<Warehouse[]>([])
+  const [selectedDept, setSelectedDept] = useState<string | null>(null)
+  const [page, setPage] = useState(1)
 
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([])
   const [entries, setEntries] = useState<NamelistEntry[]>([])
   const [workStatuses, setWorkStatuses] = useState<string[]>([])
   const [oaOptions, setOaOptions] = useState<Record<string, string[]>>({})
@@ -75,6 +91,10 @@ export function NamelistClient({ session: initialSession, initialDate, initialWa
   const [loadError, setLoadError] = useState<string | null>(null)
   const [savingIds, setSavingIds] = useState<Set<string>>(new Set())
   const [toast, setToast] = useState<Toast>(null)
+
+  // สถานะสำหรับ Popup ยืนยันการลบ
+  const [entryToDelete, setEntryToDelete] = useState<NamelistEntry | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   const requestSeq = useRef(0)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -84,6 +104,17 @@ export function NamelistClient({ session: initialSession, initialDate, initialWa
     if (toastTimer.current) clearTimeout(toastTimer.current)
     toastTimer.current = setTimeout(() => setToast(null), 3000)
   }
+
+  // ปิด popup ด้วยปุ่ม Escape
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && entryToDelete && !deleting) {
+        setEntryToDelete(null)
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [entryToDelete, deleting])
 
   // โหลดรายการคลัง (จำกัดเฉพาะที่มีสิทธิ์)
   useEffect(() => {
@@ -134,25 +165,49 @@ export function NamelistClient({ session: initialSession, initialDate, initialWa
     fetchEntries()
   })
 
-  // ค้นหาแบบ real-time ในรายชื่อวันนั้น (รหัส/ชื่อ รองรับพิมพ์เว้นวรรคชื่อ นามสกุล)
-  const visible = useMemo(() => {
-    const words = search.toLowerCase().split(/\s+/).filter(Boolean)
-    if (words.length === 0) return entries
-    return entries.filter((e) => {
-      const hay = `${e.po_id || ''} ${employeeFullName(e)}`.toLowerCase()
-      return words.every((w) => hay.includes(w))
-    })
-  }, [entries, search])
+  // นับจำนวนคนแยกตามแผนกสำหรับแดชบอร์ด
+  const departmentStats = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const e of entries) {
+      const dept = e.department_name?.trim() || 'ไม่ระบุแผนก'
+      map.set(dept, (map.get(dept) || 0) + 1)
+    }
+    return Array.from(map.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+  }, [entries])
 
-  // สรุปจำนวนของวัน/คลังที่เลือก (ไม่ขึ้นกับคำค้นหา)
-  const summary = useMemo(
-    () => ({
-      total: entries.length,
-      day: entries.filter((e) => e.shift_type === 'D').length,
-      night: entries.filter((e) => e.shift_type === 'N').length,
-    }),
-    [entries]
-  )
+  // ค้นหาแบบ real-time ในรายชื่อวันนั้น (รหัส/ชื่อ) และกรองตามแผนกที่กดเลือก
+  const filteredEntries = useMemo(() => {
+    let list = entries
+
+    if (selectedDept) {
+      list = list.filter((e) => (e.department_name?.trim() || 'ไม่ระบุแผนก') === selectedDept)
+    }
+
+    const words = search.toLowerCase().split(/\s+/).filter(Boolean)
+    if (words.length > 0) {
+      list = list.filter((e) => {
+        const hay = `${e.po_id || ''} ${employeeFullName(e)}`.toLowerCase()
+        return words.every((w) => hay.includes(w))
+      })
+    }
+
+    return list
+  }, [entries, selectedDept, search])
+
+  // คำนวณ Pagination
+  const totalFiltered = filteredEntries.length
+  const totalPages = Math.max(1, Math.ceil(totalFiltered / PAGE_SIZE))
+  const currentPage = Math.min(page, totalPages)
+
+  const paginatedEntries = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE
+    return filteredEntries.slice(start, start + PAGE_SIZE)
+  }, [filteredEntries, currentPage])
+
+  const fromRecord = totalFiltered === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1
+  const toRecord = Math.min(currentPage * PAGE_SIZE, totalFiltered)
 
   // บันทึกทันทีต่อ field (optimistic update แล้วย้อนกลับถ้าล้มเหลว)
   const patchEntry = async (entry: NamelistEntry, patch: Partial<NamelistEntry>) => {
@@ -167,7 +222,6 @@ export function NamelistClient({ session: initialSession, initialDate, initialWa
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'บันทึกไม่สำเร็จ')
-      // sync ค่าที่ server normalize แล้ว (เช่น trim / '-')
       if (data.entry) {
         setEntries((prev) => prev.map((e) => (e.id === entry.id ? { ...e, ...data.entry } : e)))
       }
@@ -184,6 +238,31 @@ export function NamelistClient({ session: initialSession, initialDate, initialWa
     }
   }
 
+  // ยืนยันการลบรายชื่อออกจาก Namelist
+  const handleConfirmDelete = async () => {
+    if (!entryToDelete) return
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/namelist/${entryToDelete.id}`, {
+        method: 'DELETE',
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'ลบไม่สำเร็จ')
+
+      setEntries((prev) => prev.filter((e) => e.id !== entryToDelete.id))
+      showToast({
+        type: 'success',
+        text: `ลบรายชื่อ ${employeeFullName(entryToDelete)} ออกจาก Namelist เรียบร้อยแล้ว`,
+      })
+      broadcastRealtime('namelist-updated')
+      setEntryToDelete(null)
+    } catch (err: any) {
+      showToast({ type: 'error', text: err.message || 'ลบไม่สำเร็จ' })
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   const backQuery = new URLSearchParams({ date, warehouse }).toString()
 
   return (
@@ -196,14 +275,24 @@ export function NamelistClient({ session: initialSession, initialDate, initialWa
           <input
             type="date"
             value={date}
-            onChange={(e) => e.target.value && setDate(e.target.value)}
+            onChange={(e) => {
+              if (e.target.value) {
+                setDate(e.target.value)
+                setSelectedDept(null)
+                setPage(1)
+              }
+            }}
             className="bg-white border border-[#E1E6EF] text-[#16233D] text-xs font-medium rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#2E6FE0] shadow-sm cursor-pointer"
             title="เลือกวันที่"
           />
 
           <select
             value={warehouse}
-            onChange={(e) => setWarehouse(e.target.value)}
+            onChange={(e) => {
+              setWarehouse(e.target.value)
+              setSelectedDept(null)
+              setPage(1)
+            }}
             className="bg-white border border-[#E1E6EF] text-[#16233D] text-xs font-medium rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#2E6FE0] shadow-sm cursor-pointer"
           >
             {(isSuperAdmin || warehouses.length > 1) && <option value="all">ทุกคลัง</option>}
@@ -223,7 +312,10 @@ export function NamelistClient({ session: initialSession, initialDate, initialWa
               type="text"
               placeholder="ค้นหาชื่อหรือรหัสพนักงานในรายชื่อวันนี้"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => {
+                setSearch(e.target.value)
+                setPage(1)
+              }}
               className="w-full bg-white border border-[#E1E6EF] text-[#16233D] placeholder-[#9AA5B8] text-xs rounded-xl pl-10 pr-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#2E6FE0] shadow-sm"
             />
           </div>
@@ -237,20 +329,87 @@ export function NamelistClient({ session: initialSession, initialDate, initialWa
           </Link>
         </div>
 
-        {/* Summary chips */}
-        <div className="flex flex-wrap items-center gap-2.5 mb-4">
-          <span className="bg-white border border-[#E1E6EF] rounded-xl px-3.5 py-2 text-xs font-medium text-[#5B6B85] shadow-sm">
-            ทั้งหมด <span className="font-bold text-[#2E6FE0] ml-1">{summary.total} คน</span>
-          </span>
-          <span className="bg-white border border-[#E1E6EF] rounded-xl px-3.5 py-2 text-xs font-medium text-[#5B6B85] shadow-sm">
-            กะ Day <span className="font-bold text-[#F5A623] ml-1">{summary.day} คน</span>
-          </span>
-          <span className="bg-white border border-[#E1E6EF] rounded-xl px-3.5 py-2 text-xs font-medium text-[#5B6B85] shadow-sm">
-            กะ Night <span className="font-bold text-[#16233D] ml-1">{summary.night} คน</span>
-          </span>
-          {search.trim() && !loading && (
-            <span className="text-xs text-[#5B6B85]">พบ {visible.length} จาก {summary.total} คน</span>
-          )}
+        {/* Dashboard summary cards (เหมือนในภาพ) */}
+        <div className="flex flex-wrap items-center gap-3 mb-5">
+          {/* Card: ทั้งหมด */}
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedDept(null)
+              setPage(1)
+            }}
+            className={cn(
+              'flex flex-col justify-center px-6 py-2 rounded-2xl transition-all cursor-pointer text-left shadow-sm min-h-[50px] min-w-[110px]',
+              selectedDept === null
+                ? 'bg-[#2E6FE0] text-white shadow-md ring-2 ring-[#2E6FE0]/25'
+                : 'bg-[#F1F5F9] hover:bg-[#E2E8F0] text-[#16233D]'
+            )}
+          >
+            <span
+              className={cn(
+                'text-[11px] font-medium leading-tight',
+                selectedDept === null ? 'text-white/85' : 'text-[#5B6B85]'
+              )}
+            >
+              ทั้งหมด
+            </span>
+            <div className="flex items-baseline gap-1 mt-0.5">
+              <span
+                className={cn(
+                  'text-lg font-black leading-tight',
+                  selectedDept === null ? 'text-white' : 'text-[#2E6FE0]'
+                )}
+              >
+                {entries.length}
+              </span>
+              <span
+                className={cn(
+                  'text-xs font-semibold leading-tight',
+                  selectedDept === null ? 'text-white/85' : 'text-[#5B6B85]'
+                )}
+              >
+                คน
+              </span>
+            </div>
+          </button>
+
+          {/* Cards: แผนกแต่ละแผนก */}
+          {departmentStats.map((dept) => {
+            const isSelected = selectedDept === dept.name
+            return (
+              <button
+                key={dept.name}
+                type="button"
+                onClick={() => {
+                  setSelectedDept(isSelected ? null : dept.name)
+                  setPage(1)
+                }}
+                className={cn(
+                  'flex items-center gap-2 px-5 py-3 rounded-2xl text-xs font-semibold transition-all cursor-pointer shadow-sm min-h-[50px]',
+                  isSelected
+                    ? 'bg-[#2E6FE0] text-white shadow-md ring-2 ring-[#2E6FE0]/25'
+                    : 'bg-[#F1F5F9] hover:bg-[#E2E8F0] text-[#16233D]'
+                )}
+              >
+                <span
+                  className={cn(
+                    'font-bold text-xs',
+                    isSelected ? 'text-white' : 'text-[#16233D]'
+                  )}
+                >
+                  {dept.name}
+                </span>
+                <span
+                  className={cn(
+                    'font-bold text-xs',
+                    isSelected ? 'text-white' : 'text-[#2E6FE0]'
+                  )}
+                >
+                  {dept.count} คน
+                </span>
+              </button>
+            )
+          })}
         </div>
 
         {/* Toast */}
@@ -280,123 +439,254 @@ export function NamelistClient({ session: initialSession, initialDate, initialWa
             </div>
           ) : loadError ? (
             <div className="p-14 text-center text-[#E5484D] text-xs font-semibold">{loadError}</div>
-          ) : visible.length === 0 ? (
+          ) : filteredEntries.length === 0 ? (
             <div className="p-14 text-center text-[#5B6B85]">
               <ClipboardList className="w-8 h-8 mx-auto mb-2 text-gray-300" />
               <p className="text-sm font-semibold text-[#16233D]">
-                {entries.length === 0 ? 'ยังไม่มีรายชื่อใน Namelist ของวันนี้' : 'ไม่พบพนักงานที่ค้นหา'}
+                {entries.length === 0
+                  ? 'ยังไม่มีรายชื่อใน Namelist ของวันนี้'
+                  : 'ไม่พบพนักงานในเงื่อนไขที่เลือก'}
               </p>
-              {entries.length === 0 && (
+              {entries.length === 0 ? (
                 <p className="text-xs mt-1">กดปุ่ม “เพิ่มพนักงาน” หรือส่งรายชื่อมาจากหน้าจัดแพลนพนักงาน</p>
+              ) : (
+                <p className="text-xs mt-1">
+                  ลองล้างคำค้นหาหรือคลิกที่การ์ด “ทั้งหมด” เพื่อดูรายชื่อทั้งหมด
+                </p>
               )}
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-[#E1E6EF] text-[11px] font-bold text-[#5B6B85]">
-                    <th className="py-3.5 px-4 whitespace-nowrap">รหัสพนักงาน</th>
-                    <th className="py-3.5 px-3 whitespace-nowrap">ชื่อ-นามสกุล</th>
-                    <th className="py-3.5 px-3">แผนก</th>
-                    <th className="py-3.5 px-3">กะ</th>
-                    <th className="py-3.5 px-3 w-[110px]">ต่างพื้นที่</th>
-                    <th className="py-3.5 px-3 w-[150px]">Status การทำงาน</th>
-                    <th className="py-3.5 px-3">หมายเหตุ</th>
-                    <th className="py-3.5 px-4 w-[56px]"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#F4F6FA]">
-                  {visible.map((e) => {
-                    const saving = savingIds.has(e.id)
-                    const oaList = (e.warehouse && oaOptions[e.warehouse]) || []
-                    const oaChoices = Array.from(new Set(['-', ...oaList, e.oa_status || '-']))
-                    const statusChoices = Array.from(
-                      new Set([...workStatuses, ...(e.work_status ? [e.work_status] : [])])
-                    )
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-[#E1E6EF] text-[11px] font-bold text-[#5B6B85]">
+                      <th className="py-3.5 px-4 whitespace-nowrap">รหัสพนักงาน</th>
+                      <th className="py-3.5 px-3 whitespace-nowrap">ชื่อ-นามสกุล</th>
+                      <th className="py-3.5 px-3">แผนก</th>
+                      <th className="py-3.5 px-3">กะ</th>
+                      <th className="py-3.5 px-3 w-[110px]">ต่างพื้นที่</th>
+                      <th className="py-3.5 px-3 w-[150px]">Status การทำงาน</th>
+                      <th className="py-3.5 px-3">หมายเหตุ</th>
+                      <th className="py-3.5 px-4 w-[80px]"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#F4F6FA]">
+                    {paginatedEntries.map((e) => {
+                      const saving = savingIds.has(e.id)
+                      const oaList = (e.warehouse && oaOptions[e.warehouse]) || []
+                      const oaChoices = Array.from(new Set(['-', ...oaList, e.oa_status || '-']))
+                      const statusChoices = Array.from(
+                        new Set([...workStatuses, ...(e.work_status ? [e.work_status] : [])])
+                      )
 
-                    return (
-                      <tr key={e.id} className="hover:bg-[#FAFBFD] transition-colors">
-                        <td className="py-3 px-4 text-xs text-[#5B6B85] font-mono whitespace-nowrap">
-                          {e.po_id || '—'}
-                        </td>
-                        <td className="py-3 px-3 text-xs font-bold text-[#16233D] whitespace-nowrap">
-                          {employeeFullName(e)}
-                        </td>
-                        <td className="py-3 px-3 text-xs text-[#16233D]">
-                          {e.department_name || '—'}
-                          {warehouse === 'all' && e.warehouse && (
-                            <span className="ml-1.5 text-[10px] font-semibold text-[#5B6B85] bg-[#F4F6FA] border border-[#E1E6EF] px-1.5 py-0.5 rounded">
-                              {e.warehouse}
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-3 px-3 text-xs text-[#5B6B85] whitespace-nowrap">
-                          {formatShiftRange(e.shift_start, e.shift_end)}
-                        </td>
+                      return (
+                        <tr key={e.id} className="hover:bg-[#FAFBFD] transition-colors">
+                          <td className="py-3 px-4 text-xs text-[#5B6B85] font-mono whitespace-nowrap">
+                            {e.po_id || '—'}
+                          </td>
+                          <td className="py-3 px-3 text-xs font-bold text-[#16233D] whitespace-nowrap">
+                            {employeeFullName(e)}
+                          </td>
+                          <td className="py-3 px-3 text-xs text-[#16233D]">
+                            {e.department_name || '—'}
+                            {warehouse === 'all' && e.warehouse && (
+                              <span className="ml-1.5 text-[10px] font-semibold text-[#5B6B85] bg-[#F4F6FA] border border-[#E1E6EF] px-1.5 py-0.5 rounded">
+                                {e.warehouse}
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3 px-3 text-xs text-[#5B6B85] whitespace-nowrap">
+                            {formatShiftRange(e.shift_start, e.shift_end)}
+                          </td>
 
-                        {/* ต่างพื้นที่ — บันทึกทันที */}
-                        <td className="py-2.5 px-3">
-                          <select
-                            value={e.oa_status || '-'}
-                            disabled={saving}
-                            onChange={(ev) => patchEntry(e, { oa_status: ev.target.value })}
-                            className={selectCls}
-                          >
-                            {oaChoices.map((o) => (
-                              <option key={o} value={o}>
-                                {o}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-
-                        {/* Status การทำงาน — บันทึกทันที */}
-                        <td className="py-2.5 px-3">
-                          <select
-                            value={e.work_status || ''}
-                            disabled={saving}
-                            onChange={(ev) => patchEntry(e, { work_status: ev.target.value || null })}
-                            className={selectCls}
-                          >
-                            <option value="">— เลือก —</option>
-                            {statusChoices.map((s) => (
-                              <option key={s} value={s}>
-                                {s}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-
-                        {/* หมายเหตุ — บันทึกเมื่อออกจากช่อง */}
-                        <td className="py-2.5 px-3">
-                          <NoteInput
-                            value={e.note || ''}
-                            onSave={(v) => patchEntry(e, { note: v.trim() || null })}
-                          />
-                        </td>
-
-                        <td className="py-2.5 px-4 text-center">
-                          {saving ? (
-                            <Loader2 className="w-4 h-4 text-[#2E6FE0] animate-spin inline" />
-                          ) : (
-                            <Link
-                              href={`/namelist/${e.id}/edit?wh=${encodeURIComponent(warehouse)}`}
-                              title="แก้ไขรายการ"
-                              className="w-8 h-8 inline-flex items-center justify-center rounded-lg border border-[#E1E6EF] text-[#5B6B85] hover:text-[#2E6FE0] hover:bg-[#EEF3FC] hover:border-[#2E6FE0]/40 transition-colors"
+                          {/* ต่างพื้นที่ — บันทึกทันที */}
+                          <td className="py-2.5 px-3">
+                            <select
+                              value={e.oa_status || '-'}
+                              disabled={saving}
+                              onChange={(ev) => patchEntry(e, { oa_status: ev.target.value })}
+                              className={selectCls}
                             >
-                              <Pencil className="w-3.5 h-3.5" />
-                            </Link>
-                          )}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
+                              {oaChoices.map((o) => (
+                                <option key={o} value={o}>
+                                  {o}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+
+                          {/* Status การทำงาน — บันทึกทันที */}
+                          <td className="py-2.5 px-3">
+                            <select
+                              value={e.work_status || ''}
+                              disabled={saving}
+                              onChange={(ev) => patchEntry(e, { work_status: ev.target.value || null })}
+                              className={selectCls}
+                            >
+                              <option value="">— เลือก —</option>
+                              {statusChoices.map((s) => (
+                                <option key={s} value={s}>
+                                  {s}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+
+                          {/* หมายเหตุ — บันทึกเมื่อออกจากช่อง */}
+                          <td className="py-2.5 px-3">
+                            <NoteInput
+                              value={e.note || ''}
+                              onSave={(v) => patchEntry(e, { note: v.trim() || null })}
+                            />
+                          </td>
+
+                          {/* Action Buttons: แก้ไข และ ถังขยะ (รูปที่ 1) */}
+                          <td className="py-2.5 px-4 text-right whitespace-nowrap">
+                            <div className="flex items-center justify-end gap-1.5">
+                              {saving ? (
+                                <Loader2 className="w-4 h-4 text-[#2E6FE0] animate-spin inline" />
+                              ) : (
+                                <>
+                                  <Link
+                                    href={`/namelist/${e.id}/edit?wh=${encodeURIComponent(warehouse)}`}
+                                    title="แก้ไขรายการ"
+                                    className="w-8 h-8 inline-flex items-center justify-center rounded-lg border border-[#E1E6EF] text-[#5B6B85] hover:text-[#2E6FE0] hover:bg-[#EEF3FC] hover:border-[#2E6FE0]/40 transition-colors"
+                                  >
+                                    <Pencil className="w-3.5 h-3.5" />
+                                  </Link>
+                                  <button
+                                    type="button"
+                                    onClick={() => setEntryToDelete(e)}
+                                    title="ลบออกจาก Namelist"
+                                    className="w-8 h-8 inline-flex items-center justify-center rounded-lg bg-[#FDECEC] text-[#E5484D] hover:bg-[#FCD8D8] hover:text-[#DC2626] transition-colors cursor-pointer"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination footer (เหมือนในภาพ) */}
+              <div className="px-6 py-3.5 border-t border-[#E1E6EF] flex flex-wrap items-center justify-between gap-3 bg-white text-xs text-[#5B6B85]">
+                <div>
+                  แสดง {fromRecord}–{toRecord} จาก {totalFiltered} คน
+                </div>
+                {totalPages > 1 && (
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      disabled={currentPage <= 1}
+                      className="p-1.5 rounded-lg border border-[#E1E6EF] text-[#5B6B85] hover:bg-[#F4F6FA] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      title="หน้าก่อนหน้า"
+                    >
+                      <ChevronLeft size={14} />
+                    </button>
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => setPage(p)}
+                        className={cn(
+                          'min-w-[28px] h-7 px-2 rounded-lg text-xs font-semibold transition-colors',
+                          p === currentPage
+                            ? 'bg-[#2E6FE0] text-white shadow-2xs'
+                            : 'border border-[#E1E6EF] text-[#16233D] hover:bg-[#F4F6FA]'
+                        )}
+                      >
+                        {p}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={currentPage >= totalPages}
+                      className="p-1.5 rounded-lg border border-[#E1E6EF] text-[#5B6B85] hover:bg-[#F4F6FA] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      title="หน้าถัดไป"
+                    >
+                      <ChevronRight size={14} />
+                    </button>
+                  </div>
+                )}
+              </div>
+            </>
           )}
         </div>
       </div>
+
+      {/* Delete Confirmation Modal (รูปที่ 2) */}
+      {entryToDelete && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-in fade-in duration-150"
+          onClick={() => !deleting && setEntryToDelete(null)}
+        >
+          <div
+            className="bg-white rounded-3xl shadow-2xl max-w-[420px] w-full p-8 text-center animate-in zoom-in-95 duration-150 relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Trash Icon Circle */}
+            <div className="w-20 h-20 bg-[#FEECEC] rounded-full flex items-center justify-center mx-auto mb-5">
+              <Trash2 className="w-8 h-8 text-[#E5484D]" strokeWidth={2.2} />
+            </div>
+
+            {/* Title */}
+            <h3 className="text-xl font-bold text-[#16233D] mb-3">
+              ยืนยันการลบรายชื่อ
+            </h3>
+
+            {/* Description with bold employee name & PO ID */}
+            <p className="text-sm text-[#16233D] leading-relaxed mb-2">
+              ต้องการลบ{' '}
+              <strong className="font-bold text-[#16233D]">
+                {employeeFullName(entryToDelete)}{' '}
+                {entryToDelete.po_id ? `(${entryToDelete.po_id})` : ''}
+              </strong>{' '}
+              <br />
+              ออกจาก Namelist ใช่หรือไม่?
+            </p>
+
+            {/* Subtext */}
+            <p className="text-xs text-[#5B6B85] leading-normal mb-7">
+              รายชื่อจะถูกนำออกจาก Namelist ของวันนี้เท่านั้น ไม่ได้ลบข้อมูลพนักงาน
+            </p>
+
+            {/* Actions */}
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setEntryToDelete(null)}
+                disabled={deleting}
+                className="flex-1 py-3 px-5 rounded-2xl border border-[#E1E6EF] text-sm font-bold text-[#16233D] hover:bg-[#F4F6FA] transition-colors cursor-pointer disabled:opacity-50"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                disabled={deleting}
+                className="flex-1 py-3 px-5 rounded-2xl bg-[#E5484D] hover:bg-[#D4373C] text-sm font-bold text-white shadow-sm transition-colors cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {deleting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    กำลังลบ...
+                  </>
+                ) : (
+                  'ยืนยันลบ'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }
