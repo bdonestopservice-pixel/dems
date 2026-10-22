@@ -387,6 +387,7 @@ export function DropdownConfigClient({ session }: Props) {
             )}
             {selectedCategory === 'banks' && session.role === 'super_admin' && (
               <BankPanel
+                warehouses={warehouses}
                 onCountChange={(n) => setCounts((prev) => ({ ...prev, banks: n }))}
               />
             )}

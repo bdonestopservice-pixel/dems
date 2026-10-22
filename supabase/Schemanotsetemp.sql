@@ -61,30 +61,35 @@ ON CONFLICT (email) DO NOTHING;
 
 -- ============================================================
 -- 3. ธนาคาร (Banks) — ข้อมูลกลาง (Super Admin เท่านั้น)
+-- พร้อมกำหนดสิทธิ์คลังที่สามารถเลือกใช้งานธนาคารนั้นๆ ได้
 -- ============================================================
 CREATE TABLE IF NOT EXISTS banks (
   id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name       TEXT NOT NULL,
   code       TEXT UNIQUE NOT NULL,
+  warehouses TEXT[] DEFAULT '{}',
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
-INSERT INTO banks (name, code) VALUES
-  ('ธนาคารกรุงเทพ',                         'BBL'),
-  ('ธนาคารกสิกรไทย',                        'KBANK'),
-  ('ธนาคารไทยพาณิชย์',                      'SCB'),
-  ('ธนาคารกรุงไทย',                         'KTB'),
-  ('ธนาคารกรุงศรีอยุธยา',                   'BAY'),
-  ('ธนาคารออมสิน',                          'GSB'),
-  ('ธนาคาร ทีทีบี',                         'TTB'),
-  ('ธนาคารทิสโก้',                          'TISCO'),
-  ('ธนาคารเพื่อการเกษตรและสหกรณ์การเกษตร', 'BAAC'),
-  ('ธนาคารเกียรตินาคินภัทร',                 'KKP'),
-  ('ธนาคารซีไอเอ็มบีไทย',                   'CIMBT'),
-  ('ธนาคารยูโอบี',                          'UOB'),
-  ('ธนาคารอิสลามแห่งประเทศไทย',           'IBANK'),
-  ('ธนาคารไอซีบีซี (ไทย)',                  'ICBC')
-ON CONFLICT (code) DO NOTHING;
+-- เพิ่มคอลัมน์ warehouses กรณีที่มีตารางเดิมอยู่แล้ว
+ALTER TABLE banks ADD COLUMN IF NOT EXISTS warehouses TEXT[] DEFAULT '{}';
+
+INSERT INTO banks (name, code, warehouses) VALUES
+  ('กสิกรไทย',                              '004',   ARRAY['SOCE', 'SOCW', 'FSOCW', 'SOCN', 'SCOM-SS', 'SCOM-WN']),
+  ('ไทยพาณิชย์',                            '014',   ARRAY['SOCE', 'SOCW', 'SOCN']),
+  ('กรุงเทพ',                               '002',   ARRAY['SOCE', 'SOCW']),
+  ('กรุงไทย',                               '006',   ARRAY['SOCE', 'SCOM-SS', 'SCOM-WN']),
+  ('กรุงศรีอยุธยา',                         '025',   ARRAY['SOCE', 'FSOCW']),
+  ('ทหารไทยธนชาต',                         '011',   ARRAY['SOCW', 'SOCN']),
+  ('ออมสิน',                                '030',   ARRAY['SOCE', 'SOCW', 'FSOCW', 'SOCN', 'SCOM-SS', 'SCOM-WN']),
+  ('ธนาคารทิสโก้',                          '067',   ARRAY['SOCE', 'SOCW', 'FSOCW', 'SOCN', 'SCOM-SS', 'SCOM-WN']),
+  ('ธนาคารเพื่อการเกษตรและสหกรณ์การเกษตร', '034',   ARRAY['SOCE', 'SOCW', 'FSOCW', 'SOCN', 'SCOM-SS', 'SCOM-WN']),
+  ('ธนาคารเกียรตินาคินภัทร',                 '069',   ARRAY['SOCE', 'SOCW', 'FSOCW', 'SOCN', 'SCOM-SS', 'SCOM-WN']),
+  ('ธนาคารซีไอเอ็มบีไทย',                   '022',   ARRAY['SOCE', 'SOCW', 'FSOCW', 'SOCN', 'SCOM-SS', 'SCOM-WN']),
+  ('ยูโอบี',                                '024',   ARRAY['SOCE', 'SOCW', 'FSOCW', 'SOCN', 'SCOM-SS', 'SCOM-WN']),
+  ('ธนาคารอิสลามแห่งประเทศไทย',           '066',   ARRAY['SOCE', 'SOCW', 'FSOCW', 'SOCN', 'SCOM-SS', 'SCOM-WN']),
+  ('ธนาคารไอซีบีซี (ไทย)',                  '070',   ARRAY['SOCE', 'SOCW', 'FSOCW', 'SOCN', 'SCOM-SS', 'SCOM-WN'])
+ON CONFLICT (code) DO UPDATE SET warehouses = EXCLUDED.warehouses;
 
 
 -- ============================================================

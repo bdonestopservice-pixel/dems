@@ -30,6 +30,7 @@ export interface Bank {
   id: string
   name: string
   code: string
+  warehouses?: string[]
 }
 
 export interface Department {

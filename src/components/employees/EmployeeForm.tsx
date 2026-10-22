@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronLeft, Loader2, Save, X, AlertCircle, Check } from 'lucide-react'
 import { cn, getInitials } from '@/lib/utils'
 import { broadcastRealtime } from '@/lib/realtime'
+import { useRealtimeListener } from '@/components/providers/RealtimeProvider'
 import type { Employee, Warehouse, Bank, AuthSession } from '@/types'
 
 interface EmployeeFormProps {
@@ -97,14 +98,65 @@ export function EmployeeForm({ initialData, mode, session }: EmployeeFormProps) 
       .then((d) => {
         if (d.banks) {
           setBanks(d.banks)
-          if (!formData.bank_id && d.banks.length > 0 && mode === 'create') {
-            // default to first bank if available
-            setFormData((prev) => ({ ...prev, bank_id: d.banks[0].id }))
-          }
         }
       })
       .catch(() => {})
-  }, [mode])
+  }, [])
+
+  // ฟัง Realtime event เมื่อ Super Admin มีการปรับปรุงข้อมูลธนาคารหรือสิทธิ์คลัง
+  useRealtimeListener('dropdown-updated', () => {
+    fetch('/api/dropdown/banks')
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.banks) setBanks(d.banks)
+      })
+      .catch(() => {})
+  })
+
+  // กรองรายชื่อธนาคารตามคลังที่เลือก (formData.warehouse)
+  const filteredBanks = useMemo(() => {
+    if (!formData.warehouse) return banks
+
+    return banks.filter((b) => {
+      // ในโหมดแก้ไข: ถ้าพนักงานมีธนาคารเดิมที่เคยบันทึกไว้ ให้ยังคงแสดงในตัวเลือกเพื่อไม่ให้ข้อมูลตกหล่น
+      if (mode === 'edit' && b.id === formData.bank_id) return true
+
+      // ตรวจสอบว่าคลังนี้ได้รับสิทธิ์ในธนาคารนี้หรือไม่
+      if (b.warehouses && Array.isArray(b.warehouses) && b.warehouses.length > 0) {
+        return b.warehouses.includes(formData.warehouse)
+      }
+      // หากยังไม่ได้ระบุ warehouses (ค่าว่าง) ให้มองว่าใช้ได้ทุกคลัง (fallback)
+      return true
+    })
+  }, [banks, formData.warehouse, formData.bank_id, mode])
+
+  // ซิงค์ bank_id อัตโนมัติเมื่อคลังเปลี่ยนแล้วธนาคารเดิมไม่อยู่ในคลังใหม่
+  useEffect(() => {
+    if (!formData.warehouse || banks.length === 0) return
+
+    const allowed = banks.filter((b) => {
+      if (mode === 'edit' && b.id === formData.bank_id) return true
+      if (b.warehouses && Array.isArray(b.warehouses) && b.warehouses.length > 0) {
+        return b.warehouses.includes(formData.warehouse)
+      }
+      return true
+    })
+
+    if (formData.bank_id) {
+      const stillValid = allowed.some((b) => b.id === formData.bank_id)
+      if (!stillValid) {
+        setFormData((prev) => ({
+          ...prev,
+          bank_id: allowed[0]?.id || '',
+        }))
+      }
+    } else if (mode === 'create' && allowed.length > 0) {
+      setFormData((prev) => ({
+        ...prev,
+        bank_id: allowed[0].id,
+      }))
+    }
+  }, [formData.warehouse, banks, mode])
 
   // Real-time ID card duplicate check state
   const [idCardChecking, setIdCardChecking] = useState(false)
@@ -752,12 +804,17 @@ export function EmployeeForm({ initialData, mode, session }: EmployeeFormProps) 
                 required={formData.promptpay_status === 'ยังไม่ยืนยัน'}
               >
                 <option value="">-- เลือกธนาคาร --</option>
-                {banks.map((b) => (
+                {filteredBanks.map((b) => (
                   <option key={b.id} value={b.id}>
                     {b.name} ({b.code})
                   </option>
                 ))}
               </select>
+              {formData.warehouse && filteredBanks.length === 0 && (
+                <p className="text-[11px] text-[#E5484D] mt-1 font-medium">
+                  คลัง {formData.warehouse} ยังไม่มีธนาคารที่ได้รับสิทธิ์
+                </p>
+              )}
             </div>
 
             {/* เลขที่บัญชี */}

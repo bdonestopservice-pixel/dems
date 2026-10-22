@@ -8,6 +8,8 @@ export async function GET(request: NextRequest) {
   const session = token ? await verifySession(token) : null
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  const warehouse = request.nextUrl.searchParams.get('warehouse')
+
   const supabase = createServerSupabaseClient()
   const { data, error } = await supabase
     .from('banks')
@@ -15,7 +17,17 @@ export async function GET(request: NextRequest) {
     .order('name')
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ banks: data })
+
+  let banks = data || []
+  if (warehouse) {
+    banks = banks.filter((b: any) => {
+      // If warehouses is not set or empty, treat as all warehouses (backward compatibility)
+      if (!b.warehouses || !Array.isArray(b.warehouses) || b.warehouses.length === 0) return true
+      return b.warehouses.includes(warehouse)
+    })
+  }
+
+  return NextResponse.json({ banks })
 }
 
 // POST /api/dropdown/banks — super_admin only
@@ -27,15 +39,28 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json()
-  const { name, code } = body
+  const { name, code, warehouses } = body
   if (!name || !code) return NextResponse.json({ error: 'กรุณากรอกชื่อธนาคารและโค้ด' }, { status: 400 })
 
   const supabase = createServerSupabaseClient()
-  const { data, error } = await supabase
+  const whArray = Array.isArray(warehouses) ? warehouses : []
+
+  // Try insert with warehouses; if column doesn't exist yet, fallback
+  let { data, error } = await supabase
     .from('banks')
-    .insert({ name, code })
+    .insert({ name, code, warehouses: whArray })
     .select()
     .single()
+
+  if (error && error.message.includes('warehouses')) {
+    const fallback = await supabase
+      .from('banks')
+      .insert({ name, code })
+      .select()
+      .single()
+    data = fallback.data
+    error = fallback.error
+  }
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ bank: data }, { status: 201 })
