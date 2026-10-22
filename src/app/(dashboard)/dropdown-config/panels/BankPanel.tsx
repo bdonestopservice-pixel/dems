@@ -20,11 +20,6 @@ const DEFAULT_WAREHOUSES: WarehouseType[] = [
   { id: 'SCOM-WN', name: 'SCOM-WN - คลัง WN' },
 ]
 
-function getWarehouseLabel(id: string, name?: string) {
-  if (id === 'SCOM-SS') return 'SCOM-SS (สมุทรสาคร)'
-  if (id === 'SCOM-WN') return 'SCOM-WN (วังน้อย)'
-  return name || id
-}
 
 export function BankPanel({ warehouses: initialWarehouses, onCountChange }: Props) {
   const [items, setItems] = useState<Bank[]>([])
@@ -538,7 +533,7 @@ export function BankPanel({ warehouses: initialWarehouses, onCountChange }: Prop
                 >
                   {isChecked && <Check size={11} strokeWidth={3.5} className="text-white" />}
                 </span>
-                <span>{getWarehouseLabel(whId, whObj?.name)}</span>
+                <span>{whId}</span>
               </label>
             )
           })}

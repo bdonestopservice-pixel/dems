@@ -233,14 +233,7 @@ export function DropdownConfigClient({ session }: Props) {
                               isSelected && 'text-[#2558B8] font-semibold bg-[#EEF3FC]/50'
                             )}
                           >
-                            <div className="flex flex-col">
-                              <span className="font-semibold text-[#16233D]">{w.id}</span>
-                              {w.name && w.name !== w.id && (
-                                <span className="text-[11px] text-[#5B6B85] truncate max-w-[170px]">
-                                  {w.name}
-                                </span>
-                              )}
-                            </div>
+                            <span className="font-semibold text-[#16233D]">{w.id}</span>
                             {isSelected && (
                               <CheckCircle2 size={15} className="text-[#2558B8] flex-shrink-0" />
                             )}

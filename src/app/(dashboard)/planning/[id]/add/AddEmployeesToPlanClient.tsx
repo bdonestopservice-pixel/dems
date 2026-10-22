@@ -298,7 +298,7 @@ export function AddEmployeesToPlanClient({ session, planId }: AddEmployeesToPlan
                 <option value="all">ทุกคลัง</option>
                 {warehouses.map((wh) => (
                   <option key={wh.id} value={wh.id}>
-                    เฉพาะคลัง {wh.id} - {wh.name}
+                    {wh.id}
                   </option>
                 ))}
               </select>

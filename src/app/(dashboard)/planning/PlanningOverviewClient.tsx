@@ -160,7 +160,7 @@ export function PlanningOverviewClient({ session: initialSession }: PlanningOver
               <option value="all">ทุกคลัง</option>
               {warehouses.map((wh) => (
                 <option key={wh.id} value={wh.id}>
-                  {wh.id} - {wh.name}
+                  {wh.id}
                 </option>
               ))}
             </select>

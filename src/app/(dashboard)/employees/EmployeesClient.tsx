@@ -280,7 +280,7 @@ export function EmployeesClient({ session }: EmployeesClientProps) {
                 <option value="all">ทุกคลัง</option>
                 {warehouses.map((w) => (
                   <option key={w.id} value={w.id}>
-                    {w.id} - {w.name}
+                    {w.id}
                   </option>
                 ))}
               </select>

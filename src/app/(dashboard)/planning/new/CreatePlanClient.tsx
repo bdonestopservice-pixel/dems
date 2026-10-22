@@ -299,7 +299,7 @@ export function CreatePlanClient({ session }: CreatePlanClientProps) {
                           <option value="">เลือกคลัง...</option>
                           {warehouses.map((wh) => (
                             <option key={wh.id} value={wh.id}>
-                              {wh.id} - {wh.name}
+                              {wh.id}
                             </option>
                           ))}
                         </select>

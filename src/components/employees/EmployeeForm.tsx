@@ -750,7 +750,7 @@ export function EmployeeForm({ initialData, mode, session: propSession }: Employ
               >
                 {availableWarehouses.map((w) => (
                   <option key={w.id} value={w.id}>
-                    {w.name}
+                    {w.id}
                   </option>
                 ))}
               </select>
