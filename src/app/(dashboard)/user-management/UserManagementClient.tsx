@@ -284,24 +284,24 @@ export function UserManagementClient() {
 
                     {/* Actions */}
                     <td className="py-4 px-6">
-                      {user.role !== 'super_admin' && (
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            onClick={() => setEditingUser(user)}
-                            className="p-1.5 text-[#5B6B85] hover:text-[#2558B8] hover:bg-[#EEF3FC] border border-[#E1E6EF] rounded-lg transition-colors"
-                            title="แก้ไข"
-                          >
-                            <Pencil size={14} />
-                          </button>
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          onClick={() => setEditingUser(user)}
+                          className="p-1.5 text-[#5B6B85] hover:text-[#2558B8] hover:bg-[#EEF3FC] border border-[#E1E6EF] rounded-lg transition-colors cursor-pointer"
+                          title="แก้ไข / เปลี่ยนรหัสผ่าน"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                        {user.role !== 'super_admin' && (
                           <button
                             onClick={() => handleDelete(user)}
-                            className="p-1.5 text-[#E5484D] hover:text-[#E5484D] hover:bg-[#FCE8E8] border border-[#E1E6EF] rounded-lg transition-colors"
+                            className="p-1.5 text-[#E5484D] hover:text-[#E5484D] hover:bg-[#FCE8E8] border border-[#E1E6EF] rounded-lg transition-colors cursor-pointer"
                             title="ลบ"
                           >
                             <Trash2 size={14} />
                           </button>
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))

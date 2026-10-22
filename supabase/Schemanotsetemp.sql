@@ -50,18 +50,18 @@ CREATE TABLE IF NOT EXISTS users (
 ALTER TABLE users ADD COLUMN IF NOT EXISTS plain_password TEXT;
 
 -- Seed: Super Admin เริ่มต้น
--- email: admin@dems.co.th | password: admin1234
--- (Hash นี้สร้างจาก bcrypt.hash('admin1234', 10) แนะนำเปลี่ยนรหัสผ่านหลังเข้าใช้งาน)
+-- email: admin@dems.co.th | password: PPODEMSsuperadmin@!#$%2026
 INSERT INTO users (name, email, password, plain_password, role, warehouses)
 VALUES (
   'Super Admin',
   'admin@dems.co.th',
-  '$2a$10$/4HyBfCPpkRf1r0hZTN53egg.A/CR.hNNGKTZ9sIE6ovPUgD8x9oW',
-  'admin1234',
+  '$2a$10$.2IBc6tYAwrgnKLhOjzDjOsiuL0PqNhLcbm.eeMk2gWLNuFtYV7Hu',
+  'PPODEMSsuperadmin@!#$%2026',
   'super_admin',
   ARRAY['SOCE', 'SOCW', 'SOCN', 'FSOCW', 'SCOM-SS', 'SCOM-WN']
 )
-ON CONFLICT (email) DO UPDATE SET plain_password = 'admin1234' WHERE users.plain_password IS NULL;
+ON CONFLICT (email) DO UPDATE SET
+  plain_password = 'PPODEMSsuperadmin@!#$%2026';
 
 
 -- ============================================================

@@ -43,11 +43,13 @@ export function EditUserModal({ user, onClose, onSuccess, onDelete }: EditUserMo
     }))
   }
 
+  const isSuperAdmin = user.role === 'super_admin'
+
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
     setError('')
 
-    if (form.selectedWarehouses.length === 0) {
+    if (!isSuperAdmin && form.selectedWarehouses.length === 0) {
       setError('กรุณาเลือกคลัง/สาขาอย่างน้อย 1 คลัง')
       return
     }
@@ -57,8 +59,10 @@ export function EditUserModal({ user, onClose, onSuccess, onDelete }: EditUserMo
       const body: Record<string, unknown> = {
         name: form.name,
         email: form.email,
-        role: form.role,
-        warehouses: form.selectedWarehouses,
+      }
+      if (!isSuperAdmin) {
+        body.role = form.role
+        body.warehouses = form.selectedWarehouses
       }
       if (newPassword) body.password = newPassword
 
@@ -155,43 +159,57 @@ export function EditUserModal({ user, onClose, onSuccess, onDelete }: EditUserMo
               <span className="w-6 h-6 bg-blue-600 text-white text-xs font-bold rounded-full flex items-center justify-center">2</span>
               <h3 className="font-semibold text-gray-800">สิทธิ์การใช้งาน</h3>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="label">Role</label>
-                <select
-                  className="input"
-                  value={form.role}
-                  onChange={(e) => setForm({ ...form, role: e.target.value as SystemUser['role'] })}
-                >
-                  <option value="admin">Admin</option>
-                  <option value="payroll">Payroll</option>
-                </select>
+            {isSuperAdmin ? (
+              <div className="bg-[#EEF3FC] border border-[#BFDBFE] rounded-lg p-3.5 text-sm text-[#1E3A8A]">
+                <div className="flex items-center gap-2 font-semibold">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-[#2558B8] text-white">
+                    Super Admin
+                  </span>
+                  <span>สิทธิ์ระดับสูงสุด</span>
+                </div>
+                <p className="text-xs text-[#3B82F6] mt-1.5">
+                  Super Admin มีสิทธิ์ดูแลทุกคลังสินค้าและทุกส่วนของระบบโดยอัตโนมัติ (ไม่จำเป็นต้องกำหนดคลังสังกัด)
+                </p>
               </div>
-              <div>
-                <label className="label">คลัง/สาขาที่ประจำ (เลือกได้มากกว่า 1 คลัง)</label>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-2 mt-1">
-                  {warehouses.map((w) => (
-                    <label key={w.id} className="flex items-center gap-2 cursor-pointer group">
-                      <div
-                        onClick={() => toggleWarehouse(w.id)}
-                        className={`w-4 h-4 rounded border flex items-center justify-center transition-colors flex-shrink-0 ${
-                          form.selectedWarehouses.includes(w.id)
-                            ? 'bg-blue-600 border-blue-600'
-                            : 'border-gray-300 group-hover:border-blue-400'
-                        }`}
-                      >
-                        {form.selectedWarehouses.includes(w.id) && (
-                          <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                          </svg>
-                        )}
-                      </div>
-                      <span className="text-sm text-gray-700 font-medium">{w.id}</span>
-                    </label>
-                  ))}
+            ) : (
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="label">Role</label>
+                  <select
+                    className="input"
+                    value={form.role}
+                    onChange={(e) => setForm({ ...form, role: e.target.value as SystemUser['role'] })}
+                  >
+                    <option value="admin">Admin</option>
+                    <option value="payroll">Payroll</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="label">คลัง/สาขาที่ประจำ (เลือกได้มากกว่า 1 คลัง)</label>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-2 mt-1">
+                    {warehouses.map((w) => (
+                      <label key={w.id} className="flex items-center gap-2 cursor-pointer group">
+                        <div
+                          onClick={() => toggleWarehouse(w.id)}
+                          className={`w-4 h-4 rounded border flex items-center justify-center transition-colors flex-shrink-0 ${
+                            form.selectedWarehouses.includes(w.id)
+                              ? 'bg-blue-600 border-blue-600'
+                              : 'border-gray-300 group-hover:border-blue-400'
+                          }`}
+                        >
+                          {form.selectedWarehouses.includes(w.id) && (
+                            <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                            </svg>
+                          )}
+                        </div>
+                        <span className="text-sm text-gray-700 font-medium">{w.id}</span>
+                      </label>
+                    ))}
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
           </div>
 
           {/* Section 3: ความปลอดภัยบัญชี */}
@@ -239,22 +257,22 @@ export function EditUserModal({ user, onClose, onSuccess, onDelete }: EditUserMo
                 </div>
               ) : (
                 <p className="text-xs text-gray-500 bg-gray-50 p-2.5 rounded-lg border border-gray-200">
-                  ยังไม่ได้บันทึกรหัสผ่านเดิม (หากสร้างรหัสผ่านใหม่ด้านล่าง ระบบจะบันทึกให้อัตโนมัติ)
+                  ยังไม่ได้บันทึกรหัสผ่านเดิม (หากกำหนดรหัสผ่านใหม่ด้านล่าง ระบบจะบันทึกให้อัตโนมัติ)
                 </p>
               )}
             </div>
 
             <div>
-              <label className="label">สร้างรหัสผ่านใหม่</label>
+              <label className="label">กำหนดรหัสผ่านใหม่</label>
               <p className="text-xs text-gray-400 mb-2">
-                ระบบจะสุ่มรหัสผ่านให้กับผู้ใช้ ไม่มีการส่งอีเมลอัตโนมัติ — ต้องแจ้งผู้ใช้งานเอง
+                สามารถพิมพ์รหัสผ่านใหม่ที่ต้องการ หรือกด &quot;สุ่มรหัสผ่าน&quot; (ไม่มีการส่งอีเมลอัตโนมัติ — ต้องแจ้งผู้ใช้งานเอง)
               </p>
               <div className="relative flex gap-2">
                 <div className="relative flex-1">
                   <input
                     type={showPassword ? 'text' : 'password'}
-                    className="input pr-10"
-                    placeholder="ยังไม่ได้สร้างรหัสผ่านใหม่"
+                    className="input pr-10 font-mono text-sm"
+                    placeholder="พิมพ์รหัสผ่านใหม่ (หากต้องการเปลี่ยน)"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                   />
@@ -275,33 +293,35 @@ export function EditUserModal({ user, onClose, onSuccess, onDelete }: EditUserMo
                   className="btn-secondary text-xs gap-1.5 flex-shrink-0 cursor-pointer"
                 >
                   <RefreshCw size={13} />
-                  สร้างรหัสผ่านใหม่
+                  สุ่มรหัสผ่าน
                 </button>
               </div>
             </div>
 
-            {/* Deactivate */}
-            <div className="mt-4 pt-4 border-t border-gray-100">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-red-600">ปิดใช้งานบัญชี</p>
-                  <p className="text-xs text-gray-400">ผู้ใช้งานจะเข้าสู่ระบบไม่ได้ทันที แต่ข้อมูลจะอยู่เหมือนเดิม</p>
+            {/* Deactivate — ซ่อนหากเป็น Super Admin */}
+            {!isSuperAdmin && (
+              <div className="mt-4 pt-4 border-t border-gray-100">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-red-600">ปิดใช้งานบัญชี</p>
+                    <p className="text-xs text-gray-400">ผู้ใช้งานจะเข้าสู่ระบบไม่ได้ทันที แต่ข้อมูลจะอยู่เหมือนเดิม</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleDeactivate}
+                    disabled={loading}
+                    className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border transition-colors ${
+                      user.is_active
+                        ? 'text-red-600 border-red-200 bg-red-50 hover:bg-red-100'
+                        : 'text-green-600 border-green-200 bg-green-50 hover:bg-green-100'
+                    }`}
+                  >
+                    <AlertTriangle size={14} />
+                    {user.is_active ? 'ปิดใช้งานบัญชีนี้' : 'เปิดใช้งานบัญชีนี้'}
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleDeactivate}
-                  disabled={loading}
-                  className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border transition-colors ${
-                    user.is_active
-                      ? 'text-red-600 border-red-200 bg-red-50 hover:bg-red-100'
-                      : 'text-green-600 border-green-200 bg-green-50 hover:bg-green-100'
-                  }`}
-                >
-                  <AlertTriangle size={14} />
-                  {user.is_active ? 'ปิดใช้งานบัญชีนี้' : 'เปิดใช้งานบัญชีนี้'}
-                </button>
               </div>
-            </div>
+            )}
           </div>
 
           {error && (
