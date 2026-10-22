@@ -133,12 +133,13 @@ export function NamelistClient({ session: initialSession, initialDate, initialWa
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSuperAdmin])
 
-  // โหลดข้อมูลของวัน/คลังที่เลือกใหม่ทั้งหมดทุกครั้งที่เปลี่ยน (ล้างข้อมูลเก่าทิ้งก่อน)
-  const fetchEntries = useCallback(async () => {
+  // โหลดข้อมูลของวัน/คลังที่เลือก (รองรับ silent update เบื้องหลังสำหรับ realtime โดยไม่กระพริบจอโหลด)
+  const fetchEntries = useCallback(async (silent = false) => {
     const seq = ++requestSeq.current
-    setLoading(true)
-    setLoadError(null)
-    setEntries([])
+    if (!silent) {
+      setLoading(true)
+      setLoadError(null)
+    }
     try {
       const params = new URLSearchParams({ date, warehouse })
       const res = await fetch(`/api/namelist?${params.toString()}`)
@@ -150,9 +151,9 @@ export function NamelistClient({ session: initialSession, initialDate, initialWa
       setOaOptions(data.oa_options || {})
     } catch (err: any) {
       if (seq !== requestSeq.current) return
-      setLoadError(err.message || 'โหลดรายชื่อไม่สำเร็จ')
+      if (!silent) setLoadError(err.message || 'โหลดรายชื่อไม่สำเร็จ')
     } finally {
-      if (seq === requestSeq.current) setLoading(false)
+      if (seq === requestSeq.current && !silent) setLoading(false)
     }
   }, [date, warehouse])
 
@@ -160,9 +161,9 @@ export function NamelistClient({ session: initialSession, initialDate, initialWa
     if (date) fetchEntries()
   }, [date, fetchEntries])
 
-  // ซิงค์ข้อมูล Realtime สำหรับ Namelist
+  // ซิงค์ข้อมูล Realtime สำหรับ Namelist แบบเงียบๆ ในเบื้องหลัง (ไม่ต้องมีจอโหลดกระพริบ)
   useRealtimeListener('namelist-updated', () => {
-    fetchEntries()
+    fetchEntries(true)
   })
 
   // นับจำนวนคนแยกตามแผนกสำหรับแดชบอร์ด
@@ -329,8 +330,8 @@ export function NamelistClient({ session: initialSession, initialDate, initialWa
           </Link>
         </div>
 
-        {/* Dashboard summary cards (เหมือนในภาพ) */}
-        <div className="flex flex-wrap items-center gap-3 mb-5">
+        {/* Dashboard summary cards */}
+        <div className="flex flex-wrap items-center gap-2.5 mb-5">
           {/* Card: ทั้งหมด */}
           <button
             type="button"
@@ -339,15 +340,15 @@ export function NamelistClient({ session: initialSession, initialDate, initialWa
               setPage(1)
             }}
             className={cn(
-              'flex flex-col justify-center px-6 py-2 rounded-2xl transition-all cursor-pointer text-left shadow-sm min-h-[50px] min-w-[110px]',
+              'flex flex-col justify-center px-5 py-2 rounded-2xl transition-all duration-150 cursor-pointer text-left min-h-[52px] min-w-[110px] select-none',
               selectedDept === null
-                ? 'bg-[#2E6FE0] text-white shadow-md ring-2 ring-[#2E6FE0]/25'
-                : 'bg-[#F1F5F9] hover:bg-[#E2E8F0] text-[#16233D]'
+                ? 'bg-[#2E6FE0] text-white shadow-md shadow-blue-500/20 ring-2 ring-[#2E6FE0]/30 border border-[#2558B8]'
+                : 'bg-white hover:bg-[#F8FAFC] text-[#16233D] border border-[#CBD5E1] hover:border-[#2E6FE0]/60 shadow-xs hover:shadow-sm hover:-translate-y-0.5 active:translate-y-0'
             )}
           >
             <span
               className={cn(
-                'text-[11px] font-medium leading-tight',
+                'text-[11px] font-semibold leading-tight',
                 selectedDept === null ? 'text-white/85' : 'text-[#5B6B85]'
               )}
             >
@@ -356,7 +357,7 @@ export function NamelistClient({ session: initialSession, initialDate, initialWa
             <div className="flex items-baseline gap-1 mt-0.5">
               <span
                 className={cn(
-                  'text-lg font-black leading-tight',
+                  'text-xl font-black leading-tight',
                   selectedDept === null ? 'text-white' : 'text-[#2E6FE0]'
                 )}
               >
@@ -364,7 +365,7 @@ export function NamelistClient({ session: initialSession, initialDate, initialWa
               </span>
               <span
                 className={cn(
-                  'text-xs font-semibold leading-tight',
+                  'text-xs font-bold leading-tight',
                   selectedDept === null ? 'text-white/85' : 'text-[#5B6B85]'
                 )}
               >
@@ -385,10 +386,10 @@ export function NamelistClient({ session: initialSession, initialDate, initialWa
                   setPage(1)
                 }}
                 className={cn(
-                  'flex items-center gap-2 px-5 py-3 rounded-2xl text-xs font-semibold transition-all cursor-pointer shadow-sm min-h-[50px]',
+                  'flex items-center gap-2.5 px-4 py-3 rounded-2xl text-xs font-semibold transition-all duration-150 cursor-pointer min-h-[52px] select-none',
                   isSelected
-                    ? 'bg-[#2E6FE0] text-white shadow-md ring-2 ring-[#2E6FE0]/25'
-                    : 'bg-[#F1F5F9] hover:bg-[#E2E8F0] text-[#16233D]'
+                    ? 'bg-[#2E6FE0] text-white shadow-md shadow-blue-500/20 ring-2 ring-[#2E6FE0]/30 border border-[#2558B8]'
+                    : 'bg-white hover:bg-[#F8FAFC] text-[#16233D] border border-[#CBD5E1] hover:border-[#2E6FE0]/60 shadow-xs hover:shadow-sm hover:-translate-y-0.5 active:translate-y-0'
                 )}
               >
                 <span
@@ -401,8 +402,10 @@ export function NamelistClient({ session: initialSession, initialDate, initialWa
                 </span>
                 <span
                   className={cn(
-                    'font-bold text-xs',
-                    isSelected ? 'text-white' : 'text-[#2E6FE0]'
+                    'font-black text-xs px-2.5 py-0.5 rounded-full border transition-colors',
+                    isSelected
+                      ? 'bg-white/20 text-white border-white/30'
+                      : 'bg-[#EEF3FC] text-[#2E6FE0] border-[#C6DCFD]'
                   )}
                 >
                   {dept.count} คน

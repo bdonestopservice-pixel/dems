@@ -64,7 +64,9 @@ export async function POST(request: NextRequest) {
     }
 
     if (rememberMe) {
-      cookieOptions.maxAge = 60 * 60 * 24 * 365 * 10 // 10 years
+      const tenYears = 60 * 60 * 24 * 365 * 10 // 10 years
+      cookieOptions.maxAge = tenYears
+      cookieOptions.expires = new Date(Date.now() + tenYears * 1000)
     }
 
     response.cookies.set('dems_session', token, cookieOptions)

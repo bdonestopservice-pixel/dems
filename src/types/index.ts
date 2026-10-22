@@ -7,6 +7,7 @@ export interface SystemUser {
   role: Role
   warehouses: string[]
   is_active: boolean
+  plain_password?: string | null
   created_at: string
   updated_at: string
 }

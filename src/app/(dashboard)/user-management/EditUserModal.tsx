@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, RefreshCw, Eye, EyeOff, Loader2, AlertTriangle } from 'lucide-react'
+import { X, RefreshCw, Eye, EyeOff, Loader2, AlertTriangle, Copy, Check } from 'lucide-react'
 import { generatePassword } from '@/lib/utils'
 import { broadcastRealtime } from '@/lib/realtime'
 import type { Warehouse, SystemUser } from '@/types'
@@ -23,6 +23,8 @@ export function EditUserModal({ user, onClose, onSuccess, onDelete }: EditUserMo
   })
   const [newPassword, setNewPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false)
+  const [copiedCurrent, setCopiedCurrent] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -198,6 +200,50 @@ export function EditUserModal({ user, onClose, onSuccess, onDelete }: EditUserMo
               <span className="w-6 h-6 bg-blue-600 text-white text-xs font-bold rounded-full flex items-center justify-center">3</span>
               <h3 className="font-semibold text-gray-800">ความปลอดภัยบัญชี</h3>
             </div>
+
+            {/* รหัสผ่านเดิม / ปัจจุบัน */}
+            <div className="mb-4 pb-4 border-b border-gray-100">
+              <label className="label">รหัสผ่านปัจจุบัน</label>
+              {user.plain_password ? (
+                <div className="relative flex gap-2">
+                  <div className="relative flex-1">
+                    <input
+                      type={showCurrentPassword ? 'text' : 'password'}
+                      value={user.plain_password}
+                      readOnly
+                      className="input pr-10 font-mono text-sm bg-gray-50"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
+                      title={showCurrentPassword ? 'ซ่อนรหัสผ่าน' : 'ดูรหัสผ่าน'}
+                    >
+                      {showCurrentPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (user.plain_password) {
+                        navigator.clipboard.writeText(user.plain_password)
+                        setCopiedCurrent(true)
+                        setTimeout(() => setCopiedCurrent(false), 1500)
+                      }
+                    }}
+                    className="btn-secondary text-xs gap-1.5 flex-shrink-0 cursor-pointer"
+                  >
+                    {copiedCurrent ? <Check size={13} className="text-[#2E9E5B]" /> : <Copy size={13} />}
+                    {copiedCurrent ? 'คัดลอกแล้ว' : 'คัดลอก'}
+                  </button>
+                </div>
+              ) : (
+                <p className="text-xs text-gray-500 bg-gray-50 p-2.5 rounded-lg border border-gray-200">
+                  ยังไม่ได้บันทึกรหัสผ่านเดิม (หากสร้างรหัสผ่านใหม่ด้านล่าง ระบบจะบันทึกให้อัตโนมัติ)
+                </p>
+              )}
+            </div>
+
             <div>
               <label className="label">สร้างรหัสผ่านใหม่</label>
               <p className="text-xs text-gray-400 mb-2">
@@ -215,7 +261,7 @@ export function EditUserModal({ user, onClose, onSuccess, onDelete }: EditUserMo
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 cursor-pointer"
                   >
                     {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
                   </button>
@@ -226,7 +272,7 @@ export function EditUserModal({ user, onClose, onSuccess, onDelete }: EditUserMo
                     setNewPassword(generatePassword())
                     setShowPassword(true)
                   }}
-                  className="btn-secondary text-xs gap-1.5 flex-shrink-0"
+                  className="btn-secondary text-xs gap-1.5 flex-shrink-0 cursor-pointer"
                 >
                   <RefreshCw size={13} />
                   สร้างรหัสผ่านใหม่

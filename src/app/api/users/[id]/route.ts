@@ -23,7 +23,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
   const supabase = createServerSupabaseClient()
   const { data, error } = await supabase
     .from('users')
-    .select('id, name, email, role, warehouses, is_active, created_at')
+    .select('id, name, email, role, warehouses, is_active, plain_password, created_at')
     .eq('id', id)
     .single()
 
@@ -65,13 +65,14 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   if (body.is_active !== undefined) updateData.is_active = body.is_active
   if (body.password !== undefined && body.password !== '') {
     updateData.password = await bcrypt.hash(body.password, 12)
+    updateData.plain_password = body.password
   }
 
   const { data, error } = await supabase
     .from('users')
     .update(updateData)
     .eq('id', id)
-    .select('id, name, email, role, warehouses, is_active, created_at')
+    .select('id, name, email, role, warehouses, is_active, plain_password, created_at')
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

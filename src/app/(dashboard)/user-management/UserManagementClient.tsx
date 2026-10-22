@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Search, Plus, Pencil, Trash2, ChevronDown } from 'lucide-react'
+import { Search, Plus, Pencil, Trash2, ChevronDown, Eye, EyeOff, Copy, Check } from 'lucide-react'
 import { cn, getInitials } from '@/lib/utils'
 import { broadcastRealtime } from '@/lib/realtime'
 import { useRealtimeListener } from '@/components/providers/RealtimeProvider'
@@ -29,6 +29,8 @@ export function UserManagementClient() {
   const [showAddModal, setShowAddModal] = useState(false)
   const [editingUser, setEditingUser] = useState<SystemUser | null>(null)
   const [showRoleDropdown, setShowRoleDropdown] = useState(false)
+  const [revealedPasswords, setRevealedPasswords] = useState<Record<string, boolean>>({})
+  const [copiedId, setCopiedId] = useState<string | null>(null)
 
   const fetchUsers = useCallback(async () => {
     setLoading(true)
@@ -140,6 +142,7 @@ export function UserManagementClient() {
                 <th className="py-3.5 px-6 font-semibold text-xs text-[#5B6B85]">ผู้ใช้งาน</th>
                 <th className="py-3.5 px-6 font-semibold text-xs text-[#5B6B85]">Role</th>
                 <th className="py-3.5 px-6 font-semibold text-xs text-[#5B6B85]">คลัง/สาขา</th>
+                <th className="py-3.5 px-6 font-semibold text-xs text-[#5B6B85]">รหัสผ่าน</th>
                 <th className="py-3.5 px-6 font-semibold text-xs text-[#5B6B85]">สถานะ</th>
                 <th className="py-3.5 px-6 font-semibold text-xs text-[#5B6B85] w-24"></th>
               </tr>
@@ -147,13 +150,13 @@ export function UserManagementClient() {
             <tbody className="divide-y divide-[#E1E6EF]">
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="text-center py-12 text-[#9AA5B8]">
+                  <td colSpan={6} className="text-center py-12 text-[#9AA5B8]">
                     กำลังโหลด...
                   </td>
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="text-center py-12 text-[#9AA5B8]">
+                  <td colSpan={6} className="text-center py-12 text-[#9AA5B8]">
                     ไม่พบผู้ใช้งาน
                   </td>
                 </tr>
@@ -215,6 +218,55 @@ export function UserManagementClient() {
                           <span className="text-[#9AA5B8] text-xs">—</span>
                         )}
                       </div>
+                    </td>
+
+                    {/* Password */}
+                    <td className="py-4 px-6 whitespace-nowrap">
+                      {user.plain_password ? (
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono text-xs text-[#16233D] bg-[#F4F6FA] border border-[#E1E6EF] px-2.5 py-1 rounded-md min-w-[70px] text-center select-all">
+                            {revealedPasswords[user.id] ? user.plain_password : '••••••••'}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setRevealedPasswords((prev) => ({
+                                ...prev,
+                                [user.id]: !prev[user.id],
+                              }))
+                            }
+                            className="p-1.5 rounded-lg text-[#5B6B85] hover:text-[#2E6FE0] hover:bg-[#EEF3FC] border border-[#E1E6EF] transition-colors cursor-pointer"
+                            title={revealedPasswords[user.id] ? 'ซ่อนรหัสผ่าน' : 'ดูรหัสผ่าน'}
+                          >
+                            {revealedPasswords[user.id] ? <EyeOff size={13} /> : <Eye size={13} />}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (user.plain_password) {
+                                navigator.clipboard.writeText(user.plain_password)
+                                setCopiedId(user.id)
+                                setTimeout(() => setCopiedId(null), 1500)
+                              }
+                            }}
+                            className="p-1.5 rounded-lg text-[#5B6B85] hover:text-[#2E9E5B] hover:bg-[#E7F6ED] border border-[#E1E6EF] transition-colors cursor-pointer"
+                            title="คัดลอกรหัสผ่าน"
+                          >
+                            {copiedId === user.id ? (
+                              <Check size={13} className="text-[#2E9E5B]" />
+                            ) : (
+                              <Copy size={13} />
+                            )}
+                          </button>
+                        </div>
+                      ) : (
+                        <span
+                          className="text-xs text-[#9AA5B8] italic"
+                          title="ยังไม่ได้บันทึกรหัสผ่านเดิม สามารถกดแก้ไขเพื่อสร้างรหัสใหม่ได้"
+                        >
+                          —
+                        </span>
+                      )}
                     </td>
 
                     {/* Status */}

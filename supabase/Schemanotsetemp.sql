@@ -34,29 +34,34 @@ ON CONFLICT (id) DO NOTHING;
 -- 2. ผู้ใช้งานระบบ (System Users)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS users (
-  id         UUID    PRIMARY KEY DEFAULT gen_random_uuid(),
-  name       TEXT    NOT NULL,
-  email      TEXT    UNIQUE NOT NULL,
-  password   TEXT    NOT NULL,
-  role       TEXT    NOT NULL CHECK (role IN ('super_admin', 'admin', 'payroll')),
-  warehouses TEXT[]  DEFAULT '{}',
-  is_active  BOOLEAN DEFAULT true,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now()
+  id             UUID    PRIMARY KEY DEFAULT gen_random_uuid(),
+  name           TEXT    NOT NULL,
+  email          TEXT    UNIQUE NOT NULL,
+  password       TEXT    NOT NULL,
+  plain_password TEXT,
+  role           TEXT    NOT NULL CHECK (role IN ('super_admin', 'admin', 'payroll')),
+  warehouses     TEXT[]  DEFAULT '{}',
+  is_active      BOOLEAN DEFAULT true,
+  created_at     TIMESTAMPTZ DEFAULT now(),
+  updated_at     TIMESTAMPTZ DEFAULT now()
 );
+
+-- อัปเดตโครงสร้างสำหรับฐานข้อมูลเดิม (กรณีสร้าง table ไปแล้ว)
+ALTER TABLE users ADD COLUMN IF NOT EXISTS plain_password TEXT;
 
 -- Seed: Super Admin เริ่มต้น
 -- email: admin@dems.co.th | password: admin1234
 -- (Hash นี้สร้างจาก bcrypt.hash('admin1234', 10) แนะนำเปลี่ยนรหัสผ่านหลังเข้าใช้งาน)
-INSERT INTO users (name, email, password, role, warehouses)
+INSERT INTO users (name, email, password, plain_password, role, warehouses)
 VALUES (
   'Super Admin',
   'admin@dems.co.th',
   '$2a$10$/4HyBfCPpkRf1r0hZTN53egg.A/CR.hNNGKTZ9sIE6ovPUgD8x9oW',
+  'admin1234',
   'super_admin',
   ARRAY['SOCE', 'SOCW', 'SOCN', 'FSOCW', 'SCOM-SS', 'SCOM-WN']
 )
-ON CONFLICT (email) DO NOTHING;
+ON CONFLICT (email) DO UPDATE SET plain_password = 'admin1234' WHERE users.plain_password IS NULL;
 
 
 -- ============================================================

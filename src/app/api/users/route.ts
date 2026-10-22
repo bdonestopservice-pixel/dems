@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
   const supabase = createServerSupabaseClient()
   const { data, error } = await supabase
     .from('users')
-    .select('id, name, email, role, warehouses, is_active, created_at')
+    .select('id, name, email, role, warehouses, is_active, plain_password, created_at')
     .order('created_at', { ascending: true })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -59,8 +59,15 @@ export async function POST(request: NextRequest) {
 
   const { data, error } = await supabase
     .from('users')
-    .insert({ name, email, password: hashedPassword, role, warehouses: warehouses || [] })
-    .select('id, name, email, role, warehouses, is_active, created_at')
+    .insert({
+      name,
+      email,
+      password: hashedPassword,
+      plain_password: password,
+      role,
+      warehouses: warehouses || [],
+    })
+    .select('id, name, email, role, warehouses, is_active, plain_password, created_at')
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

@@ -2,8 +2,9 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Eye, EyeOff, CheckSquare, Loader2 } from 'lucide-react'
+import { Eye, EyeOff, CheckSquare, Loader2, Check } from 'lucide-react'
 import { LOGO_URL } from '@/lib/brand'
+import { cn } from '@/lib/utils'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -158,26 +159,28 @@ export default function LoginPage() {
               </div>
 
               {/* Remember me */}
-              <label className="flex items-center gap-2.5 cursor-pointer group">
+              <label className="flex items-center gap-2.5 cursor-pointer group select-none">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="sr-only"
+                />
                 <div
-                  onClick={() => setRememberMe(!rememberMe)}
-                  className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                  className={cn(
+                    'w-4 h-4 rounded border flex items-center justify-center transition-colors flex-shrink-0',
                     rememberMe
                       ? 'bg-[#7C3AED] border-[#7C3AED]'
-                      : 'border-gray-300 group-hover:border-[#7C3AED]'
-                  }`}
+                      : 'border-gray-300 group-hover:border-[#7C3AED] bg-white'
+                  )}
                 >
                   {rememberMe && (
-                    <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                      <path
-                        fillRule="evenodd"
-                        d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
+                    <Check size={11} strokeWidth={3.5} className="text-white" />
                   )}
                 </div>
-                <span className="text-sm text-gray-600">จดจำฉันไว้ในระบบ</span>
+                <span className="text-sm text-gray-600 group-hover:text-gray-900 transition-colors">
+                  จดจำฉันไว้ในระบบ
+                </span>
               </label>
 
               {/* Error */}
