@@ -60,6 +60,11 @@ export function DropdownConfigClient({ session }: Props) {
   const [counts, setCounts] = useState<Partial<Record<CategoryId, number>>>({})
   const [showWarehousePicker, setShowWarehousePicker] = useState(false)
 
+  // Memoized count updater to avoid infinite re-render loops
+  const updateCategoryCount = useCallback((category: CategoryId, n: number) => {
+    setCounts((prev) => (prev[category] === n ? prev : { ...prev, [category]: n }))
+  }, [])
+
   // โหลดคลังทั้งหมด และดึง session ล่าสุดจาก DB (เผื่อมีการเพิ่มคลังให้ admin/payroll ใน user-management)
   useEffect(() => {
     fetch('/api/warehouses')
@@ -362,38 +367,38 @@ export function DropdownConfigClient({ session }: Props) {
               <DepartmentPanel
                 warehouse={selectedWarehouse}
                 session={session}
-                onCountChange={(n) => setCounts((prev) => ({ ...prev, departments: n }))}
+                onCountChange={(n) => updateCategoryCount('departments', n)}
               />
             )}
             {selectedCategory === 'shifts' && (
               <ShiftPanel
                 warehouse={selectedWarehouse}
                 session={session}
-                onCountChange={(n) => setCounts((prev) => ({ ...prev, shifts: n }))}
+                onCountChange={(n) => updateCategoryCount('shifts', n)}
               />
             )}
             {selectedCategory === 'oa_options' && (
               <OaPanel
                 warehouse={selectedWarehouse}
                 session={session}
-                onCountChange={(n) => setCounts((prev) => ({ ...prev, oa_options: n }))}
+                onCountChange={(n) => updateCategoryCount('oa_options', n)}
               />
             )}
             {selectedCategory === 'work_statuses' && (
               <WorkStatusPanel
                 session={session}
-                onCountChange={(n) => setCounts((prev) => ({ ...prev, work_statuses: n }))}
+                onCountChange={(n) => updateCategoryCount('work_statuses', n)}
               />
             )}
             {selectedCategory === 'banks' && session.role === 'super_admin' && (
               <BankPanel
                 warehouses={warehouses}
-                onCountChange={(n) => setCounts((prev) => ({ ...prev, banks: n }))}
+                onCountChange={(n) => updateCategoryCount('banks', n)}
               />
             )}
             {selectedCategory === 'warehouses' && session.role === 'super_admin' && (
               <WarehousePanel
-                onCountChange={(n) => setCounts((prev) => ({ ...prev, warehouses: n }))}
+                onCountChange={(n) => updateCategoryCount('warehouses', n)}
                 onWarehouseChange={() => {
                   // Reload warehouses after add/edit
                   fetch('/api/warehouses')

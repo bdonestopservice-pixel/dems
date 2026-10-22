@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Pencil, Trash2, Plus, Loader2, X, Check } from 'lucide-react'
 import type { Bank, Warehouse as WarehouseType } from '@/types'
 import { broadcastRealtime } from '@/lib/realtime'
@@ -11,6 +11,15 @@ interface Props {
   onCountChange: (n: number) => void
 }
 
+const DEFAULT_WAREHOUSES: WarehouseType[] = [
+  { id: 'SOCE', name: 'SOCE - คลังตะวันออก' },
+  { id: 'SOCW', name: 'SOCW - คลังตะวันตก' },
+  { id: 'FSOCW', name: 'FSOCW - คลัง F ตะวันตก' },
+  { id: 'SOCN', name: 'SOCN - คลังเหนือ' },
+  { id: 'SCOM-SS', name: 'SCOM-SS - คลัง SS' },
+  { id: 'SCOM-WN', name: 'SCOM-WN - คลัง WN' },
+]
+
 function getWarehouseLabel(id: string, name?: string) {
   if (id === 'SCOM-SS') return 'SCOM-SS (สมุทรสาคร)'
   if (id === 'SCOM-WN') return 'SCOM-WN (วังน้อย)'
@@ -20,7 +29,20 @@ function getWarehouseLabel(id: string, name?: string) {
 export function BankPanel({ warehouses: initialWarehouses, onCountChange }: Props) {
   const [items, setItems] = useState<Bank[]>([])
   const [loading, setLoading] = useState(true)
-  const [allWarehouses, setAllWarehouses] = useState<WarehouseType[]>(initialWarehouses || [])
+
+  // ใช้ ref เพื่อป้องกัน load() เปลี่ยน reference ตลอดเวลาจนเกิด infinite loop
+  const onCountChangeRef = useRef(onCountChange)
+  onCountChangeRef.current = onCountChange
+
+  const allWarehouses = useMemo(() => {
+    return initialWarehouses && initialWarehouses.length > 0
+      ? initialWarehouses
+      : DEFAULT_WAREHOUSES
+  }, [initialWarehouses])
+
+  const allWarehouseIds = useMemo(() => {
+    return allWarehouses.map((w) => w.id)
+  }, [allWarehouses])
 
   // Editing state
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -28,36 +50,17 @@ export function BankPanel({ warehouses: initialWarehouses, onCountChange }: Prop
   const [editCode, setEditCode] = useState('')
   const [editWarehouses, setEditWarehouses] = useState<string[]>([])
 
-  // Add state
+  // Add state (ค่าเริ่มต้นเลือกทุกคลัง)
   const [newName, setNewName] = useState('')
   const [newCode, setNewCode] = useState('')
-  const [newWarehouses, setNewWarehouses] = useState<string[]>([])
+  const [newWarehouses, setNewWarehouses] = useState<string[]>([
+    'SOCE', 'SOCW', 'FSOCW', 'SOCN', 'SCOM-SS', 'SCOM-WN'
+  ])
 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  // โหลดรายชื่อคลังถ้ายังไม่มี
-  useEffect(() => {
-    if (initialWarehouses && initialWarehouses.length > 0) {
-      setAllWarehouses(initialWarehouses)
-      return
-    }
-    fetch('/api/warehouses')
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.warehouses && d.warehouses.length > 0) {
-          setAllWarehouses(d.warehouses)
-        }
-      })
-      .catch(() => {})
-  }, [initialWarehouses])
-
-  const allWarehouseIds = useMemo(() => {
-    if (allWarehouses.length > 0) return allWarehouses.map((w) => w.id)
-    return ['SOCE', 'SOCW', 'FSOCW', 'SOCN', 'SCOM-SS', 'SCOM-WN']
-  }, [allWarehouses])
-
-  // โหลดรายการธนาคาร
+  // โหลดรายการธนาคาร (เรียกเพียงครั้งเดียวตอน mount)
   const load = useCallback(async () => {
     setLoading(true)
     try {
@@ -65,24 +68,17 @@ export function BankPanel({ warehouses: initialWarehouses, onCountChange }: Prop
       const data = await res.json()
       const list = data.banks || []
       setItems(list)
-      onCountChange(list.length)
+      onCountChangeRef.current?.(list.length)
     } catch (err) {
       console.error(err)
     } finally {
       setLoading(false)
     }
-  }, [onCountChange])
+  }, [])
 
   useEffect(() => {
     load()
   }, [load])
-
-  // เริ่มต้นเลือกทุกคลังในฟอร์มเพิ่มใหม่
-  useEffect(() => {
-    if (newWarehouses.length === 0 && allWarehouseIds.length > 0) {
-      setNewWarehouses(allWarehouseIds)
-    }
-  }, [allWarehouseIds])
 
   // Toggle สำหรับฟอร์มเพิ่ม
   const isNewAllSelected =
