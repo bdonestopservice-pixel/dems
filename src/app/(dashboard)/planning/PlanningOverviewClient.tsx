@@ -6,6 +6,7 @@ import { Plus, Search, Pencil, Users, Calendar, AlertCircle, CheckCircle2, Trash
 import { Topbar } from '@/components/layout/Topbar'
 import { formatThaiDate } from '@/lib/utils'
 import { EditPlanModal } from '@/components/planning/EditPlanModal'
+import { DeletePlanModal } from '@/components/planning/DeletePlanModal'
 import { broadcastRealtime } from '@/lib/realtime'
 import { useRealtimeListener, useRealtimeSession } from '@/components/providers/RealtimeProvider'
 import type { AuthSession, Plan, Warehouse } from '@/types'
@@ -26,8 +27,9 @@ export function PlanningOverviewClient({ session: initialSession }: PlanningOver
   const [selectedDate, setSelectedDate] = useState<string>('')
   const [searchTerm, setSearchTerm] = useState<string>('')
 
-  // Edit Modal State
+  // Edit & Delete Modal State
   const [editingPlan, setEditingPlan] = useState<Plan | null>(null)
+  const [planToDelete, setPlanToDelete] = useState<Plan | null>(null)
   const [deletingPlanId, setDeletingPlanId] = useState<string | null>(null)
   const [feedbackMsg, setFeedbackMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
@@ -41,10 +43,9 @@ export function PlanningOverviewClient({ session: initialSession }: PlanningOver
     fetchPlans()
   }
 
-  const handleDeletePlan = async (p: Plan) => {
-    const confirmText = `ต้องการลบแพลน "${p.department_name}" (${formatThaiDate(p.date)}) คลัง ${p.warehouse} หรือไม่?\n\n⚠️ การลบแพลนจะนำรายชื่อพนักงานออกจากแพลนนี้ด้วย (ไม่ส่งผลต่อข้อมูลพนักงานในระบบ)`
-    if (!confirm(confirmText)) return
-
+  const handleConfirmDeletePlan = async () => {
+    if (!planToDelete) return
+    const p = planToDelete
     setDeletingPlanId(p.id)
     try {
       const res = await fetch(`/api/plans/${p.id}`, { method: 'DELETE' })
@@ -57,6 +58,7 @@ export function PlanningOverviewClient({ session: initialSession }: PlanningOver
       setFeedbackMsg({ type: 'success', text: `ลบแพลน ${p.department_name} เรียบร้อยแล้ว` })
       setTimeout(() => setFeedbackMsg(null), 3000)
       broadcastRealtime('plan-updated')
+      setPlanToDelete(null)
       fetchPlans()
     } catch (err: any) {
       setFeedbackMsg({ type: 'error', text: err.message || 'เกิดข้อผิดพลาดในการลบแพลน' })
@@ -308,10 +310,10 @@ export function PlanningOverviewClient({ session: initialSession }: PlanningOver
 
                         <button
                           type="button"
-                          onClick={() => handleDeletePlan(p)}
+                          onClick={() => setPlanToDelete(p)}
                           disabled={deletingPlanId === p.id}
                           title="ลบแพลนนี้"
-                          className="w-7 h-7 flex items-center justify-center rounded-lg text-[#9AA5B8] hover:text-[#E5484D] hover:bg-[#FCE8E8] border border-transparent hover:border-[#F87171]/40 transition-colors disabled:opacity-50"
+                          className="w-7 h-7 flex items-center justify-center rounded-lg text-[#9AA5B8] hover:text-[#E5484D] hover:bg-[#FCE8E8] border border-transparent hover:border-[#F87171]/40 transition-colors disabled:opacity-50 cursor-pointer"
                         >
                           {deletingPlanId === p.id ? (
                             <Loader2 className="w-3.5 h-3.5 animate-spin text-[#E5484D]" />
@@ -415,6 +417,15 @@ export function PlanningOverviewClient({ session: initialSession }: PlanningOver
         onClose={() => setEditingPlan(null)}
         plan={editingPlan}
         onUpdated={handlePlanUpdated}
+      />
+
+      {/* Delete Plan Confirmation Modal (Mockup 2) */}
+      <DeletePlanModal
+        isOpen={Boolean(planToDelete)}
+        plan={planToDelete}
+        onClose={() => setPlanToDelete(null)}
+        onConfirm={handleConfirmDeletePlan}
+        loading={Boolean(deletingPlanId)}
       />
     </>
   )

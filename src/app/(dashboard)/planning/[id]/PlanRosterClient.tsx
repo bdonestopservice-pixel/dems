@@ -14,11 +14,14 @@ import {
   CheckCircle2,
   Users,
   Pencil,
+  Trash2,
 } from 'lucide-react'
 import { Topbar } from '@/components/layout/Topbar'
 import { formatThaiDate } from '@/lib/utils'
 import { exportPlanAttendanceSheet } from '@/lib/export-plan-pdf'
 import { EditPlanModal } from '@/components/planning/EditPlanModal'
+import { DeletePlanModal } from '@/components/planning/DeletePlanModal'
+import { RemoveEmployeeFromPlanModal, type EmployeeToRemove } from '@/components/planning/RemoveEmployeeFromPlanModal'
 import { broadcastRealtime } from '@/lib/realtime'
 import { useRealtimeListener } from '@/components/providers/RealtimeProvider'
 import type { AuthSession, Plan, PlanEmployee } from '@/types'
@@ -41,12 +44,34 @@ export function PlanRosterClient({ session, planId }: PlanRosterClientProps) {
   const [sendingNamelist, setSendingNamelist] = useState(false)
   const [deletingEmpId, setDeletingEmpId] = useState<string | null>(null)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [isDeletePlanOpen, setIsDeletePlanOpen] = useState(false)
+  const [deletingPlan, setDeletingPlan] = useState(false)
+  const [employeeToRemove, setEmployeeToRemove] = useState<EmployeeToRemove | null>(null)
 
   const handlePlanUpdated = (updatedPlan: any) => {
     setPlan((prev) => (prev ? { ...prev, ...updatedPlan } : updatedPlan))
     setSuccessMsg('แก้ไขข้อมูลแผนก กะ และรายละเอียดแพลนสำเร็จแล้ว')
     setTimeout(() => setSuccessMsg(null), 3500)
     broadcastRealtime('plan-updated')
+  }
+
+  // Delete Plan completely
+  const handleConfirmDeletePlan = async () => {
+    if (!plan) return
+    setDeletingPlan(true)
+    try {
+      const res = await fetch(`/api/plans/${planId}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error || 'ไม่สามารถลบแพลนได้')
+      }
+      broadcastRealtime('plan-updated')
+      setIsDeletePlanOpen(false)
+      router.push('/planning')
+    } catch (err: any) {
+      setErrorMsg(err.message || 'เกิดข้อผิดพลาดในการลบแพลน')
+      setDeletingPlan(false)
+    }
   }
 
   // Fetch plan & roster
@@ -98,17 +123,17 @@ export function PlanRosterClient({ session, planId }: PlanRosterClientProps) {
     }
   };
 
-  // Remove employee from roster
-  const handleRemoveEmployee = async (emp: PlanEmployee) => {
-    const fullName = `${emp.prefix ? emp.prefix + ' ' : ''}${emp.first_name || ''} ${emp.last_name || ''}`.trim()
-    const confirmText = `ต้องการนำ "${fullName}" (${emp.po_id}) ออกจากแพลนนี้หรือไม่?\n\n(หมายเหตุ: การนำออกจากแพลนจะไม่ลบข้อมูลพนักงานออกจากระบบ)`
-    if (!confirm(confirmText)) return
+  // Confirm remove employee from roster
+  const handleConfirmRemoveEmployee = async () => {
+    if (!employeeToRemove) return
+    const empId = employeeToRemove.employee_id
+    const fullName = employeeToRemove.fullName
 
-    setDeletingEmpId(emp.employee_id)
+    setDeletingEmpId(empId)
     setErrorMsg(null)
 
     try {
-      const res = await fetch(`/api/plans/${planId}/roster?employee_id=${emp.employee_id}`, {
+      const res = await fetch(`/api/plans/${planId}/roster?employee_id=${empId}`, {
         method: 'DELETE',
       })
       if (!res.ok) {
@@ -119,7 +144,7 @@ export function PlanRosterClient({ session, planId }: PlanRosterClientProps) {
       // Remove from selected if was selected
       setSelectedIds((prev) => {
         const next = new Set(prev)
-        next.delete(emp.employee_id)
+        next.delete(empId)
         return next
       })
 
@@ -129,6 +154,7 @@ export function PlanRosterClient({ session, planId }: PlanRosterClientProps) {
       broadcastRealtime('plan-updated')
       setSuccessMsg(`นำ ${fullName} ออกจากแพลนเรียบร้อยแล้ว`)
       setTimeout(() => setSuccessMsg(null), 3500)
+      setEmployeeToRemove(null)
     } catch (err: any) {
       setErrorMsg(err.message || 'เกิดข้อผิดพลาดในการนำพนักงานออก')
     } finally {
@@ -271,10 +297,20 @@ export function PlanRosterClient({ session, planId }: PlanRosterClientProps) {
                 type="button"
                 onClick={() => setIsEditModalOpen(true)}
                 title="แก้ไขแผนก / กะ / จำนวนคนที่ต้องการ"
-                className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#2E6FE0] hover:text-[#1D4490] bg-white border border-[#E1E6EF] hover:border-[#2E6FE0] hover:bg-[#EEF3FC] px-2.5 py-1 rounded-lg transition-all shadow-sm"
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#2E6FE0] hover:text-[#1D4490] bg-white border border-[#E1E6EF] hover:border-[#2E6FE0] hover:bg-[#EEF3FC] px-2.5 py-1 rounded-lg transition-all shadow-sm cursor-pointer"
               >
                 <Pencil className="w-3 h-3" />
                 แก้ไขแผนก/กะ
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsDeletePlanOpen(true)}
+                title="ลบแพลนนี้"
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#E5484D] hover:text-[#DC2626] bg-white border border-[#E1E6EF] hover:border-[#F87171] hover:bg-[#FCE8E8] px-2.5 py-1 rounded-lg transition-all shadow-sm cursor-pointer"
+              >
+                <Trash2 className="w-3 h-3" />
+                ลบแพลน
               </button>
             </div>
 
@@ -421,13 +457,19 @@ export function PlanRosterClient({ session, planId }: PlanRosterClientProps) {
                         <td className="py-3.5 px-4 text-center">
                           <button
                             type="button"
-                            onClick={() => handleRemoveEmployee(emp)}
+                            onClick={() =>
+                              setEmployeeToRemove({
+                                employee_id: emp.employee_id,
+                                fullName,
+                                po_id: emp.po_id,
+                              })
+                            }
                             disabled={deletingEmpId === emp.employee_id}
                             title="นำออกจากแพลนนี้"
-                            className="w-7 h-7 rounded-lg inline-flex items-center justify-center text-[#9AA5B8] hover:text-[#E5484D] hover:bg-[#FCE8E8] transition-colors disabled:opacity-40"
+                            className="w-7 h-7 rounded-lg inline-flex items-center justify-center text-[#9AA5B8] hover:text-[#E5484D] hover:bg-[#FCE8E8] transition-colors disabled:opacity-40 cursor-pointer"
                           >
                             {deletingEmpId === emp.employee_id ? (
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              <Loader2 className="w-3.5 h-3.5 animate-spin text-[#E5484D]" />
                             ) : (
                               <X className="w-4 h-4" />
                             )}
@@ -489,6 +531,34 @@ export function PlanRosterClient({ session, planId }: PlanRosterClientProps) {
         onClose={() => setIsEditModalOpen(false)}
         plan={plan}
         onUpdated={handlePlanUpdated}
+      />
+
+      {/* Delete Plan Modal (Mockup 2) */}
+      <DeletePlanModal
+        isOpen={isDeletePlanOpen}
+        plan={
+          plan
+            ? {
+                id: plan.id,
+                department_name: plan.department_name,
+                warehouse: plan.warehouse,
+                date: plan.date,
+                current_count: currentCount,
+              }
+            : null
+        }
+        onClose={() => setIsDeletePlanOpen(false)}
+        onConfirm={handleConfirmDeletePlan}
+        loading={deletingPlan}
+      />
+
+      {/* Remove Employee From Plan Modal */}
+      <RemoveEmployeeFromPlanModal
+        isOpen={Boolean(employeeToRemove)}
+        employee={employeeToRemove}
+        onClose={() => setEmployeeToRemove(null)}
+        onConfirm={handleConfirmRemoveEmployee}
+        loading={Boolean(deletingEmpId)}
       />
     </>
   )

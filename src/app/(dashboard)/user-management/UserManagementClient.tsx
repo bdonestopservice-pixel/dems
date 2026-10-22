@@ -187,15 +187,18 @@ export function UserManagementClient() {
                     </td>
 
                     {/* Role */}
-                    <td className="py-4 px-6">
+                    <td className="py-4 px-6 whitespace-nowrap">
                       {user.role === 'super_admin' ? (
-                        <span className="inline-flex items-center px-3 py-1 rounded-lg text-xs font-semibold bg-[#EEF3FC] text-[#2558B8]">
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-[#EEF3FC] text-[#2558B8] whitespace-nowrap">
                           Super Admin
                         </span>
+                      ) : user.role === 'admin' ? (
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-[#F1F5F9] text-[#334155] whitespace-nowrap">
+                          Admin
+                        </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-[#16233D] bg-white border border-[#E1E6EF] shadow-2xs">
-                          {user.role === 'admin' ? 'Admin' : 'Payroll'}
-                          <ChevronDown size={13} className="text-[#5B6B85]" />
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-[#F5F3FF] text-[#7C3AED] whitespace-nowrap">
+                          Payroll
                         </span>
                       )}
                     </td>
