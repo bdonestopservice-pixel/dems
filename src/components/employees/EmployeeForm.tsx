@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ChevronLeft, Loader2, Save, X, AlertCircle, Check } from 'lucide-react'
+import { ChevronLeft, Loader2, Save, X, AlertCircle, Check, Calendar } from 'lucide-react'
 import { cn, getInitials } from '@/lib/utils'
 import { broadcastRealtime } from '@/lib/realtime'
 import { useRealtimeListener, useRealtimeSession } from '@/components/providers/RealtimeProvider'
@@ -47,10 +47,24 @@ function thaiDisplayToIsoDate(displayStr?: string, isBuddhistYear = false): stri
   return displayStr
 }
 
+function getTodayIsoDate(): string {
+  const now = new Date()
+  const y = now.getFullYear()
+  const m = String(now.getMonth() + 1).padStart(2, '0')
+  const d = String(now.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+function getTodayDisplayDate(isBuddhistYear = false): string {
+  return isoToThaiDisplayDate(getTodayIsoDate(), isBuddhistYear)
+}
+
 export function EmployeeForm({ initialData, mode, session: propSession }: EmployeeFormProps) {
   const router = useRouter()
   const { session: realtimeSession } = useRealtimeSession()
   const session = propSession || realtimeSession
+
+  const startDatePickerRef = useRef<HTMLInputElement>(null)
 
   const [saving, setSaving] = useState(false)
   const [showSuccessModal, setShowSuccessModal] = useState(false)
@@ -82,7 +96,9 @@ export function EmployeeForm({ initialData, mode, session: propSession }: Employ
       initialData?.warehouse ||
       (session && session.role !== 'super_admin' && session.warehouses?.[0]) ||
       'SOCE',
-    start_date: isoToThaiDisplayDate(initialData?.start_date, false), // แสดงเป็น ค.ศ.
+    start_date: initialData?.start_date
+      ? isoToThaiDisplayDate(initialData.start_date, false)
+      : getTodayDisplayDate(false), // ค่าเริ่มต้นเป็นวันปัจจุบัน (ค.ศ.)
     phone: initialData?.phone ? initialData.phone.replace(/[^0-9]/g, '').slice(0, 10) : '',
     promptpay_status: initialData?.promptpay_status || 'ยืนยันแล้ว',
     bank_id: initialData?.bank_id || '',
@@ -140,6 +156,16 @@ export function EmployeeForm({ initialData, mode, session: propSession }: Employ
       }
     }
   }, [availableWarehouses, formData.warehouse])
+
+  // ตั้งค่าเริ่มต้นวันที่เริ่มงานเป็นวันปัจจุบัน (กรณีสร้างพนักงานใหม่ที่ยังไม่ได้กำหนดวันที่)
+  useEffect(() => {
+    if (mode === 'create' && !formData.start_date) {
+      setFormData((prev) => ({
+        ...prev,
+        start_date: getTodayDisplayDate(false),
+      }))
+    }
+  }, [mode])
 
   // กรองรายชื่อธนาคารตามคลังที่เลือก (formData.warehouse)
   const filteredBanks = useMemo(() => {
@@ -340,7 +366,7 @@ export function EmployeeForm({ initialData, mode, session: propSession }: Employ
       address_province: '',
       address_zipcode: '',
       warehouse: warehouses[0]?.id || 'SOCE',
-      start_date: '',
+      start_date: getTodayDisplayDate(false),
       phone: '',
       promptpay_status: 'ยืนยันแล้ว',
       bank_id: banks[0]?.id || '',
@@ -764,14 +790,52 @@ export function EmployeeForm({ initialData, mode, session: propSession }: Employ
             {/* วันที่เริ่มงาน (ค.ศ.) */}
             <div>
               <label className="label text-xs label-required">วันที่เริ่มงาน</label>
-              <input
-                type="text"
-                value={formData.start_date}
-                onChange={(e) => handleChange('start_date', e.target.value)}
-                placeholder="วว/ดด/ปปปป (ค.ศ.) เช่น 20/11/2026"
-                className="input text-sm"
-                required
-              />
+              <div className="relative flex items-center">
+                <input
+                  type="text"
+                  value={formData.start_date}
+                  onChange={(e) => handleChange('start_date', e.target.value)}
+                  placeholder="วว/ดด/ปปปป (ค.ศ.) เช่น 27/10/2026"
+                  className="input text-sm pr-10"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (startDatePickerRef.current) {
+                      try {
+                        if ('showPicker' in HTMLInputElement.prototype) {
+                          startDatePickerRef.current.showPicker()
+                        } else {
+                          startDatePickerRef.current.focus()
+                        }
+                      } catch {
+                        startDatePickerRef.current.focus()
+                      }
+                    }
+                  }}
+                  className="absolute right-2.5 p-1 text-[#5B6B85] hover:text-[#2E6FE0] hover:bg-[#F4F6FA] rounded-lg transition-colors cursor-pointer"
+                  title="เปิดปฏิทินเลือกวันที่เริ่มงาน"
+                >
+                  <Calendar size={16} />
+                </button>
+                <input
+                  ref={startDatePickerRef}
+                  type="date"
+                  tabIndex={-1}
+                  className="sr-only"
+                  value={
+                    formData.start_date && formData.start_date.split('/').length === 3
+                      ? thaiDisplayToIsoDate(formData.start_date, false)
+                      : ''
+                  }
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      handleChange('start_date', isoToThaiDisplayDate(e.target.value, false))
+                    }
+                  }}
+                />
+              </div>
             </div>
 
             {/* เบอร์ติดต่อ */}
