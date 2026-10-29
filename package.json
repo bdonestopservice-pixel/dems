@@ -9,7 +9,9 @@
     "lint": "next lint",
     "seed:scom-wn": "node scripts/seed-scom-wn-employees.js",
     "import:master-data": "node scripts/import-master-data.js",
-    "gen:master-sql": "node scripts/generate-master-sql.js"
+    "gen:master-sql": "node scripts/generate-master-sql.js",
+    "clean:obsolete": "node scripts/clean-obsolete-data.js",
+    "gen:clean-sql": "node scripts/generate-clean-sql.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.2",
