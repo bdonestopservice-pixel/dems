@@ -20,6 +20,7 @@ export async function GET(request: NextRequest) {
   const search = searchParams.get('search')?.trim() || ''
   const warehouse = searchParams.get('warehouse') || 'all'
   const status = searchParams.get('status') || 'all'
+  const startDate = searchParams.get('start_date')?.trim() || ''
   const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10))
   const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '100', 10)))
   const idsParam = searchParams.get('ids')
@@ -50,6 +51,11 @@ export async function GET(request: NextRequest) {
   // 2. Warehouse filter
   if (warehouse && warehouse !== 'all') {
     query = query.eq('warehouse', warehouse)
+  }
+
+  // 2.1 Start date filter
+  if (startDate) {
+    query = query.eq('start_date', startDate)
   }
 
   // 3. Status filter

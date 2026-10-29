@@ -16,7 +16,8 @@ import {
   Users,
   Bell,
 } from 'lucide-react'
-import { cn, getInitials } from '@/lib/utils'
+import { cn, getInitials, formatThaiDate } from '@/lib/utils'
+import { DateInput } from '@/components/ui/DateInput'
 import { useRealtimeListener } from '@/components/providers/RealtimeProvider'
 import type { Employee, Warehouse, AuthSession } from '@/types'
 import { exportCustomerRegistryCSV, exportOpsCSV } from '@/lib/export-csv'
@@ -36,6 +37,7 @@ export function EmployeesClient({ session }: EmployeesClientProps) {
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [selectedWarehouse, setSelectedWarehouse] = useState<string>('all')
   const [selectedStatus, setSelectedStatus] = useState<string>('all')
+  const [startDate, setStartDate] = useState<string>('')
 
   // Pagination (100 per page as requested)
   const [page, setPage] = useState(1)
@@ -80,6 +82,9 @@ export function EmployeesClient({ session }: EmployeesClientProps) {
         warehouse: selectedWarehouse,
         status: selectedStatus,
       })
+      if (startDate) {
+        params.set('start_date', startDate)
+      }
 
       const res = await fetch(`/api/employees?${params.toString()}`)
       if (res.ok) {
@@ -98,7 +103,7 @@ export function EmployeesClient({ session }: EmployeesClientProps) {
     } finally {
       setLoading(false)
     }
-  }, [page, limit, debouncedSearch, selectedWarehouse, selectedStatus])
+  }, [page, limit, debouncedSearch, selectedWarehouse, selectedStatus, startDate])
 
   useEffect(() => {
     fetchEmployees()
@@ -248,10 +253,10 @@ export function EmployeesClient({ session }: EmployeesClientProps) {
 
       {/* Main Card Container */}
       <div className="bg-white rounded-2xl border border-[#E1E6EF] shadow-sm flex flex-col flex-1 overflow-hidden">
-        {/* Toolbar */}
+        {/* Toolbar Row 1: Search and Action Buttons */}
         <div className="p-4 border-b border-[#E1E6EF] flex flex-wrap items-center justify-between gap-3 bg-white">
           {/* Left: Search input */}
-          <div className="relative flex-1 min-w-[280px] max-w-md">
+          <div className="relative flex-1 min-w-[280px]">
             <Search
               size={15}
               className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#9AA5B8]"
@@ -261,41 +266,22 @@ export function EmployeesClient({ session }: EmployeesClientProps) {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="ค้นหาชื่อ, รหัสพนักงาน (PO) หรือเลขบัตรประชาชน"
-              className="input pl-10 pr-4 py-2 text-xs w-full bg-[#FAFBFC]"
+              className="w-full h-10 pl-10 pr-4 text-xs rounded-xl border border-[#E1E6EF] bg-[#FAFBFC] focus:bg-white text-[#16233D] placeholder-[#9AA5B8] focus:outline-none focus:ring-2 focus:ring-[#2E6FE0] shadow-2xs transition-all"
             />
           </div>
 
-          {/* Right actions: Filters and Buttons */}
-          <div className="flex flex-wrap items-center gap-2.5">
-            {/* Warehouse Filter */}
-            <div className="relative">
-              <select
-                value={selectedWarehouse}
-                onChange={(e) => {
-                  setSelectedWarehouse(e.target.value)
-                  setPage(1)
-                }}
-                className="input py-2 pl-3 pr-8 text-xs font-medium cursor-pointer min-w-[110px] bg-[#FAFBFC]"
-              >
-                <option value="all">ทุกคลัง</option>
-                {warehouses.map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {w.id}
-                  </option>
-                ))}
-              </select>
-            </div>
-
+          {/* Right actions: Export and Add Buttons */}
+          <div className="flex items-center gap-2.5 flex-shrink-0">
             {/* Export CSV (ทะเบียนลูกค้า) */}
             <button
               type="button"
               onClick={handleExportCustomerRegistry}
               disabled={selectedIds.size === 0 || exporting}
               className={cn(
-                'inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-xl border transition-colors shadow-2xs',
+                'h-10 inline-flex items-center justify-center gap-2 px-4 text-xs font-semibold rounded-xl border transition-all shadow-2xs whitespace-nowrap',
                 selectedIds.size > 0
                   ? 'bg-white text-[#16233D] border-[#E1E6EF] hover:bg-[#F4F6FA] active:bg-[#EEF3FC]'
-                  : 'bg-[#F4F6FA] text-[#9AA5B8] border-[#E1E6EF] cursor-not-allowed opacity-60'
+                  : 'bg-[#FAFBFC] text-[#9AA5B8] border-[#E1E6EF] cursor-not-allowed opacity-60'
               )}
               title={
                 selectedIds.size === 0
@@ -303,10 +289,10 @@ export function EmployeesClient({ session }: EmployeesClientProps) {
                   : `Export ทะเบียนลูกค้า (${selectedIds.size} คน)`
               }
             >
-              <Download size={13} className="flex-shrink-0" />
+              <Download size={14} className="flex-shrink-0 text-[#5B6B85]" />
               <span>Export CSV (ทะเบียนลูกค้า)</span>
               {selectedIds.size > 0 && (
-                <span className="ml-0.5 px-1.5 py-0.2 rounded-full bg-[#2E6FE0] text-white text-[10px] font-bold">
+                <span className="ml-0.5 px-1.5 py-0.5 rounded-full bg-[#2E6FE0] text-white text-[10px] font-bold">
                   {selectedIds.size}
                 </span>
               )}
@@ -318,10 +304,10 @@ export function EmployeesClient({ session }: EmployeesClientProps) {
               onClick={handleExportOPS}
               disabled={selectedIds.size === 0 || exporting}
               className={cn(
-                'inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-xl border transition-colors shadow-2xs',
+                'h-10 inline-flex items-center justify-center gap-2 px-4 text-xs font-semibold rounded-xl border transition-all shadow-2xs whitespace-nowrap',
                 selectedIds.size > 0
                   ? 'bg-white text-[#16233D] border-[#E1E6EF] hover:bg-[#F4F6FA] active:bg-[#EEF3FC]'
-                  : 'bg-[#F4F6FA] text-[#9AA5B8] border-[#E1E6EF] cursor-not-allowed opacity-60'
+                  : 'bg-[#FAFBFC] text-[#9AA5B8] border-[#E1E6EF] cursor-not-allowed opacity-60'
               )}
               title={
                 selectedIds.size === 0
@@ -329,10 +315,10 @@ export function EmployeesClient({ session }: EmployeesClientProps) {
                   : `Export OPS (${selectedIds.size} คน)`
               }
             >
-              <Download size={13} className="flex-shrink-0" />
+              <Download size={14} className="flex-shrink-0 text-[#5B6B85]" />
               <span>Export OPS (CSV)</span>
               {selectedIds.size > 0 && (
-                <span className="ml-0.5 px-1.5 py-0.2 rounded-full bg-[#2E6FE0] text-white text-[10px] font-bold">
+                <span className="ml-0.5 px-1.5 py-0.5 rounded-full bg-[#2E6FE0] text-white text-[10px] font-bold">
                   {selectedIds.size}
                 </span>
               )}
@@ -341,11 +327,78 @@ export function EmployeesClient({ session }: EmployeesClientProps) {
             {/* + เพิ่มพนักงานใหม่ */}
             <Link
               href="/employees/new"
-              className="btn-primary text-xs px-4 py-2 gap-1.5 shadow-xs"
+              className="h-10 inline-flex items-center justify-center gap-1.5 px-4 text-xs font-semibold rounded-xl bg-[#2E6FE0] hover:bg-[#2558B8] text-white transition-all shadow-xs whitespace-nowrap"
             >
-              <Plus size={14} />
+              <Plus size={15} />
               <span>เพิ่มพนักงานใหม่</span>
             </Link>
+          </div>
+        </div>
+
+        {/* Toolbar Row 2: Filters under search input */}
+        <div className="px-4 py-2.5 bg-[#FAFBFC] border-b border-[#E1E6EF] flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <span className="text-xs font-semibold text-[#5B6B85]">ตัวกรอง:</span>
+
+            {/* Warehouse Filter */}
+            <div className="relative">
+              <select
+                value={selectedWarehouse}
+                onChange={(e) => {
+                  setSelectedWarehouse(e.target.value)
+                  setPage(1)
+                }}
+                className="bg-white border border-[#E1E6EF] text-[#16233D] text-xs font-medium rounded-xl px-3.5 py-2 focus:outline-none focus:ring-2 focus:ring-[#2E6FE0] shadow-2xs cursor-pointer min-w-[140px]"
+                title="เลือกคลัง/สาขา"
+              >
+                <option value="all">คลังทั้งหมด</option>
+                {warehouses.map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.id}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Start Date Filter */}
+            <div className="w-[165px]">
+              <DateInput
+                value={startDate}
+                onChange={(val) => {
+                  setStartDate(val)
+                  setPage(1)
+                }}
+                clearable={true}
+                placeholder="วันที่เริ่มงาน"
+                title="กรองตามวันที่เริ่มงาน (วัน/เดือน/ปี)"
+              />
+            </div>
+
+            {/* Clear filters button if active */}
+            {(selectedWarehouse !== 'all' || startDate || search) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedWarehouse('all')
+                  setStartDate('')
+                  setSearch('')
+                  setPage(1)
+                }}
+                className="text-xs text-[#5B6B85] hover:text-[#E5484D] font-medium underline px-2 py-1 transition-colors cursor-pointer"
+              >
+                ล้างตัวกรอง
+              </button>
+            )}
+          </div>
+
+          {/* Right: Found employee count */}
+          <div className="text-xs text-[#5B6B85] font-medium">
+            พบพนักงาน <span className="font-bold text-[#16233D]">{total.toLocaleString('th-TH')}</span> คน
+            {selectedIds.size > 0 && (
+              <span className="ml-2 text-[#2E6FE0] font-semibold">
+                (เลือกแล้ว {selectedIds.size} คน)
+              </span>
+            )}
           </div>
         </div>
 
@@ -361,7 +414,7 @@ export function EmployeesClient({ session }: EmployeesClientProps) {
               <Users size={32} className="mb-2 text-[#C6DCFD]" />
               <p className="text-sm font-semibold text-[#16233D]">ไม่พบข้อมูลพนักงาน</p>
               <p className="text-xs mt-1 text-[#5B6B85]">
-                {search || selectedWarehouse !== 'all'
+                {search || selectedWarehouse !== 'all' || startDate
                   ? 'ลองเปลี่ยนเงื่อนไขค้นหาหรือตัวกรอง'
                   : 'ยังไม่มีพนักงานในระบบ เริ่มต้นโดยการกดปุ่ม "+ เพิ่มพนักงานใหม่"'}
               </p>
@@ -382,6 +435,7 @@ export function EmployeesClient({ session }: EmployeesClientProps) {
                   <th className="px-4 py-3 font-semibold text-[#5B6B85]">รหัสพนักงาน</th>
                   <th className="px-4 py-3 font-semibold text-[#5B6B85]">ชื่อ-นามสกุล</th>
                   <th className="px-4 py-3 font-semibold text-[#5B6B85]">คลัง/สาขา</th>
+                  <th className="px-4 py-3 font-semibold text-[#5B6B85]">วันที่เริ่มงาน</th>
                   <th className="px-4 py-3 font-semibold text-[#5B6B85]">เลขบัตรประชาชน</th>
                   <th className="px-4 py-3 font-semibold text-[#5B6B85]">เบอร์โทร</th>
                   <th className="w-14 px-4 py-3 text-center" />
@@ -422,6 +476,11 @@ export function EmployeesClient({ session }: EmployeesClientProps) {
                       {/* คลัง/สาขา */}
                       <td className="px-4 py-3.5 text-[#5B6B85] whitespace-nowrap">
                         {emp.warehouse || emp.warehouse_name || '-'}
+                      </td>
+
+                      {/* วันที่เริ่มงาน */}
+                      <td className="px-4 py-3.5 text-[#16233D] font-medium whitespace-nowrap">
+                        {formatThaiDate(emp.start_date)}
                       </td>
 
                       {/* เลขบัตรประชาชน */}
