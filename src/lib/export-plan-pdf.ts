@@ -11,6 +11,7 @@ export interface PlanExportData {
  * ส่งออกเอกสารลงเวลาการทำงาน (Attendance Sheet) เป็น PDF
  * - คลังที่ไม่ขึ้นต้นด้วย SCOM: ใช้ Template มาตรฐาน PeopleOne (A4 แนวนอน พร้อมโลโก้ PeopleOne, ตารางบันทึกเวลา, ตารางเหตุผล, สรุป และลายเซ็น)
  * - คลังที่ขึ้นต้นด้วย SCOM: ใช้ Template ของ SCOM (แบบแนวตั้งเดิม จนกว่าผู้ใช้จะส่ง Template ใหม่มาให้)
+ * - รองรับพนักงานไม่จำกัดจำนวน: หากพนักงานเกินขนาด 1 ใบ จะรันต่อเป็นใบที่ 2, 3... พร้อมรันเลขลำดับและรายชื่อต่อเนื่องอัตโนมัติ
  */
 export function exportPlanAttendanceSheet(data: PlanExportData) {
   const { plan } = data
@@ -32,7 +33,9 @@ export function exportPlanAttendanceSheet(data: PlanExportData) {
 /**
  * Template สำหรับคลังทั่วไป (ที่ไม่ขึ้นต้นด้วย SCOM):
  * - A4 แนวนอน (Landscape)
- * - โลโก้ PeopleOne ที่มุมขวาบน
+ * - รองรับการแบ่งหน้าอัตโนมัติ (15 แถวต่อใบ)
+ * - รันลำดับที่และรายชื่อพนักงานต่อเนื่อง (เช่น ใบที่ 1: ลำดับ 1-15, ใบที่ 2: ลำดับ 16-30)
+ * - โลโก้ PeopleOne ที่มุมขวาบน พร้อมระบุเลขใบ (ใบที่ 1/2, ใบที่ 2/2)
  * - ตารางบันทึกเวลาและการทำงานล่วงเวลา (มีคอลัมน์พนักงานทดแทน, โอที, โอน/สลับการทำงาน)
  * - ตารางรหัสเหตุผล (01-11)
  * - กล่องสรุปจำนวนพนักงาน และ OT
@@ -48,73 +51,256 @@ function renderStandardPeopleOneAttendanceSheet(printWindow: Window, data: PlanE
 
   const PEOPLEONE_LOGO_URL = 'https://mjwrehbozsbbqfzdpjhu.supabase.co/storage/v1/object/public/images_logo/PeopleOne.png'
 
-  // แถวที่แสดง: พนักงานในแพลนจริง + แถวว่างให้ครบโควต้า หรืออย่างน้อย 15 แถวเพื่อให้มีพื้นที่เขียนพนักงานทดแทน
-  const totalRowsCount = Math.max(roster.length, plan.required_count || 0, 15)
-  const rowsHtml: string[] = []
+  // กำหนดจำนวนแถวต่อ 1 ใบ (15 แถวพอดีกับ 1 หน้า A4 แนวนอน รวมหัว-ท้ายเอกสาร)
+  const ROWS_PER_PAGE = 15
+  const totalItems = Math.max(roster.length, plan.required_count || 0)
+  const totalPages = Math.max(1, Math.ceil(totalItems / ROWS_PER_PAGE))
 
-  for (let i = 0; i < totalRowsCount; i++) {
-    const emp = roster[i]
-    if (emp) {
-      const fullName = `${emp.first_name || ''} ${emp.last_name || ''}`.trim() || '—'
-      const opsId = emp.ops_id && emp.ops_id !== '—' ? emp.ops_id : ''
-      const poId = emp.po_id && emp.po_id !== '—' ? emp.po_id : ''
-      const phone = emp.phone && emp.phone !== '—' ? emp.phone : ''
+  const sheetsHtml: string[] = []
 
-      rowsHtml.push(`
-        <tr>
-          <td class="text-center font-bold">${i + 1}</td>
-          <td class="text-center font-mono">${opsId}</td>
-          <td class="text-center font-mono font-bold">${poId}</td>
-          <td class="pl-2 text-left emp-name">${fullName}</td>
-          <td class="text-center">${phone}</td>
-          <!-- ส่วนพนักงานทดแทน (เว้นว่างไว้เขียนมือ) -->
-          <td class="text-center"></td>
-          <td class="text-center"></td>
-          <td class="text-center"></td>
-          <!-- ลงชื่อ -->
-          <td></td>
-          <td></td>
-          <!-- ทำงานล่วงเวลา เริ่ม / สิ้นสุด -->
-          <td></td>
-          <td></td>
-          <!-- ชม. 1.5, 2, 3 -->
-          <td></td>
-          <td></td>
-          <td></td>
-          <!-- โอน/สลับงาน 3 ช่อง -->
-          <td></td>
-          <td></td>
-          <td></td>
-          <!-- ผู้ตรวจสอบ -->
-          <td></td>
-        </tr>
-      `)
-    } else {
-      // แถวว่างสำหรับโควต้าที่เหลือ หรือเขียนพนักงานทดแทน
-      rowsHtml.push(`
-        <tr class="empty-row">
-          <td class="text-center text-gray-500 font-bold">${i + 1}</td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
-        </tr>
-      `)
+  for (let pageIndex = 0; pageIndex < totalPages; pageIndex++) {
+    const pageStartIndex = pageIndex * ROWS_PER_PAGE
+    const pageEndIndex = pageStartIndex + ROWS_PER_PAGE
+    const pageRowsHtml: string[] = []
+
+    for (let i = pageStartIndex; i < pageEndIndex; i++) {
+      const emp = roster[i]
+      if (emp) {
+        const fullName = `${emp.first_name || ''} ${emp.last_name || ''}`.trim() || '—'
+        const opsId = emp.ops_id && emp.ops_id !== '—' ? emp.ops_id : ''
+        const poId = emp.po_id && emp.po_id !== '—' ? emp.po_id : ''
+        const phone = emp.phone && emp.phone !== '—' ? emp.phone : ''
+
+        pageRowsHtml.push(`
+          <tr>
+            <td class="text-center font-bold">${i + 1}</td>
+            <td class="text-center font-mono">${opsId}</td>
+            <td class="text-center font-mono font-bold">${poId}</td>
+            <td class="pl-2 text-left emp-name">${fullName}</td>
+            <td class="text-center">${phone}</td>
+            <!-- ส่วนพนักงานทดแทน (เว้นว่างไว้เขียนมือ) -->
+            <td class="text-center"></td>
+            <td class="text-center"></td>
+            <td class="text-center"></td>
+            <!-- ลงชื่อ -->
+            <td></td>
+            <td></td>
+            <!-- ทำงานล่วงเวลา เริ่ม / สิ้นสุด -->
+            <td></td>
+            <td></td>
+            <!-- ชม. 1.5, 2, 3 -->
+            <td></td>
+            <td></td>
+            <td></td>
+            <!-- โอน/สลับงาน 3 ช่อง -->
+            <td></td>
+            <td></td>
+            <td></td>
+            <!-- ผู้ตรวจสอบ -->
+            <td></td>
+          </tr>
+        `)
+      } else {
+        // แถวว่างสำหรับโควต้าที่เหลือ หรือเขียนพนักงานทดแทน
+        pageRowsHtml.push(`
+          <tr class="empty-row">
+            <td class="text-center text-gray-500 font-bold">${i + 1}</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+          </tr>
+        `)
+      }
     }
+
+    sheetsHtml.push(`
+      <div class="sheet-wrapper sheet-page">
+        <!-- Header Layout -->
+        <div class="header-layout">
+          <div>
+            <div class="doc-main-title">
+              เอกสารบันทึกเวลาการทำงาน และการทำงานล่วงเวลา
+              ${totalPages > 1 ? `<span class="page-indicator">(ใบที่ ${pageIndex + 1}/${totalPages})</span>` : ''}
+            </div>
+            <table class="meta-table">
+              <tr>
+                <td class="meta-label">วันที่</td>
+                <td class="meta-val">${thaiDate}</td>
+                <td class="meta-blank-col" rowspan="3"></td>
+              </tr>
+              <tr>
+                <td class="meta-label">แผนก</td>
+                <td class="meta-val">${plan.department_name || '—'}</td>
+              </tr>
+              <tr>
+                <td class="meta-label">กะ</td>
+                <td class="meta-val">${shiftText}</td>
+              </tr>
+            </table>
+          </div>
+
+          <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
+            <img src="${PEOPLEONE_LOGO_URL}" alt="People One" class="peopleone-logo" />
+            ${totalPages > 1 ? `<span class="page-badge">ใบที่ ${pageIndex + 1} จาก ${totalPages}</span>` : ''}
+          </div>
+        </div>
+
+        <!-- Main Attendance Table -->
+        <table class="main-table">
+          <thead>
+            <tr>
+              <th rowspan="2" style="width: 26px;">ลำดับ</th>
+              <th rowspan="2" style="width: 48px;">OPSID</th>
+              <th rowspan="2" style="width: 62px;">รหัสพนักงาน</th>
+              <th rowspan="2" style="width: 125px;">ชื่อ - นามสกุล</th>
+              <th rowspan="2" style="width: 68px;">โทร</th>
+              <th rowspan="2" style="width: 48px;">OPSID<br/>พนักงาน<br/>ทดแทน</th>
+              <th rowspan="2" style="width: 62px;">รหัสพนักงาน<br/>ทดแทน</th>
+              <th rowspan="2" style="width: 120px;">ชื่อ - นามสกุล<br/>(พนักงานทดแทน)</th>
+              <th rowspan="2" style="width: 60px;">ลงชื่อ<br/>เข้างาน</th>
+              <th rowspan="2" style="width: 60px;">ลงชื่อ<br/>เลิกงาน</th>
+              <th colspan="2">ทำงานล่วงเวลา</th>
+              <th colspan="3">รวมเวลาทำงาน<br/>ช่วงเวลา (ชม.)</th>
+              <th colspan="3">โอนการทำงาน/สลับการทำงาน<br/>(โปรดทำเครื่องหมาย)</th>
+              <th rowspan="2" style="width: 62px;">ลงชื่อ<br/>ผู้ตรวจสอบ<br/>เพื่อนร่วมงาน</th>
+            </tr>
+            <tr>
+              <th style="width: 36px;">เริ่ม</th>
+              <th style="width: 36px;">สิ้นสุด</th>
+              <th style="width: 32px;">1.5 เท่า</th>
+              <th style="width: 30px;">2 เท่า</th>
+              <th style="width: 30px;">3 เท่า</th>
+              <th style="width: 22px;"></th>
+              <th style="width: 22px;"></th>
+              <th style="width: 22px;"></th>
+            </tr>
+          </thead>
+          <tbody>
+            ${pageRowsHtml.join('')}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="12" style="text-align: right; font-weight: 700; font-size: 9px; padding-right: 6px;">Total</td>
+              <td></td>
+              <td></td>
+              <td></td>
+              <td colspan="3"></td>
+              <td></td>
+            </tr>
+          </tfoot>
+        </table>
+
+        <!-- Footer Section -->
+        <div class="footer-layout">
+          <!-- Section 1: Signatures -->
+          <div class="sig-section">
+            <div class="sig-row">
+              <div class="sig-line-text">Checked by : .............................................................. Date ...................................</div>
+              <div class="sig-role">Admin Sub (<span class="admin-name-red">${adminName || 'ชื่อAdmin'}</span>)</div>
+            </div>
+            <div class="sig-row">
+              <div class="sig-line-text">Checked by : .............................................................. Date ...................................</div>
+              <div class="sig-role">SPX Admin</div>
+            </div>
+            <div class="sig-row">
+              <div class="sig-line-text">Checked by : .............................................................. Date ...................................</div>
+              <div class="sig-role">SPX Supervisor</div>
+            </div>
+          </div>
+
+          <!-- Section 2: Reason Code Table -->
+          <div class="reason-section">
+            <table class="reason-table">
+              <thead>
+                <tr>
+                  <th style="width: 22px;">[✓]</th>
+                  <th style="width: 28px;">Code</th>
+                  <th>Reason (TH)</th>
+                  <th>Reason (EN)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td class="text-center"></td><td class="text-center font-mono">01</td><td>OT วันหยุด</td><td>Holiday</td></tr>
+                <tr><td class="text-center"></td><td class="text-center font-mono">02</td><td>ปริมาณงานเกินคาดหมาย</td><td>Over forecast</td></tr>
+                <tr><td class="text-center"></td><td class="text-center font-mono">03</td><td>พนักงานขาด</td><td>MPW shortage</td></tr>
+                <tr><td class="text-center"></td><td class="text-center font-mono">04</td><td>รถมาล่าช้า หรือจำนวนรถไม่เพียงพอ</td><td>Truck late / Truck shortage</td></tr>
+                <tr><td class="text-center"></td><td class="text-center font-mono">05</td><td>ซัพพอร์ตงานแผนกอื่น</td><td>Support other team</td></tr>
+                <tr><td class="text-center"></td><td class="text-center font-mono">06</td><td>เคลียร์งานตกค้าง</td><td>Clear backlog</td></tr>
+                <tr><td class="text-center"></td><td class="text-center font-mono">07</td><td>เลื่อนเวลาปิดงาน / รอบปล่อยงาน</td><td>Cut off late / Last truck late</td></tr>
+                <tr><td class="text-center"></td><td class="text-center font-mono">08</td><td>เพิ่มวิธีการทำงาน</td><td>Special process</td></tr>
+                <tr><td class="text-center"></td><td class="text-center font-mono">09</td><td>ระบบ FMS มีปัญหา</td><td>FMS issued</td></tr>
+                <tr><td class="text-center"></td><td class="text-center font-mono">10</td><td>ASM มีปัญหา</td><td>Machine issued</td></tr>
+                <tr><td class="text-center"></td><td class="text-center font-mono">11</td><td>อื่นๆ</td><td>Other</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Section 3: Summary Boxes -->
+          <div class="summary-section">
+            <!-- Staff Summary -->
+            <table class="summary-table">
+              <thead>
+                <tr>
+                  <th colspan="2">สรุปจำนวนพนักงาน (Summary of Staff)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style="width: 145px;">จำนวนพนักงานประจำ</td>
+                  <td style="width: 45px; text-align: center; font-weight: 700;">${roster.length}</td>
+                </tr>
+                <tr>
+                  <td>จำนวนพนักงานที่มาทำงานตรงตามเวลาทำงาน</td>
+                  <td style="text-align: center;"></td>
+                </tr>
+                <tr>
+                  <td>จำนวนพนักงานที่ไม่ได้เริ่มงานในแพลน</td>
+                  <td style="text-align: center;"></td>
+                </tr>
+                <tr>
+                  <td style="font-weight: 700;">สรุปจำนวนพนักงานทั้งหมด</td>
+                  <td style="text-align: center; font-weight: 700;">${plan.required_count || roster.length}</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <!-- OT Summary -->
+            <table class="summary-table">
+              <thead>
+                <tr>
+                  <th colspan="2">สรุปจำนวน OT (Summary of OT)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style="width: 145px;">จำนวนพนักงานที่ทำ OT</td>
+                  <td style="width: 45px; text-align: center;"></td>
+                </tr>
+                <tr>
+                  <td>จำนวน OT ทั้งหมด</td>
+                  <td style="text-align: center;"></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    `)
   }
 
   printWindow.document.write(`
@@ -136,12 +322,12 @@ function renderStandardPeopleOneAttendanceSheet(printWindow: Window, data: PlanE
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;
     }
-    body {
+    html, body {
       font-family: 'Sarabun', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       font-size: 10px;
       line-height: 1.25;
       color: #000;
-      background: #fff;
+      background: #f1f5f9;
       margin: 0;
       padding: 0;
     }
@@ -152,7 +338,10 @@ function renderStandardPeopleOneAttendanceSheet(printWindow: Window, data: PlanE
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 12px;
+      margin-bottom: 16px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
     }
     .btn {
       padding: 6px 14px;
@@ -178,16 +367,56 @@ function renderStandardPeopleOneAttendanceSheet(printWindow: Window, data: PlanE
       border-color: #cbd5e1;
       color: #475569;
     }
-    @media print {
-      .print-actions {
-        display: none !important;
-      }
+
+    /* Screen view container */
+    .sheets-container {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+      padding: 0 16px 40px 16px;
     }
 
     .sheet-wrapper {
       width: 100%;
-      max-width: 100%;
-      margin: 0 auto;
+      max-width: 1100px;
+      background: #fff;
+      padding: 16px 20px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+      position: relative;
+    }
+
+    @media print {
+      html, body {
+        background: #fff !important;
+      }
+      .print-actions {
+        display: none !important;
+      }
+      .sheets-container {
+        display: block !important;
+        padding: 0 !important;
+        gap: 0 !important;
+      }
+      .sheet-wrapper {
+        padding: 0 !important;
+        margin: 0 !important;
+        border: none !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        max-width: 100% !important;
+        page-break-after: always !important;
+        break-after: page !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+      }
+      .sheet-wrapper:last-child {
+        page-break-after: auto !important;
+        break-after: auto !important;
+      }
     }
 
     /* Header Bar */
@@ -202,6 +431,23 @@ function renderStandardPeopleOneAttendanceSheet(printWindow: Window, data: PlanE
       font-weight: 700;
       color: #000;
       margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .page-indicator {
+      font-size: 12px;
+      font-weight: 600;
+      color: #2563eb;
+    }
+    .page-badge {
+      font-size: 11px;
+      font-weight: 700;
+      color: #1e3a8a;
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      padding: 2px 8px;
+      border-radius: 4px;
     }
     .peopleone-logo {
       height: 38px;
@@ -241,7 +487,9 @@ function renderStandardPeopleOneAttendanceSheet(printWindow: Window, data: PlanE
       width: 100%;
       border-collapse: collapse;
       font-size: 9px;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
+      page-break-inside: avoid;
+      break-inside: avoid;
     }
     .main-table th, .main-table td {
       border: 1px solid #000;
@@ -277,8 +525,9 @@ function renderStandardPeopleOneAttendanceSheet(printWindow: Window, data: PlanE
       justify-content: space-between;
       align-items: flex-start;
       gap: 12px;
-      margin-top: 6px;
+      margin-top: 4px;
       page-break-inside: avoid;
+      break-inside: avoid;
     }
 
     /* Left: Signatures */
@@ -286,8 +535,8 @@ function renderStandardPeopleOneAttendanceSheet(printWindow: Window, data: PlanE
       flex: 1.35;
       display: flex;
       flex-direction: column;
-      gap: 12px;
-      padding-top: 4px;
+      gap: 10px;
+      padding-top: 2px;
     }
     .sig-row {
       font-size: 10px;
@@ -298,7 +547,7 @@ function renderStandardPeopleOneAttendanceSheet(printWindow: Window, data: PlanE
     .sig-role {
       font-weight: 700;
       text-align: center;
-      margin-top: 4px;
+      margin-top: 3px;
       width: 85%;
     }
     .admin-name-red {
@@ -318,7 +567,7 @@ function renderStandardPeopleOneAttendanceSheet(printWindow: Window, data: PlanE
     .reason-table th, .reason-table td {
       border: 1px solid #000;
       padding: 1.5px 3px;
-      height: 14px;
+      height: 13px;
       line-height: 1.15;
     }
     .reason-table th {
@@ -332,7 +581,7 @@ function renderStandardPeopleOneAttendanceSheet(printWindow: Window, data: PlanE
       flex: 1.15;
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 6px;
     }
     .summary-table {
       width: 100%;
@@ -342,7 +591,7 @@ function renderStandardPeopleOneAttendanceSheet(printWindow: Window, data: PlanE
     .summary-table th, .summary-table td {
       border: 1px solid #000;
       padding: 2px 4px;
-      height: 16px;
+      height: 15px;
     }
     .summary-table th {
       background: #FCE4D6;
@@ -357,184 +606,24 @@ function renderStandardPeopleOneAttendanceSheet(printWindow: Window, data: PlanE
 <body>
   <div class="print-actions">
     <div>
-      <span style="font-weight: 700; color: #1e293b;">เอกสารบันทึกเวลาการทำงาน (PeopleOne Template · A4 แนวนอน)</span>
-      <span style="color: #64748b; font-size: 11px; margin-left: 10px;">สามารถคลิกปุ่มเพื่อพิมพ์ หรือเลือก 'Save as PDF' ในหน้าต่างสั่งพิมพ์</span>
+      <span style="font-weight: 700; color: #1e293b;">เอกสารบันทึกเวลาการทำงาน (PeopleOne Template · A4 แนวนอน${totalPages > 1 ? ` · ทั้งหมด ${totalPages} ใบ` : ''})</span>
+      <span style="color: #64748b; font-size: 11px; margin-left: 10px;">
+        ${totalPages > 1
+          ? `จำนวนพนักงาน ${roster.length} คน (เกินขนาด 1 ใบ ระบบแบ่งเป็น ${totalPages} ใบให้อัตโนมัติ)`
+          : `สามารถคลิกปุ่มเพื่อพิมพ์ หรือเลือก 'Save as PDF' ในหน้าต่างสั่งพิมพ์`}
+      </span>
     </div>
     <div style="display: flex; gap: 8px;">
       <button class="btn btn-secondary" onclick="window.close()">ปิดหน้าต่าง</button>
       <button class="btn btn-primary" onclick="window.print()">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
-        พิมพ์ / บันทึกเป็น PDF
+        พิมพ์ / บันทึกเป็น PDF ${totalPages > 1 ? `(${totalPages} ใบ)` : ''}
       </button>
     </div>
   </div>
 
-  <div class="sheet-wrapper">
-    <!-- Header Layout -->
-    <div class="header-layout">
-      <div>
-        <div class="doc-main-title">เอกสารบันทึกเวลาการทำงาน และการทำงานล่วงเวลา</div>
-        <table class="meta-table">
-          <tr>
-            <td class="meta-label">วันที่</td>
-            <td class="meta-val">${thaiDate}</td>
-            <td class="meta-blank-col" rowspan="3"></td>
-          </tr>
-          <tr>
-            <td class="meta-label">แผนก</td>
-            <td class="meta-val">${plan.department_name || '—'}</td>
-          </tr>
-          <tr>
-            <td class="meta-label">กะ</td>
-            <td class="meta-val">${shiftText}</td>
-          </tr>
-        </table>
-      </div>
-
-      <div>
-        <img src="${PEOPLEONE_LOGO_URL}" alt="People One" class="peopleone-logo" />
-      </div>
-    </div>
-
-    <!-- Main Attendance Table -->
-    <table class="main-table">
-      <thead>
-        <tr>
-          <th rowspan="2" style="width: 26px;">ลำดับ</th>
-          <th rowspan="2" style="width: 48px;">OPSID</th>
-          <th rowspan="2" style="width: 62px;">รหัสพนักงาน</th>
-          <th rowspan="2" style="width: 125px;">ชื่อ - นามสกุล</th>
-          <th rowspan="2" style="width: 68px;">โทร</th>
-          <th rowspan="2" style="width: 48px;">OPSID<br/>พนักงาน<br/>ทดแทน</th>
-          <th rowspan="2" style="width: 62px;">รหัสพนักงาน<br/>ทดแทน</th>
-          <th rowspan="2" style="width: 120px;">ชื่อ - นามสกุล<br/>(พนักงานทดแทน)</th>
-          <th rowspan="2" style="width: 60px;">ลงชื่อ<br/>เข้างาน</th>
-          <th rowspan="2" style="width: 60px;">ลงชื่อ<br/>เลิกงาน</th>
-          <th colspan="2">ทำงานล่วงเวลา</th>
-          <th colspan="3">รวมเวลาทำงาน<br/>ช่วงเวลา (ชม.)</th>
-          <th colspan="3">โอนการทำงาน/สลับการทำงาน<br/>(โปรดทำเครื่องหมาย)</th>
-          <th rowspan="2" style="width: 62px;">ลงชื่อ<br/>ผู้ตรวจสอบ<br/>เพื่อนร่วมงาน</th>
-        </tr>
-        <tr>
-          <th style="width: 36px;">เริ่ม</th>
-          <th style="width: 36px;">สิ้นสุด</th>
-          <th style="width: 32px;">1.5 เท่า</th>
-          <th style="width: 30px;">2 เท่า</th>
-          <th style="width: 30px;">3 เท่า</th>
-          <th style="width: 22px;"></th>
-          <th style="width: 22px;"></th>
-          <th style="width: 22px;"></th>
-        </tr>
-      </thead>
-      <tbody>
-        ${rowsHtml.join('')}
-      </tbody>
-      <tfoot>
-        <tr>
-          <td colspan="12" style="text-align: right; font-weight: 700; font-size: 9px; padding-right: 6px;">Total</td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td colspan="3"></td>
-          <td></td>
-        </tr>
-      </tfoot>
-    </table>
-
-    <!-- Footer Section -->
-    <div class="footer-layout">
-      <!-- Section 1: Signatures -->
-      <div class="sig-section">
-        <div class="sig-row">
-          <div class="sig-line-text">Checked by : .............................................................. Date ...................................</div>
-          <div class="sig-role">Admin Sub (<span class="admin-name-red">${adminName || 'ชื่อAdmin'}</span>)</div>
-        </div>
-        <div class="sig-row">
-          <div class="sig-line-text">Checked by : .............................................................. Date ...................................</div>
-          <div class="sig-role">SPX Admin</div>
-        </div>
-        <div class="sig-row">
-          <div class="sig-line-text">Checked by : .............................................................. Date ...................................</div>
-          <div class="sig-role">SPX Supervisor</div>
-        </div>
-      </div>
-
-      <!-- Section 2: Reason Code Table -->
-      <div class="reason-section">
-        <table class="reason-table">
-          <thead>
-            <tr>
-              <th style="width: 22px;">[✓]</th>
-              <th style="width: 28px;">Code</th>
-              <th>Reason (TH)</th>
-              <th>Reason (EN)</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr><td class="text-center"></td><td class="text-center font-mono">01</td><td>OT วันหยุด</td><td>Holiday</td></tr>
-            <tr><td class="text-center"></td><td class="text-center font-mono">02</td><td>ปริมาณงานเกินคาดหมาย</td><td>Over forecast</td></tr>
-            <tr><td class="text-center"></td><td class="text-center font-mono">03</td><td>พนักงานขาด</td><td>MPW shortage</td></tr>
-            <tr><td class="text-center"></td><td class="text-center font-mono">04</td><td>รถมาล่าช้า หรือจำนวนรถไม่เพียงพอ</td><td>Truck late / Truck shortage</td></tr>
-            <tr><td class="text-center"></td><td class="text-center font-mono">05</td><td>ซัพพอร์ตงานแผนกอื่น</td><td>Support other team</td></tr>
-            <tr><td class="text-center"></td><td class="text-center font-mono">06</td><td>เคลียร์งานตกค้าง</td><td>Clear backlog</td></tr>
-            <tr><td class="text-center"></td><td class="text-center font-mono">07</td><td>เลื่อนเวลาปิดงาน / รอบปล่อยงาน</td><td>Cut off late / Last truck late</td></tr>
-            <tr><td class="text-center"></td><td class="text-center font-mono">08</td><td>เพิ่มวิธีการทำงาน</td><td>Special process</td></tr>
-            <tr><td class="text-center"></td><td class="text-center font-mono">09</td><td>ระบบ FMS มีปัญหา</td><td>FMS issued</td></tr>
-            <tr><td class="text-center"></td><td class="text-center font-mono">10</td><td>ASM มีปัญหา</td><td>Machine issued</td></tr>
-            <tr><td class="text-center"></td><td class="text-center font-mono">11</td><td>อื่นๆ</td><td>Other</td></tr>
-          </tbody>
-        </table>
-      </div>
-
-      <!-- Section 3: Summary Boxes -->
-      <div class="summary-section">
-        <!-- Staff Summary -->
-        <table class="summary-table">
-          <thead>
-            <tr>
-              <th colspan="2">สรุปจำนวนพนักงาน (Summary of Staff)</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td style="width: 145px;">จำนวนพนักงานประจำ</td>
-              <td style="width: 45px; text-align: center; font-weight: 700;">${roster.length}</td>
-            </tr>
-            <tr>
-              <td>จำนวนพนักงานที่มาทำงานตรงตามเวลาทำงาน</td>
-              <td style="text-align: center;"></td>
-            </tr>
-            <tr>
-              <td>จำนวนพนักงานที่ไม่ได้เริ่มงานในแพลน</td>
-              <td style="text-align: center;"></td>
-            </tr>
-            <tr>
-              <td style="font-weight: 700;">สรุปจำนวนพนักงานทั้งหมด</td>
-              <td style="text-align: center; font-weight: 700;">${plan.required_count || roster.length}</td>
-            </tr>
-          </tbody>
-        </table>
-
-        <!-- OT Summary -->
-        <table class="summary-table">
-          <thead>
-            <tr>
-              <th colspan="2">สรุปจำนวน OT (Summary of OT)</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td style="width: 145px;">จำนวนพนักงานที่ทำ OT</td>
-              <td style="width: 45px; text-align: center;"></td>
-            </tr>
-            <tr>
-              <td>จำนวน OT ทั้งหมด</td>
-              <td style="text-align: center;"></td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
+  <div class="sheets-container">
+    ${sheetsHtml.join('')}
   </div>
 
   <script>
@@ -551,7 +640,9 @@ function renderStandardPeopleOneAttendanceSheet(printWindow: Window, data: PlanE
 }
 
 /**
- * Template สำหรับคลังที่ขึ้นต้นด้วย SCOM (ใช้แบบเดิมแนวตั้งชั่วคราว จนกว่าผู้ใช้จะส่ง Template เฉพาะมาให้)
+ * Template สำหรับคลังที่ขึ้นต้นด้วย SCOM (A4 แนวตั้ง)
+ * - รองรับการแบ่งหน้าอัตโนมัติ (20 แถวต่อใบ)
+ * - รันลำดับที่และรายชื่อพนักงานต่อเนื่อง
  */
 function renderScomAttendanceSheet(printWindow: Window, data: PlanExportData) {
   const { plan, roster, adminName } = data
@@ -565,41 +656,136 @@ function renderScomAttendanceSheet(printWindow: Window, data: PlanExportData) {
     timeStyle: 'short',
   })
 
-  const totalRowsCount = Math.max(roster.length, plan.required_count || 0)
-  const rowsHtml: string[] = []
+  const SCOM_ROWS_PER_PAGE = 20
+  const totalItems = Math.max(roster.length, plan.required_count || 0)
+  const totalPages = Math.max(1, Math.ceil(totalItems / SCOM_ROWS_PER_PAGE))
 
-  for (let i = 0; i < totalRowsCount; i++) {
-    const emp = roster[i]
-    if (emp) {
-      const fullName = `${emp.first_name || ''} ${emp.last_name || ''}`.trim() || '—'
-      rowsHtml.push(`
-        <tr>
-          <td class="text-center font-bold text-gray-500">${i + 1}</td>
-          <td class="text-center font-mono font-medium">${emp.po_id || '—'}</td>
-          <td class="font-medium">${fullName}</td>
-          <td class="text-center">${emp.position || plan.department_name || '—'}</td>
-          <td class="text-center">${emp.phone || '—'}</td>
-          <td class="text-center sign-col"></td>
-          <td class="text-center sign-col"></td>
-          <td class="text-center sign-col"></td>
-          <td></td>
-        </tr>
-      `)
-    } else {
-      rowsHtml.push(`
-        <tr class="empty-row">
-          <td class="text-center text-gray-400">${i + 1}</td>
-          <td class="text-center text-gray-300">—</td>
-          <td class="text-gray-300 italic">(ว่าง / รอจัดสรร)</td>
-          <td class="text-center text-gray-300">${plan.department_name || '—'}</td>
-          <td class="text-center text-gray-300">—</td>
-          <td class="sign-col"></td>
-          <td class="sign-col"></td>
-          <td class="sign-col"></td>
-          <td></td>
-        </tr>
-      `)
+  const sheetsHtml: string[] = []
+
+  for (let pageIndex = 0; pageIndex < totalPages; pageIndex++) {
+    const pageStartIndex = pageIndex * SCOM_ROWS_PER_PAGE
+    const pageEndIndex = pageStartIndex + SCOM_ROWS_PER_PAGE
+    const pageRowsHtml: string[] = []
+
+    for (let i = pageStartIndex; i < pageEndIndex; i++) {
+      const emp = roster[i]
+      if (emp) {
+        const fullName = `${emp.first_name || ''} ${emp.last_name || ''}`.trim() || '—'
+        pageRowsHtml.push(`
+          <tr>
+            <td class="text-center font-bold text-gray-500">${i + 1}</td>
+            <td class="text-center font-mono font-medium">${emp.po_id || '—'}</td>
+            <td class="font-medium">${fullName}</td>
+            <td class="text-center">${emp.position || plan.department_name || '—'}</td>
+            <td class="text-center">${emp.phone || '—'}</td>
+            <td class="text-center sign-col"></td>
+            <td class="text-center sign-col"></td>
+            <td class="text-center sign-col"></td>
+            <td></td>
+          </tr>
+        `)
+      } else {
+        pageRowsHtml.push(`
+          <tr class="empty-row">
+            <td class="text-center text-gray-400">${i + 1}</td>
+            <td class="text-center text-gray-300">—</td>
+            <td class="text-gray-300 italic">(ว่าง / รอจัดสรร)</td>
+            <td class="text-center text-gray-300">${plan.department_name || '—'}</td>
+            <td class="text-center text-gray-300">—</td>
+            <td class="sign-col"></td>
+            <td class="sign-col"></td>
+            <td class="sign-col"></td>
+            <td></td>
+          </tr>
+        `)
+      }
     }
+
+    sheetsHtml.push(`
+      <div class="sheet-container sheet-page">
+        <table class="header-table">
+          <tr>
+            <td>
+              <h1 class="doc-title">ใบลงเวลาปฏิบัติงานประจำวัน (Daily Attendance Sheet)</h1>
+              <p class="doc-subtitle">ระบบบริหารจัดการพนักงานรายวัน (DEMS) · Daily Employee Management System</p>
+            </td>
+            <td class="text-right" style="vertical-align: top;">
+              <span style="display: inline-block; padding: 4px 10px; background: #eff6ff; color: #1d4ed8; font-weight: 700; border-radius: 6px; font-size: 12px;">
+                คลัง: ${plan.warehouse} ${totalPages > 1 ? `· ใบที่ ${pageIndex + 1}/${totalPages}` : ''}
+              </span>
+            </td>
+          </tr>
+        </table>
+
+        <div class="meta-box">
+          <div class="meta-item">
+            <span class="meta-label">วันที่ทำงาน:</span>
+            <span class="meta-val">${thaiDate}</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">คลัง/สาขา:</span>
+            <span class="meta-val">${plan.warehouse_name || plan.warehouse}</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">แผนก:</span>
+            <span class="meta-val font-bold" style="color: #1e40af;">${plan.department_name || '—'}</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">กะการทำงาน:</span>
+            <span class="meta-val">${shiftText}</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">จำนวนตามแพลน:</span>
+            <span class="meta-val font-bold">${plan.required_count} คน</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">จำนวนในรายชื่อ:</span>
+            <span class="meta-val font-bold" style="color: ${roster.length >= plan.required_count ? '#16a34a' : '#d97706'};">
+              ${roster.length} คน ${roster.length >= plan.required_count ? '(ครบตามแพลน)' : `(ขาด ${plan.required_count - roster.length} คน)`}
+            </span>
+          </div>
+        </div>
+
+        <table class="attendance-table">
+          <thead>
+            <tr>
+              <th style="width: 38px;">ลำดับ</th>
+              <th style="width: 85px;">รหัสพนักงาน</th>
+              <th>ชื่อ - นามสกุล</th>
+              <th style="width: 95px;">แผนก / หน้าที่</th>
+              <th style="width: 95px;">เบอร์โทรศัพท์</th>
+              <th style="width: 65px;">เวลาเข้า</th>
+              <th style="width: 65px;">เวลาออก</th>
+              <th style="width: 100px;">ลายมือชื่อ</th>
+              <th style="width: 80px;">หมายเหตุ</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${pageRowsHtml.join('')}
+          </tbody>
+        </table>
+
+        <div class="sign-section">
+          <div class="sign-box">
+            <div style="font-weight: 600; color: #334155;">ผู้จัดทำแพลน / Admin Sub (${adminName || 'Admin'})</div>
+            <div class="sign-line"></div>
+            <div>(.......................................................................)</div>
+            <div style="margin-top: 6px; color: #64748b;">วันที่ ..... / ..... / .........</div>
+          </div>
+          <div class="sign-box">
+            <div style="font-weight: 600; color: #334155;">ผู้ตรวจสอบ / ผู้รับรองการปฏิบัติงาน</div>
+            <div class="sign-line"></div>
+            <div>(.......................................................................)</div>
+            <div style="margin-top: 6px; color: #64748b;">วันที่ ..... / ..... / .........</div>
+          </div>
+        </div>
+
+        <div class="footer-note">
+          <span>DEMS System · ออกรายงานเมื่อ: ${printTimestamp} ${totalPages > 1 ? `· (ใบที่ ${pageIndex + 1} จาก ${totalPages})` : ''}</span>
+          <span>* สำหรับพิมพ์และให้พนักงานลงลายมือชื่อก่อนส่งเข้า Namelist ประจำวัน</span>
+        </div>
+      </div>
+    `)
   }
 
   printWindow.document.write(`
@@ -621,12 +807,12 @@ function renderScomAttendanceSheet(printWindow: Window, data: PlanExportData) {
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;
     }
-    body {
+    html, body {
       font-family: 'Sarabun', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       font-size: 13px;
       line-height: 1.4;
       color: #1a1a1a;
-      background: #fff;
+      background: #f1f5f9;
       margin: 0;
       padding: 0;
     }
@@ -638,6 +824,9 @@ function renderScomAttendanceSheet(printWindow: Window, data: PlanExportData) {
       justify-content: space-between;
       align-items: center;
       margin-bottom: 20px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
     }
     .btn {
       padding: 8px 16px;
@@ -663,15 +852,58 @@ function renderScomAttendanceSheet(printWindow: Window, data: PlanExportData) {
       border-color: #cbd5e1;
       color: #475569;
     }
+
+    /* Screen view container */
+    .sheets-container {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 24px;
+      padding: 0 16px 40px 16px;
+    }
+
+    .sheet-container {
+      width: 100%;
+      max-width: 820px;
+      background: #fff;
+      padding: 24px 28px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+      position: relative;
+    }
+
     @media print {
+      html, body {
+        background: #fff !important;
+      }
       .print-actions {
         display: none !important;
       }
+      .sheets-container {
+        display: block !important;
+        padding: 0 !important;
+        gap: 0 !important;
+      }
+      .sheet-container {
+        padding: 0 !important;
+        margin: 0 !important;
+        box-shadow: none !important;
+        border: none !important;
+        border-radius: 0 !important;
+        max-width: 100% !important;
+        page-break-after: always !important;
+        break-after: page !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+      }
+      .sheet-container:last-child {
+        page-break-after: auto !important;
+        break-after: auto !important;
+      }
     }
-    .sheet-container {
-      max-width: 100%;
-      margin: 0 auto;
-    }
+
     .header-table {
       width: 100%;
       border-bottom: 2px solid #2563eb;
@@ -718,6 +950,8 @@ function renderScomAttendanceSheet(printWindow: Window, data: PlanExportData) {
       border-collapse: collapse;
       margin-bottom: 20px;
       font-size: 12px;
+      page-break-inside: avoid;
+      break-inside: avoid;
     }
     .attendance-table th {
       background: #f1f5f9;
@@ -753,6 +987,7 @@ function renderScomAttendanceSheet(printWindow: Window, data: PlanExportData) {
       gap: 40px;
       font-size: 12px;
       page-break-inside: avoid;
+      break-inside: avoid;
     }
     .sign-box {
       border: 1px dashed #cbd5e1;
@@ -780,100 +1015,24 @@ function renderScomAttendanceSheet(printWindow: Window, data: PlanExportData) {
 <body>
   <div class="print-actions">
     <div>
-      <span style="font-weight: 600; color: #1e293b;">ตัวอย่างใบลงเวลาการทำงานคลัง SCOM (A4 แนวตั้ง)</span>
-      <span style="color: #64748b; font-size: 12px; margin-left: 10px;">สามารถคลิกปุ่มเพื่อพิมพ์ หรือเลือก 'Save as PDF' ในหน้าต่างสั่งพิมพ์</span>
+      <span style="font-weight: 600; color: #1e293b;">ใบลงเวลาการทำงาน (A4 แนวตั้ง${totalPages > 1 ? ` · ทั้งหมด ${totalPages} ใบ` : ''})</span>
+      <span style="color: #64748b; font-size: 12px; margin-left: 10px;">
+        ${totalPages > 1
+          ? `จำนวนพนักงาน ${roster.length} คน (แบ่งเป็น ${totalPages} ใบให้อัตโนมัติ)`
+          : `สามารถคลิกปุ่มเพื่อพิมพ์ หรือเลือก 'Save as PDF' ในหน้าต่างสั่งพิมพ์`}
+      </span>
     </div>
     <div style="display: flex; gap: 8px;">
       <button class="btn btn-secondary" onclick="window.close()">ปิดหน้าต่าง</button>
       <button class="btn btn-primary" onclick="window.print()">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
-        พิมพ์ / บันทึกเป็น PDF
+        พิมพ์ / บันทึกเป็น PDF ${totalPages > 1 ? `(${totalPages} ใบ)` : ''}
       </button>
     </div>
   </div>
 
-  <div class="sheet-container">
-    <table class="header-table">
-      <tr>
-        <td>
-          <h1 class="doc-title">ใบลงเวลาปฏิบัติงานประจำวัน (Daily Attendance Sheet)</h1>
-          <p class="doc-subtitle">ระบบบริหารจัดการพนักงานรายวัน (DEMS) · Daily Employee Management System</p>
-        </td>
-        <td class="text-right" style="vertical-align: top;">
-          <span style="display: inline-block; padding: 4px 10px; background: #eff6ff; color: #1d4ed8; font-weight: 700; border-radius: 6px; font-size: 12px;">
-            คลัง: ${plan.warehouse}
-          </span>
-        </td>
-      </tr>
-    </table>
-
-    <div class="meta-box">
-      <div class="meta-item">
-        <span class="meta-label">วันที่ทำงาน:</span>
-        <span class="meta-val">${thaiDate}</span>
-      </div>
-      <div class="meta-item">
-        <span class="meta-label">คลัง/สาขา:</span>
-        <span class="meta-val">${plan.warehouse_name || plan.warehouse}</span>
-      </div>
-      <div class="meta-item">
-        <span class="meta-label">แผนก:</span>
-        <span class="meta-val font-bold" style="color: #1e40af;">${plan.department_name || '—'}</span>
-      </div>
-      <div class="meta-item">
-        <span class="meta-label">กะการทำงาน:</span>
-        <span class="meta-val">${shiftText}</span>
-      </div>
-      <div class="meta-item">
-        <span class="meta-label">จำนวนตามแพลน:</span>
-        <span class="meta-val font-bold">${plan.required_count} คน</span>
-      </div>
-      <div class="meta-item">
-        <span class="meta-label">จำนวนในรายชื่อ:</span>
-        <span class="meta-val font-bold" style="color: ${roster.length >= plan.required_count ? '#16a34a' : '#d97706'};">
-          ${roster.length} คน ${roster.length >= plan.required_count ? '(ครบตามแพลน)' : `(ขาด ${plan.required_count - roster.length} คน)`}
-        </span>
-      </div>
-    </div>
-
-    <table class="attendance-table">
-      <thead>
-        <tr>
-          <th style="width: 38px;">ลำดับ</th>
-          <th style="width: 85px;">รหัสพนักงาน</th>
-          <th>ชื่อ - นามสกุล</th>
-          <th style="width: 95px;">แผนก / หน้าที่</th>
-          <th style="width: 95px;">เบอร์โทรศัพท์</th>
-          <th style="width: 65px;">เวลาเข้า</th>
-          <th style="width: 65px;">เวลาออก</th>
-          <th style="width: 100px;">ลายมือชื่อ</th>
-          <th style="width: 80px;">หมายเหตุ</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${rowsHtml.join('')}
-      </tbody>
-    </table>
-
-    <div class="sign-section">
-      <div class="sign-box">
-        <div style="font-weight: 600; color: #334155;">ผู้จัดทำแพลน / Admin Sub (${adminName || 'Admin'})</div>
-        <div class="sign-line"></div>
-        <div>(.......................................................................)</div>
-        <div style="margin-top: 6px; color: #64748b;">วันที่ ..... / ..... / .........</div>
-      </div>
-      <div class="sign-box">
-        <div style="font-weight: 600; color: #334155;">ผู้ตรวจสอบ / ผู้รับรองการปฏิบัติงาน</div>
-        <div class="sign-line"></div>
-        <div>(.......................................................................)</div>
-        <div style="margin-top: 6px; color: #64748b;">วันที่ ..... / ..... / .........</div>
-      </div>
-    </div>
-
-    <div class="footer-note">
-      <span>DEMS System · ออกรายงานเมื่อ: ${printTimestamp}</span>
-      <span>* สำหรับพิมพ์และให้พนักงานลงลายมือชื่อก่อนส่งเข้า Namelist ประจำวัน</span>
-    </div>
+  <div class="sheets-container">
+    ${sheetsHtml.join('')}
   </div>
 
   <script>
