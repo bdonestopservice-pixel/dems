@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
 
   // 1. Determine permitted warehouses
   const isSuperAdmin = session.role === 'super_admin'
-  const permittedWarehouses = await getLiveUserWarehouses(session)
+  const permittedWarehouses = isSuperAdmin ? [] : await getLiveUserWarehouses(session)
 
   if (!isSuperAdmin && permittedWarehouses.length === 0) {
     return NextResponse.json({
@@ -140,8 +140,8 @@ export async function POST(request: NextRequest) {
 
     // Validate all rows
     const invalidRows: number[] = []
-    const permittedWarehouses = await getLiveUserWarehouses(session)
     const isSuperAdmin = session.role === 'super_admin'
+    const permittedWarehouses = isSuperAdmin ? [] : await getLiveUserWarehouses(session)
 
     for (let i = 0; i < plans.length; i++) {
       const p = plans[i]
