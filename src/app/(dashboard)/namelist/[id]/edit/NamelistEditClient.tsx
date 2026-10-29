@@ -236,7 +236,7 @@ export function NamelistEditClient({ session, entryId, backWarehouse }: Namelist
                 <option value="">เลือกกะ</option>
                 {shifts.map((s) => (
                   <option key={s.id} value={s.id}>
-                    {formatShiftRange(s.start_time, s.end_time)} · {s.type === 'N' ? 'Night' : 'Day'}
+                    {formatShiftRange(s.start_time, s.end_time)} · {s.type === 'N' ? 'Night' : s.type === 'H' ? 'Half' : 'Day'}
                   </option>
                 ))}
               </select>

@@ -14,13 +14,16 @@ CREATE TABLE IF NOT EXISTS warehouses (
 );
 
 INSERT INTO warehouses (id, name) VALUES
-  ('SOCE',    'SOCE - คลังตะวันออก'),
-  ('SOCW',    'SOCW - คลังตะวันตก'),
-  ('SOCN',    'SOCN - คลังเหนือ'),
-  ('FSOCW',   'FSOCW - คลัง F ตะวันตก'),
-  ('SCOM-SS', 'SCOM-SS - คลัง SS'),
-  ('SCOM-WN', 'SCOM-WN - คลัง WN')
-ON CONFLICT (id) DO NOTHING;
+  ('SOCE',    'SOCE'),
+  ('SOCW',    'SOCW'),
+  ('SOCN',    'SOCN'),
+  ('FSOCW',   'FSOCW'),
+  ('SCOM SC1', 'SCOM SC1'),
+  ('SCOM WN1', 'SCOM WN1'),
+  ('SCOM WN2', 'SCOM WN2'),
+  ('SCOM-SS', 'SCOM-SS'),
+  ('SCOM-WN', 'SCOM-WN')
+ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name;
 
 
 -- 2. System Users
@@ -43,9 +46,9 @@ VALUES (
   'admin@dems.co.th',
   '$2a$10$/4HyBfCPpkRf1r0hZTN53egg.A/CR.hNNGKTZ9sIE6ovPUgD8x9oW',
   'super_admin',
-  ARRAY['SOCE', 'SOCW', 'SOCN', 'FSOCW', 'SCOM-SS', 'SCOM-WN']
+  ARRAY['SOCE', 'SOCW', 'SOCN', 'FSOCW', 'SCOM SC1', 'SCOM WN1', 'SCOM WN2', 'SCOM-SS', 'SCOM-WN']
 )
-ON CONFLICT (email) DO NOTHING;
+ON CONFLICT (email) DO UPDATE SET warehouses = EXCLUDED.warehouses;
 
 
 -- 3. Banks
@@ -72,6 +75,7 @@ ON CONFLICT DO NOTHING;
 CREATE TABLE IF NOT EXISTS departments (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   warehouse   TEXT REFERENCES warehouses(id) ON DELETE CASCADE,
+  type        TEXT,
   name        TEXT NOT NULL,
   shift_name  TEXT NOT NULL,
   created_at  TIMESTAMPTZ DEFAULT now()
@@ -84,7 +88,7 @@ CREATE TABLE IF NOT EXISTS shifts (
   warehouse  TEXT REFERENCES warehouses(id) ON DELETE CASCADE,
   start_time TEXT NOT NULL,
   end_time   TEXT NOT NULL,
-  type       TEXT NOT NULL CHECK (type IN ('D', 'N')),
+  type       TEXT NOT NULL CHECK (type IN ('D', 'N', 'H')),
   created_at TIMESTAMPTZ DEFAULT now()
 );
 

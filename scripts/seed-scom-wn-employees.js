@@ -216,3 +216,4 @@ main().catch((err) => {
   console.error('❌ เกิดข้อผิดพลาด:', err);
   process.exit(1);
 });
+

@@ -46,7 +46,7 @@ function renderStandardPeopleOneAttendanceSheet(printWindow: Window, data: PlanE
 
   const thaiDate = formatThaiDate(plan.date)
   const shiftText = plan.shift_start && plan.shift_end
-    ? `${plan.shift_start} - ${plan.shift_end} (${plan.shift_type === 'N' ? 'กะดึก / Night' : 'กะกลางวัน / Day'})`
+    ? `${plan.shift_start} - ${plan.shift_end} (${plan.shift_type === 'N' ? 'กะดึก / Night' : plan.shift_type === 'H' ? 'กะพิเศษ / Half' : 'กะกลางวัน / Day'})`
     : (plan.shift_start || plan.shift_end || '—')
 
   const PEOPLEONE_LOGO_URL = 'https://mjwrehbozsbbqfzdpjhu.supabase.co/storage/v1/object/public/images_logo/PeopleOne.png'
@@ -654,7 +654,7 @@ function renderScomAttendanceSheet(printWindow: Window, data: PlanExportData) {
 
   const thaiDate = formatThaiDate(plan.date)
   const shiftText = plan.shift_start && plan.shift_end
-    ? `${plan.shift_start} - ${plan.shift_end} (${plan.shift_type === 'N' ? 'กะดึก / Night' : 'กะกลางวัน / Day'})`
+    ? `${plan.shift_start} - ${plan.shift_end} (${plan.shift_type === 'N' ? 'กะดึก / Night' : plan.shift_type === 'H' ? 'กะพิเศษ / Half' : 'กะกลางวัน / Day'})`
     : (plan.shift_start || plan.shift_end || '—')
 
   const SCOMMERCE_LOGO_URL = 'https://mjwrehbozsbbqfzdpjhu.supabase.co/storage/v1/object/public/images_logo/Scommerce.png'

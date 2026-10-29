@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "seed:scom-wn": "node scripts/seed-scom-wn-employees.js"
+    "seed:scom-wn": "node scripts/seed-scom-wn-employees.js",
+    "import:master-data": "node scripts/import-master-data.js",
+    "gen:master-sql": "node scripts/generate-master-sql.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.2",

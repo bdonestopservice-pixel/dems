@@ -198,7 +198,7 @@ export function EditPlanModal({ isOpen, onClose, plan, onUpdated }: EditPlanModa
                 <option value="">เลือกกะ...</option>
                 {shifts.map((s) => (
                   <option key={s.id} value={s.id}>
-                    {s.start_time}–{s.end_time} · {s.type === 'N' ? 'กะดึก (Night)' : 'กะกลางวัน (Day)'}
+                    {s.start_time}–{s.end_time} · {s.type === 'N' ? 'กะดึก (Night)' : s.type === 'H' ? 'กะพิเศษ (Half)' : 'กะกลางวัน (Day)'}
                   </option>
                 ))}
               </select>

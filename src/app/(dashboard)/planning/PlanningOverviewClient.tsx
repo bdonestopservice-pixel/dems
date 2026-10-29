@@ -341,7 +341,7 @@ export function PlanningOverviewClient({
                         <>
                           <span>·</span>
                           <span className="text-[11px]">
-                            {p.shift_start}–{p.shift_end} ({p.shift_type === 'N' ? 'Night' : 'Day'})
+                            {p.shift_start}–{p.shift_end} ({p.shift_type === 'N' ? 'Night' : p.shift_type === 'H' ? 'Half' : 'Day'})
                           </span>
                         </>
                       )}

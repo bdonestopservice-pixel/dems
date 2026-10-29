@@ -47,7 +47,7 @@ export interface Shift {
   warehouse: string
   start_time: string
   end_time: string
-  type: 'D' | 'N'
+  type: 'D' | 'N' | 'H'
 }
 
 export interface WorkStatus {
@@ -114,7 +114,7 @@ export interface Plan {
   warehouse_name?: string
   shift_start?: string
   shift_end?: string
-  shift_type?: 'D' | 'N'
+  shift_type?: 'D' | 'N' | 'H'
   department_name?: string
   current_count?: number
 }
@@ -156,7 +156,7 @@ export interface NamelistEntry {
   department_name?: string
   shift_start?: string
   shift_end?: string
-  shift_type?: 'D' | 'N'
+  shift_type?: 'D' | 'N' | 'H'
   /** คลังของรายการ (อนุมานจาก กะ → แผนก → คลังของพนักงาน) */
   warehouse?: string | null
 }

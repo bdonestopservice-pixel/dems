@@ -283,7 +283,7 @@ export function PlanRosterClient({ session, planId }: PlanRosterClientProps) {
 
               {plan.shift_start && plan.shift_end && (
                 <span className="text-xs font-semibold px-2.5 py-1 rounded-md bg-[#FEF3E2] text-[#B45F17]">
-                  {plan.shift_type === 'N' ? 'Night' : 'Day'} · {plan.shift_start}–{plan.shift_end}
+                  {plan.shift_type === 'N' ? 'Night' : plan.shift_type === 'H' ? 'Half' : 'Day'} · {plan.shift_start}–{plan.shift_end}
                 </span>
               )}
 

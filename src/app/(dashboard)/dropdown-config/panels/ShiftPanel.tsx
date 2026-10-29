@@ -18,10 +18,10 @@ export function ShiftPanel({ warehouse, session, onCountChange }: Props) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editStart, setEditStart] = useState('')
   const [editEnd, setEditEnd] = useState('')
-  const [editType, setEditType] = useState<'D' | 'N'>('D')
+  const [editType, setEditType] = useState<'D' | 'N' | 'H'>('D')
   const [newStart, setNewStart] = useState('06:00')
   const [newEnd, setNewEnd] = useState('18:00')
-  const [newType, setNewType] = useState<'D' | 'N'>('D')
+  const [newType, setNewType] = useState<'D' | 'N' | 'H'>('D')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -151,11 +151,12 @@ export function ShiftPanel({ warehouse, session, onCountChange }: Props) {
                     {editingId === item.id ? (
                       <select
                         value={editType}
-                        onChange={(e) => setEditType(e.target.value as 'D' | 'N')}
+                        onChange={(e) => setEditType(e.target.value as 'D' | 'N' | 'H')}
                         className="input py-1.5 text-sm w-20"
                       >
                         <option value="D">D</option>
                         <option value="N">N</option>
+                        <option value="H">H</option>
                       </select>
                     ) : (
                       <span
@@ -163,6 +164,8 @@ export function ShiftPanel({ warehouse, session, onCountChange }: Props) {
                           'inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold',
                           item.type === 'D'
                             ? 'bg-[#FEF3E2] text-[#B45F17]'
+                            : item.type === 'H'
+                            ? 'bg-[#E1F0FF] text-[#0066CC]'
                             : 'bg-[#16233D] text-white'
                         )}
                       >
@@ -239,11 +242,12 @@ export function ShiftPanel({ warehouse, session, onCountChange }: Props) {
           />
           <select
             value={newType}
-            onChange={(e) => setNewType(e.target.value as 'D' | 'N')}
+            onChange={(e) => setNewType(e.target.value as 'D' | 'N' | 'H')}
             className="input text-sm w-20"
           >
             <option value="D">D</option>
             <option value="N">N</option>
+            <option value="H">H</option>
           </select>
           <button type="submit" disabled={saving} className="btn-primary flex-shrink-0 gap-1.5">
             {saving ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}

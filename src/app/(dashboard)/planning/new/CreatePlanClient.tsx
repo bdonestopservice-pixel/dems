@@ -320,7 +320,7 @@ export function CreatePlanClient({ session }: CreatePlanClientProps) {
                           </option>
                           {availableShifts.map((s) => (
                             <option key={s.id} value={s.id}>
-                              {s.start_time}–{s.end_time} · {s.type === 'N' ? 'Night' : 'Day'}
+                              {s.start_time}–{s.end_time} · {s.type === 'N' ? 'Night' : s.type === 'H' ? 'Half' : 'Day'}
                             </option>
                           ))}
                         </select>
