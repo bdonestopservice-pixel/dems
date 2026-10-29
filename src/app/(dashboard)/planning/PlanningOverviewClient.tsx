@@ -8,6 +8,7 @@ import { formatThaiDate, todayLocal } from '@/lib/utils'
 import { EditPlanModal } from '@/components/planning/EditPlanModal'
 import { DeletePlanModal } from '@/components/planning/DeletePlanModal'
 import { DateInput } from '@/components/ui/DateInput'
+import { WarehouseSelect } from '@/components/ui/WarehouseSelect'
 import { broadcastRealtime } from '@/lib/realtime'
 import { useRealtimeListener, useRealtimeSession } from '@/components/providers/RealtimeProvider'
 import type { AuthSession, Plan, Warehouse } from '@/types'
@@ -143,7 +144,7 @@ export function PlanningOverviewClient({
         subtitle="วางแผนจำนวนคนที่ต้องการ แยกตามวันที่ กะ และแผนก แล้วเพิ่มพนักงานให้ครบตามแพลน"
       />
 
-      <div className="flex-1 overflow-y-auto px-8 pb-10">
+      <div className="flex-1 overflow-y-auto px-8 pt-2 pb-10">
         {/* Filter & Action Bar */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
           {/* Left filters */}
@@ -158,18 +159,12 @@ export function PlanningOverviewClient({
             />
 
             {/* Warehouse filter */}
-            <select
+            <WarehouseSelect
               value={selectedWarehouse}
-              onChange={(e) => setSelectedWarehouse(e.target.value)}
-              className="bg-white border border-[#E1E6EF] text-[#16233D] text-xs font-medium rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#2E6FE0] shadow-sm cursor-pointer"
-            >
-              <option value="all">ทุกคลัง</option>
-              {warehouses.map((wh) => (
-                <option key={wh.id} value={wh.id}>
-                  {wh.id}
-                </option>
-              ))}
-            </select>
+              onChange={(val) => setSelectedWarehouse(val)}
+              warehouses={warehouses}
+              allLabel="ทุกคลัง"
+            />
 
             {/* Department search */}
             <div className="relative min-w-[220px]">

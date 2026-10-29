@@ -18,6 +18,7 @@ import {
 } from 'lucide-react'
 import { cn, getInitials, formatThaiDate } from '@/lib/utils'
 import { DateInput } from '@/components/ui/DateInput'
+import { WarehouseSelect } from '@/components/ui/WarehouseSelect'
 import { useRealtimeListener } from '@/components/providers/RealtimeProvider'
 import type { Employee, Warehouse, AuthSession } from '@/types'
 import { exportCustomerRegistryCSV, exportOpsCSV } from '@/lib/export-csv'
@@ -341,24 +342,16 @@ export function EmployeesClient({ session }: EmployeesClientProps) {
             <span className="text-xs font-semibold text-[#5B6B85]">ตัวกรอง:</span>
 
             {/* Warehouse Filter */}
-            <div className="relative">
-              <select
-                value={selectedWarehouse}
-                onChange={(e) => {
-                  setSelectedWarehouse(e.target.value)
-                  setPage(1)
-                }}
-                className="bg-white border border-[#E1E6EF] text-[#16233D] text-xs font-medium rounded-xl px-3.5 py-2 focus:outline-none focus:ring-2 focus:ring-[#2E6FE0] shadow-2xs cursor-pointer min-w-[140px]"
-                title="เลือกคลัง/สาขา"
-              >
-                <option value="all">คลังทั้งหมด</option>
-                {warehouses.map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {w.id}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <WarehouseSelect
+              value={selectedWarehouse}
+              onChange={(val) => {
+                setSelectedWarehouse(val)
+                setPage(1)
+              }}
+              warehouses={warehouses}
+              allLabel="คลังทั้งหมด"
+              className="py-2"
+            />
 
             {/* Start Date Filter */}
             <div className="w-[165px]">

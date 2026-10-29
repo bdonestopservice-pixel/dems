@@ -20,6 +20,7 @@ import { broadcastRealtime } from '@/lib/realtime'
 import { useRealtimeListener, useRealtimeSession } from '@/components/providers/RealtimeProvider'
 import { cn } from '@/lib/utils'
 import { DateInput } from '@/components/ui/DateInput'
+import { WarehouseSelect } from '@/components/ui/WarehouseSelect'
 import type { AuthSession, NamelistEntry, Warehouse } from '@/types'
 
 interface NamelistClientProps {
@@ -271,7 +272,7 @@ export function NamelistClient({ session: initialSession, initialDate, initialWa
     <>
       <Topbar session={session} title="Namelist" subtitle="รายชื่อพนักงานที่ลงบันทึกไว้ในแต่ละวัน" />
 
-      <div className="flex-1 overflow-y-auto px-8 pb-10">
+      <div className="flex-1 overflow-y-auto px-8 pt-2 pb-10">
         {/* Filter bar */}
         <div className="flex flex-col lg:flex-row lg:items-center gap-3 mb-4">
           <DateInput
@@ -286,25 +287,17 @@ export function NamelistClient({ session: initialSession, initialDate, initialWa
             title="เลือกวันที่ (วัน/เดือน/ปี)"
           />
 
-          <select
+          <WarehouseSelect
             value={warehouse}
-            onChange={(e) => {
-              setWarehouse(e.target.value)
+            onChange={(val) => {
+              setWarehouse(val)
               setSelectedDept(null)
               setPage(1)
             }}
-            className="bg-white border border-[#E1E6EF] text-[#16233D] text-xs font-medium rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#2E6FE0] shadow-sm cursor-pointer"
-          >
-            {(isSuperAdmin || warehouses.length > 1) && <option value="all">ทุกคลัง</option>}
-            {warehouses.length === 0 && warehouse !== 'all' && (
-              <option value={warehouse}>{warehouse}</option>
-            )}
-            {warehouses.map((w) => (
-              <option key={w.id} value={w.id}>
-                {w.id}
-              </option>
-            ))}
-          </select>
+            warehouses={warehouses}
+            showAllOption={isSuperAdmin || warehouses.length > 1}
+            allLabel="ทุกคลัง"
+          />
 
           <div className="relative flex-1">
             <Search className="w-4 h-4 text-[#9AA5B8] absolute left-3.5 top-1/2 -translate-y-1/2" />
