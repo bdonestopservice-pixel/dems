@@ -147,13 +147,14 @@ export async function POST(request: NextRequest) {
     }
     const ids = Array.from(notes.keys())
 
-    // ตรวจรายชื่อที่มีใน Namelist ของวันนั้นอยู่แล้ว (ไม่ให้ซ้ำ)
+    // ตรวจรายชื่อที่มีใน Namelist ของ "วันที่ + กะ" เดียวกันอยู่แล้ว (ไม่ให้ซ้ำ) — ต่างกะเพิ่มซ้ำได้
     const duplicates = new Set<string>()
     for (const part of chunk(ids, 150)) {
       const { data: existing, error: exErr } = await supabase
         .from('namelist')
         .select('employee_id')
         .eq('date', date)
+        .eq('shift_id', shift_id)
         .in('employee_id', part)
       if (exErr) return NextResponse.json({ error: exErr.message }, { status: 500 })
       for (const r of existing || []) duplicates.add(r.employee_id)
@@ -163,7 +164,7 @@ export async function POST(request: NextRequest) {
     if (toInsert.length === 0) {
       return NextResponse.json(
         {
-          error: 'พนักงานที่เลือกมีชื่ออยู่ใน Namelist ของวันนี้แล้วทั้งหมด',
+          error: 'พนักงานที่เลือกมีชื่ออยู่ใน Namelist ของวันที่และกะนี้แล้วทั้งหมด',
           duplicates: Array.from(duplicates),
         },
         { status: 409 }

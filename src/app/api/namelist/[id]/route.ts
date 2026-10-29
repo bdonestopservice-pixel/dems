@@ -64,27 +64,30 @@ export async function PATCH(
   const body = await request.json()
   const update: Record<string, any> = {}
 
-  // วันที่ — ถ้าย้ายวัน ต้องไม่ชนกับรายการของพนักงานคนเดียวกันในวันปลายทาง
+  // วันที่ / กะ — ห้ามชนกับรายการของพนักงานคนเดียวกันที่ "วันที่ + กะ" เดียวกัน (ต่างกะซ้ำได้)
+  const targetDate: string = 'date' in body ? body.date : entry.date
+  const targetShiftId: string | null = 'shift_id' in body ? body.shift_id : entry.shift_id
   if ('date' in body) {
     if (!DATE_RE.test(body.date || '')) {
       return NextResponse.json({ error: 'รูปแบบวันที่ไม่ถูกต้อง' }, { status: 400 })
     }
-    if (body.date !== entry.date) {
-      const { data: dup } = await supabase
-        .from('namelist')
-        .select('id')
-        .eq('date', body.date)
-        .eq('employee_id', entry.employee_id)
-        .neq('id', id)
-        .limit(1)
-      if (dup && dup.length > 0) {
-        return NextResponse.json(
-          { error: 'พนักงานคนนี้มีชื่ออยู่ใน Namelist ของวันที่ที่เลือกแล้ว' },
-          { status: 409 }
-        )
-      }
-    }
     update.date = body.date
+  }
+  if (('date' in body && body.date !== entry.date) || ('shift_id' in body && body.shift_id !== entry.shift_id)) {
+    let dupQuery = supabase
+      .from('namelist')
+      .select('id')
+      .eq('date', targetDate)
+      .eq('employee_id', entry.employee_id)
+      .neq('id', id)
+    if (targetShiftId) dupQuery = dupQuery.eq('shift_id', targetShiftId)
+    const { data: dup } = await dupQuery.limit(1)
+    if (dup && dup.length > 0) {
+      return NextResponse.json(
+        { error: 'พนักงานคนนี้มีชื่ออยู่ใน Namelist ของวันที่และกะที่เลือกแล้ว' },
+        { status: 409 }
+      )
+    }
   }
 
   // แผนก / กะ — ต้องเป็นคลังเดียวกัน และอยู่ในสิทธิ์ของผู้ใช้

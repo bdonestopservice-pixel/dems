@@ -260,7 +260,7 @@ CREATE TABLE IF NOT EXISTS namelist (
   created_by    UUID REFERENCES users(id),
   created_at    TIMESTAMPTZ DEFAULT now(),
   updated_at    TIMESTAMPTZ DEFAULT now(),
-  UNIQUE(date, employee_id)
+  UNIQUE(date, employee_id, shift_id)
 );
 
 

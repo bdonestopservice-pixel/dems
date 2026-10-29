@@ -40,12 +40,14 @@ export async function POST(
     return NextResponse.json({ error: 'ไม่มีสิทธิ์จัดการแพลนในคลังนี้' }, { status: 403 })
   }
 
-  // 3. Check for existing entries in namelist on the same date to avoid UNIQUE(date, employee_id) conflicts
-  const { data: existingNamelist, error: checkErr } = await supabase
+  // 3. Check for existing entries in namelist on the same date + shift (ต่างกะเพิ่มซ้ำได้)
+  let existingQuery = supabase
     .from('namelist')
     .select('employee_id')
     .eq('date', plan.date)
     .in('employee_id', employee_ids)
+  if (plan.shift_id) existingQuery = existingQuery.eq('shift_id', plan.shift_id)
+  const { data: existingNamelist, error: checkErr } = await existingQuery
 
   if (checkErr) {
     console.error('Error checking existing namelist entries:', checkErr)

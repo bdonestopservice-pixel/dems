@@ -55,7 +55,7 @@ export function NamelistAddClient({ session, initialDate, initialWarehouse }: Na
   // การเลือก/หมายเหตุ เก็บแยกจากรายการที่แสดง → ค้นหา/กรองแล้วคนที่ติ๊กไว้ไม่หาย
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [notes, setNotes] = useState<Record<string, string>>({})
-  const [existingIds, setExistingIds] = useState<Set<string>>(new Set())
+  const [existingEntries, setExistingEntries] = useState<{ employee_id: string; shift_id: string | null }[]>([])
 
   const [submitting, setSubmitting] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
@@ -117,7 +117,7 @@ export function NamelistAddClient({ session, initialDate, initialWarehouse }: Na
     if (nlWarehouse) setEmpWarehouse(nlWarehouse)
   }, [nlWarehouse])
 
-  // รายชื่อที่อยู่ใน Namelist ของวันนั้นแล้ว (ทุกคลัง) → ห้ามติ๊กซ้ำ
+  // รายการที่อยู่ใน Namelist ของวันนั้นแล้ว (ทุกคลัง) → ใช้ร่วมกับกะที่เลือกเพื่อกันซ้ำ
   useEffect(() => {
     let cancelled = false
     async function load() {
@@ -125,12 +125,7 @@ export function NamelistAddClient({ session, initialDate, initialWarehouse }: Na
         const res = await fetch(`/api/namelist/existing?date=${date}`)
         if (!res.ok) return
         const data = await res.json()
-        if (!cancelled) {
-          const ids = new Set<string>(data.employee_ids || [])
-          setExistingIds(ids)
-          // ถ้าคนที่เคยติ๊กไว้มีใน Namelist ของวันใหม่แล้ว ให้ยกเลิกการเลือก
-          setSelected((prev) => new Set(Array.from(prev).filter((id) => !ids.has(id))))
-        }
+        if (!cancelled) setExistingEntries(data.entries || [])
       } catch (err) {
         console.error(err)
       }
@@ -140,6 +135,24 @@ export function NamelistAddClient({ session, initialDate, initialWarehouse }: Na
       cancelled = true
     }
   }, [date])
+
+  // วันที่ + กะ เดียวกัน ห้ามซ้ำ / ต่างกะเพิ่มซ้ำได้ → ยังไม่เลือกกะ = ยังไม่มีใครถูกล็อก
+  const existingIds = useMemo(
+    () =>
+      new Set<string>(
+        shiftId ? existingEntries.filter((e) => e.shift_id === shiftId).map((e) => e.employee_id) : []
+      ),
+    [existingEntries, shiftId]
+  )
+
+  // ถ้าคนที่เคยติ๊กไว้มีใน Namelist ของวัน+กะที่เลือกแล้ว ให้ยกเลิกการเลือก
+  useEffect(() => {
+    if (existingIds.size === 0) return
+    setSelected((prev) => {
+      const next = new Set(Array.from(prev).filter((id) => !existingIds.has(id)))
+      return next.size === prev.size ? prev : next
+    })
+  }, [existingIds])
 
   // debounce ค้นหา
   useEffect(() => {
@@ -224,7 +237,10 @@ export function NamelistAddClient({ session, initialDate, initialWarehouse }: Na
       const data = await res.json()
       if (!res.ok) {
         if (res.status === 409 && Array.isArray(data.duplicates)) {
-          setExistingIds((prev) => new Set([...Array.from(prev), ...data.duplicates]))
+          setExistingEntries((prev) => [
+            ...prev,
+            ...data.duplicates.map((id: string) => ({ employee_id: id, shift_id: shiftId })),
+          ])
           setSelected(new Set())
         }
         throw new Error(data.error || 'เพิ่มเข้า Namelist ไม่สำเร็จ')
@@ -395,7 +411,7 @@ export function NamelistAddClient({ session, initialDate, initialWarehouse }: Na
                         )}
                         {isExisting && (
                           <span className="text-[10px] font-semibold text-[#B45F17] bg-[#FEF3E2] px-2 py-0.5 rounded-full whitespace-nowrap">
-                            อยู่ใน Namelist ของวันนี้แล้ว
+                            อยู่ใน Namelist ของวันและกะนี้แล้ว
                           </span>
                         )}
                       </label>
