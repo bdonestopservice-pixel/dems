@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { Plus, Search, Pencil, Users, Calendar, AlertCircle, CheckCircle2, Trash2, Loader2 } from 'lucide-react'
 import { Topbar } from '@/components/layout/Topbar'
-import { formatThaiDate } from '@/lib/utils'
+import { formatThaiDate, todayLocal } from '@/lib/utils'
 import { EditPlanModal } from '@/components/planning/EditPlanModal'
 import { DeletePlanModal } from '@/components/planning/DeletePlanModal'
 import { DateInput } from '@/components/ui/DateInput'
@@ -14,9 +14,15 @@ import type { AuthSession, Plan, Warehouse } from '@/types'
 
 interface PlanningOverviewClientProps {
   session: AuthSession
+  initialDate?: string
+  initialWarehouse?: string
 }
 
-export function PlanningOverviewClient({ session: initialSession }: PlanningOverviewClientProps) {
+export function PlanningOverviewClient({
+  session: initialSession,
+  initialDate,
+  initialWarehouse,
+}: PlanningOverviewClientProps) {
   const { session } = useRealtimeSession()
   const [plans, setPlans] = useState<Plan[]>([])
   const [warehouses, setWarehouses] = useState<Warehouse[]>([])
@@ -24,8 +30,8 @@ export function PlanningOverviewClient({ session: initialSession }: PlanningOver
   const [stats, setStats] = useState({ total_plans: 0, completed_plans: 0, total_missing: 0 })
 
   // Filters
-  const [selectedWarehouse, setSelectedWarehouse] = useState<string>('all')
-  const [selectedDate, setSelectedDate] = useState<string>('')
+  const [selectedWarehouse, setSelectedWarehouse] = useState<string>(initialWarehouse || 'all')
+  const [selectedDate, setSelectedDate] = useState<string>(initialDate || todayLocal())
   const [searchTerm, setSearchTerm] = useState<string>('')
 
   // Edit & Delete Modal State
@@ -102,7 +108,7 @@ export function PlanningOverviewClient({ session: initialSession }: PlanningOver
         params.set('warehouse', selectedWarehouse)
       }
       if (selectedDate) {
-        params.set('date_from', selectedDate)
+        params.set('date', selectedDate)
       }
       if (searchTerm.trim()) {
         params.set('search', searchTerm.trim())
