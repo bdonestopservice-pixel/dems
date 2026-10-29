@@ -25,7 +25,7 @@ function DashboardShellContent({ children }: { children: React.ReactNode }) {
       <main
         className={cn(
           'flex-1 flex flex-col overflow-y-auto transition-all duration-300 min-w-0 bg-[#F4F6FA]',
-          isCollapsed ? 'ml-16' : 'ml-64'
+          isCollapsed ? 'ml-16' : 'ml-72'
         )}
       >
         {children}

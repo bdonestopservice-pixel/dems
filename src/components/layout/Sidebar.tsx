@@ -74,7 +74,7 @@ export function Sidebar({ session, isCollapsed, onToggle }: SidebarProps) {
     <aside
       className={cn(
         'fixed left-0 top-0 h-full bg-white text-[#16233D] flex flex-col z-50 border-r border-[#E1E6EF] transition-all duration-300 ease-in-out',
-        isCollapsed ? 'w-16' : 'w-64'
+        isCollapsed ? 'w-16' : 'w-72'
       )}
     >
       {/* Top Section: Hamburger & Logo */}
@@ -172,7 +172,7 @@ export function Sidebar({ session, isCollapsed, onToggle }: SidebarProps) {
                     <Icon size={18} className="flex-shrink-0" />
                     {!isCollapsed && (
                       <div className="flex items-center justify-between flex-1 min-w-0">
-                        <span className="truncate">{item.label}</span>
+                        <span className="whitespace-nowrap">{item.label}</span>
                         {item.badge && (
                           <span
                             className={cn(

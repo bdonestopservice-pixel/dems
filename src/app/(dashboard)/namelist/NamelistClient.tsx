@@ -329,9 +329,9 @@ export function NamelistClient({ session: initialSession, initialDate, initialWa
           </Link>
         </div>
 
-        {/* Dashboard summary cards */}
-        <div className="flex flex-wrap items-center gap-2.5 mb-5">
-          {/* Card: ทั้งหมด */}
+        {/* Department / Category Filter Tabs */}
+        <div className="flex flex-wrap items-center gap-2 mb-4">
+          {/* Tab: ทั้งหมด */}
           <button
             type="button"
             onClick={() => {
@@ -339,41 +339,26 @@ export function NamelistClient({ session: initialSession, initialDate, initialWa
               setPage(1)
             }}
             className={cn(
-              'flex flex-col justify-center px-5 py-2 rounded-2xl transition-all duration-150 cursor-pointer text-left min-h-[52px] min-w-[110px] select-none',
+              'h-9 inline-flex items-center gap-2 px-3.5 rounded-xl text-xs font-semibold transition-all duration-150 cursor-pointer select-none',
               selectedDept === null
-                ? 'bg-[#2E6FE0] text-white shadow-md shadow-blue-500/20 ring-2 ring-[#2E6FE0]/30 border border-[#2558B8]'
-                : 'bg-white hover:bg-[#F8FAFC] text-[#16233D] border border-[#CBD5E1] hover:border-[#2E6FE0]/60 shadow-xs hover:shadow-sm hover:-translate-y-0.5 active:translate-y-0'
+                ? 'bg-[#2E6FE0] text-white shadow-2xs border border-[#2558B8]'
+                : 'bg-white hover:bg-[#F8FAFC] text-[#5B6B85] hover:text-[#16233D] border border-[#E1E6EF] hover:border-[#CBD5E1] shadow-2xs'
             )}
           >
+            <span>ทั้งหมด</span>
             <span
               className={cn(
-                'text-[11px] font-semibold leading-tight',
-                selectedDept === null ? 'text-white/85' : 'text-[#5B6B85]'
+                'text-[11px] font-bold px-2 py-0.5 rounded-full transition-colors',
+                selectedDept === null
+                  ? 'bg-white/20 text-white'
+                  : 'bg-[#EEF3FC] text-[#2E6FE0]'
               )}
             >
-              ทั้งหมด
+              {entries.length} คน
             </span>
-            <div className="flex items-baseline gap-1 mt-0.5">
-              <span
-                className={cn(
-                  'text-xl font-black leading-tight',
-                  selectedDept === null ? 'text-white' : 'text-[#2E6FE0]'
-                )}
-              >
-                {entries.length}
-              </span>
-              <span
-                className={cn(
-                  'text-xs font-bold leading-tight',
-                  selectedDept === null ? 'text-white/85' : 'text-[#5B6B85]'
-                )}
-              >
-                คน
-              </span>
-            </div>
           </button>
 
-          {/* Cards: แผนกแต่ละแผนก */}
+          {/* Tabs: แผนกแต่ละแผนก */}
           {departmentStats.map((dept) => {
             const isSelected = selectedDept === dept.name
             return (
@@ -385,26 +370,19 @@ export function NamelistClient({ session: initialSession, initialDate, initialWa
                   setPage(1)
                 }}
                 className={cn(
-                  'flex items-center gap-2.5 px-4 py-3 rounded-2xl text-xs font-semibold transition-all duration-150 cursor-pointer min-h-[52px] select-none',
+                  'h-9 inline-flex items-center gap-2 px-3.5 rounded-xl text-xs font-semibold transition-all duration-150 cursor-pointer select-none',
                   isSelected
-                    ? 'bg-[#2E6FE0] text-white shadow-md shadow-blue-500/20 ring-2 ring-[#2E6FE0]/30 border border-[#2558B8]'
-                    : 'bg-white hover:bg-[#F8FAFC] text-[#16233D] border border-[#CBD5E1] hover:border-[#2E6FE0]/60 shadow-xs hover:shadow-sm hover:-translate-y-0.5 active:translate-y-0'
+                    ? 'bg-[#2E6FE0] text-white shadow-2xs border border-[#2558B8]'
+                    : 'bg-white hover:bg-[#F8FAFC] text-[#5B6B85] hover:text-[#16233D] border border-[#E1E6EF] hover:border-[#CBD5E1] shadow-2xs'
                 )}
               >
+                <span>{dept.name}</span>
                 <span
                   className={cn(
-                    'font-bold text-xs',
-                    isSelected ? 'text-white' : 'text-[#16233D]'
-                  )}
-                >
-                  {dept.name}
-                </span>
-                <span
-                  className={cn(
-                    'font-black text-xs px-2.5 py-0.5 rounded-full border transition-colors',
+                    'text-[11px] font-bold px-2 py-0.5 rounded-full transition-colors',
                     isSelected
-                      ? 'bg-white/20 text-white border-white/30'
-                      : 'bg-[#EEF3FC] text-[#2E6FE0] border-[#C6DCFD]'
+                      ? 'bg-white/20 text-white'
+                      : 'bg-[#EEF3FC] text-[#2E6FE0]'
                   )}
                 >
                   {dept.count} คน
