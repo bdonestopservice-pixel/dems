@@ -129,28 +129,29 @@ export async function PATCH(
 
   const updateFields: Record<string, any> = {}
 
-  if (department_id) {
-    const { data: dept } = await supabase
-      .from('departments')
-      .select('id, warehouse')
-      .eq('id', department_id)
-      .single()
-    if (!dept) {
-      return NextResponse.json({ error: 'ไม่พบแผนกที่เลือก' }, { status: 400 })
-    }
-    updateFields.department_id = department_id
-  }
+  if (department_id || shift_id) {
+    const deptPromise = department_id
+      ? supabase.from('departments').select('id, warehouse').eq('id', department_id).single()
+      : Promise.resolve({ data: null })
+    const shiftPromise = shift_id
+      ? supabase.from('shifts').select('id, warehouse').eq('id', shift_id).single()
+      : Promise.resolve({ data: null })
 
-  if (shift_id) {
-    const { data: shift } = await supabase
-      .from('shifts')
-      .select('id, warehouse')
-      .eq('id', shift_id)
-      .single()
-    if (!shift) {
-      return NextResponse.json({ error: 'ไม่พบกะที่เลือก' }, { status: 400 })
+    const [deptResult, shiftResult] = await Promise.all([deptPromise, shiftPromise])
+
+    if (department_id) {
+      if (!deptResult.data) {
+        return NextResponse.json({ error: 'ไม่พบแผนกที่เลือก' }, { status: 400 })
+      }
+      updateFields.department_id = department_id
     }
-    updateFields.shift_id = shift_id
+
+    if (shift_id) {
+      if (!shiftResult.data) {
+        return NextResponse.json({ error: 'ไม่พบกะที่เลือก' }, { status: 400 })
+      }
+      updateFields.shift_id = shift_id
+    }
   }
 
   if (required_count !== undefined && required_count !== '') {

@@ -23,14 +23,14 @@ export async function POST(
 
   const supabase = createServerSupabaseClient()
 
-  // 1. Check plan existence and warehouse permission
-  const { data: plan, error: planErr } = await supabase
-    .from('plans')
-    .select('id, warehouse')
-    .eq('id', id)
-    .single()
+  // 1. Check plan existence and fetch existing employees concurrently in parallel
+  const [planResult, existingResult] = await Promise.all([
+    supabase.from('plans').select('id, warehouse').eq('id', id).single(),
+    supabase.from('plan_employees').select('employee_id').eq('plan_id', id),
+  ])
 
-  if (planErr || !plan) {
+  const plan = planResult.data
+  if (planResult.error || !plan) {
     return NextResponse.json({ error: 'ไม่พบแพลนนี้' }, { status: 404 })
   }
 
@@ -39,13 +39,7 @@ export async function POST(
     return NextResponse.json({ error: 'ไม่มีสิทธิ์จัดการแพลนในคลังนี้' }, { status: 403 })
   }
 
-  // 2. Fetch existing employees in this plan to prevent duplicate additions
-  const { data: existing } = await supabase
-    .from('plan_employees')
-    .select('employee_id')
-    .eq('plan_id', id)
-
-  const existingSet = new Set((existing || []).map((e: any) => e.employee_id))
+  const existingSet = new Set((existingResult.data || []).map((e: any) => e.employee_id))
   const toAdd = employee_ids.filter((empId: string) => !existingSet.has(empId))
 
   if (toAdd.length === 0) {

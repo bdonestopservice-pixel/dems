@@ -30,6 +30,12 @@ export async function GET(request: NextRequest) {
 
   const supabase = createServerSupabaseClient()
 
+  // Start fetching work_statuses concurrently in background while loading namelist entries
+  const statusesPromise = supabase
+    .from('work_statuses')
+    .select('id, name, sort_order')
+    .order('sort_order')
+
   // ดึงทั้งหมดของวันนั้น (วนทีละ 1000 แถว เพราะ Supabase จำกัดต่อ request)
   const rows: any[] = []
   for (let page = 0; page < 30; page++) {
@@ -70,23 +76,22 @@ export async function GET(request: NextRequest) {
     night: entries.filter((e) => e.shift_type === 'N').length,
   }
 
-  // ตัวเลือก dropdown: Status (ส่วนกลาง) และ OA (ต่อคลัง)
-  const { data: statuses } = await supabase
-    .from('work_statuses')
-    .select('id, name, sort_order')
-    .order('sort_order')
-
+  // ตัวเลือก dropdown: Status (ส่วนกลาง) และ OA (ต่อคลัง) ดึงพร้อมกันด้วย Promise.all
   const whs = Array.from(new Set(entries.map((e) => e.warehouse).filter(Boolean))) as string[]
+
+  const oaPromise = whs.length > 0
+    ? supabase
+        .from('oa_options')
+        .select('warehouse, name, created_at')
+        .in('warehouse', whs)
+        .order('created_at')
+    : Promise.resolve({ data: [] })
+
+  const [{ data: statuses }, { data: oaRows }] = await Promise.all([statusesPromise, oaPromise])
+
   const oaOptions: Record<string, string[]> = {}
-  if (whs.length > 0) {
-    const { data: oaRows } = await supabase
-      .from('oa_options')
-      .select('warehouse, name, created_at')
-      .in('warehouse', whs)
-      .order('created_at')
-    for (const w of whs) oaOptions[w] = []
-    for (const r of oaRows || []) oaOptions[r.warehouse]?.push(r.name)
-  }
+  for (const w of whs) oaOptions[w] = []
+  for (const r of oaRows || []) oaOptions[r.warehouse]?.push(r.name)
 
   return NextResponse.json({
     entries,
