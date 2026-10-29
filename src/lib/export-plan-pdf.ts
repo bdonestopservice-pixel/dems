@@ -49,7 +49,8 @@ function renderStandardPeopleOneAttendanceSheet(printWindow: Window, data: PlanE
     ? `${plan.shift_start} - ${plan.shift_end} (${plan.shift_type === 'N' ? 'กะดึก / Night' : plan.shift_type === 'H' ? 'กะพิเศษ / Half' : 'กะกลางวัน / Day'})`
     : (plan.shift_start || plan.shift_end || '—')
 
-  const PEOPLEONE_LOGO_URL = 'https://mjwrehbozsbbqfzdpjhu.supabase.co/storage/v1/object/public/images_logo/PeopleOne.png'
+  const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://mjwrehbozsbbqfzdpjhu.supabase.co'
+  const PEOPLEONE_LOGO_URL = `${SUPABASE_URL}/storage/v1/object/public/images_logo/PeopleOne.png`
 
   // กำหนดจำนวนแถวต่อ 1 ใบ (15 แถวพอดีกับ 1 หน้า A4 แนวนอน รวมหัว-ท้ายเอกสาร)
   const ROWS_PER_PAGE = 15
@@ -657,8 +658,9 @@ function renderScomAttendanceSheet(printWindow: Window, data: PlanExportData) {
     ? `${plan.shift_start} - ${plan.shift_end} (${plan.shift_type === 'N' ? 'กะดึก / Night' : plan.shift_type === 'H' ? 'กะพิเศษ / Half' : 'กะกลางวัน / Day'})`
     : (plan.shift_start || plan.shift_end || '—')
 
-  const SCOMMERCE_LOGO_URL = 'https://mjwrehbozsbbqfzdpjhu.supabase.co/storage/v1/object/public/images_logo/Scommerce.png'
-  const PEOPLEONE_LOGO_URL = 'https://mjwrehbozsbbqfzdpjhu.supabase.co/storage/v1/object/public/images_logo/PeopleOne.png'
+  const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://mjwrehbozsbbqfzdpjhu.supabase.co'
+  const SCOMMERCE_LOGO_URL = `${SUPABASE_URL}/storage/v1/object/public/images_logo/Scommerce.png`
+  const PEOPLEONE_LOGO_URL = `${SUPABASE_URL}/storage/v1/object/public/images_logo/PeopleOne.png`
 
   // ผู้ใช้กำหนด 40 ลำดับต่อแผ่น
   const SCOM_ROWS_PER_PAGE = 40
