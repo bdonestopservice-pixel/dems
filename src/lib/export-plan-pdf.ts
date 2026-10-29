@@ -55,7 +55,7 @@ function renderStandardPeopleOneAttendanceSheet(printWindow: Window, data: PlanE
   for (let i = 0; i < totalRowsCount; i++) {
     const emp = roster[i]
     if (emp) {
-      const fullName = `${emp.prefix ? emp.prefix + ' ' : ''}${emp.first_name || ''} ${emp.last_name || ''}`.trim() || '—'
+      const fullName = `${emp.first_name || ''} ${emp.last_name || ''}`.trim() || '—'
       const opsId = emp.ops_id && emp.ops_id !== '—' ? emp.ops_id : ''
       const poId = emp.po_id && emp.po_id !== '—' ? emp.po_id : ''
       const phone = emp.phone && emp.phone !== '—' ? emp.phone : ''
@@ -571,7 +571,7 @@ function renderScomAttendanceSheet(printWindow: Window, data: PlanExportData) {
   for (let i = 0; i < totalRowsCount; i++) {
     const emp = roster[i]
     if (emp) {
-      const fullName = `${emp.prefix ? emp.prefix + ' ' : ''}${emp.first_name || ''} ${emp.last_name || ''}`.trim() || '—'
+      const fullName = `${emp.first_name || ''} ${emp.last_name || ''}`.trim() || '—'
       rowsHtml.push(`
         <tr>
           <td class="text-center font-bold text-gray-500">${i + 1}</td>

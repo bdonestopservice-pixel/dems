@@ -1,19 +1,30 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect } from 'react'
 import { Eye, EyeOff, CheckSquare, Loader2, Check } from 'lucide-react'
 import { LOGO_URL } from '@/lib/brand'
 import { cn } from '@/lib/utils'
 
+const REMEMBER_EMAIL_KEY = 'dems_remembered_email'
+
 export default function LoginPage() {
-  const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  // เติมอีเมลที่เคยจดจำไว้
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(REMEMBER_EMAIL_KEY)
+      if (saved) {
+        setEmail(saved)
+        setRememberMe(true)
+      }
+    } catch {}
+  }, [])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -35,8 +46,18 @@ export default function LoginPage() {
         return
       }
 
-      router.push('/overview')
-      router.refresh()
+      // จดจำอีเมลไว้เติมให้อัตโนมัติครั้งถัดไป (ไม่เก็บรหัสผ่าน — ให้ Password Manager ของเบราว์เซอร์จัดการ)
+      try {
+        if (rememberMe) {
+          window.localStorage.setItem(REMEMBER_EMAIL_KEY, email)
+        } else {
+          window.localStorage.removeItem(REMEMBER_EMAIL_KEY)
+        }
+      } catch {}
+
+      // ใช้ full navigation เพื่อให้เบราว์เซอร์เสนอบันทึกรหัสผ่าน และแน่ใจว่าคุกกี้ถูกส่งไปกับคำขอถัดไป
+      window.location.assign('/overview')
+      return
     } catch {
       setError('เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง')
     } finally {
@@ -121,13 +142,14 @@ export default function LoginPage() {
                 </label>
                 <input
                   id="email"
+                  name="username"
                   type="text"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="name@peopleone.co.th"
                   className="input"
                   required
-                  autoComplete="email"
+                  autoComplete="username"
                 />
               </div>
 
@@ -139,6 +161,7 @@ export default function LoginPage() {
                 <div className="relative">
                   <input
                     id="password"
+                    name="password"
                     type={showPassword ? 'text' : 'password'}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}

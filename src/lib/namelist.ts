@@ -19,7 +19,8 @@ export function formatShiftRange(start?: string | null, end?: string | null): st
 }
 
 export function employeeFullName(e: { prefix?: string | null; first_name?: string | null; last_name?: string | null }): string {
-  return `${e.prefix ? e.prefix + ' ' : ''}${e.first_name || ''} ${e.last_name || ''}`.trim()
+  // ไม่แสดงคำนำหน้า (prefix) ในหน้า Namelist / จัดแพลนพนักงาน
+  return `${e.first_name || ''} ${e.last_name || ''}`.trim()
 }
 
 /** แปลงแถวจาก Supabase (มี join) เป็น NamelistEntry */

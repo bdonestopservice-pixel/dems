@@ -16,9 +16,14 @@ export async function PATCH(request: NextRequest, context: Ctx) {
   const body = await request.json()
   const supabase = createServerSupabaseClient()
 
+  const update: Record<string, unknown> = { name: body.name, shift_name: body.shift_name }
+  if (body.type !== undefined) {
+    update.type = typeof body.type === 'string' ? body.type.trim() : body.type
+  }
+
   const { data, error } = await supabase
     .from('departments')
-    .update({ name: body.name, shift_name: body.shift_name })
+    .update(update)
     .eq('id', id)
     .select()
     .single()

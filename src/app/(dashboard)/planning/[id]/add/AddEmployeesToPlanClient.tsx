@@ -325,7 +325,7 @@ export function AddEmployeesToPlanClient({ session, planId }: AddEmployeesToPlan
             <div className="divide-y divide-[#F4F6FA]">
               {eligibleEmployees.map((emp) => {
                 const isSelected = selectedIds.has(emp.id)
-                const fullName = `${emp.prefix ? emp.prefix + ' ' : ''}${emp.first_name} ${emp.last_name}`
+                const fullName = `${emp.first_name} ${emp.last_name}`
 
                 return (
                   <label

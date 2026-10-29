@@ -103,6 +103,7 @@ ON CONFLICT (code) DO UPDATE SET warehouses = EXCLUDED.warehouses;
 CREATE TABLE IF NOT EXISTS departments (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   warehouse   TEXT REFERENCES warehouses(id) ON DELETE CASCADE,
+  type        TEXT,
   name        TEXT NOT NULL,
   shift_name  TEXT NOT NULL,
   created_at  TIMESTAMPTZ DEFAULT now()

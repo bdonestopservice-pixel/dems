@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json()
-  const { warehouse, name, shift_name } = body
+  const { warehouse, name, shift_name, type } = body
 
   if (!warehouse || !name || !shift_name) {
     return NextResponse.json({ error: 'กรุณากรอกข้อมูลให้ครบ' }, { status: 400 })
@@ -49,10 +49,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'ไม่มีสิทธิ์เข้าถึงคลังนี้' }, { status: 403 })
   }
 
+  const insertRow: Record<string, unknown> = { warehouse, name, shift_name }
+  if (typeof type === 'string' && type.trim()) insertRow.type = type.trim()
+
   const supabase = createServerSupabaseClient()
   const { data, error } = await supabase
     .from('departments')
-    .insert({ warehouse, name, shift_name })
+    .insert(insertRow)
     .select()
     .single()
 

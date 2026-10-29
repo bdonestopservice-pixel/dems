@@ -400,7 +400,7 @@ export function PlanRosterClient({ session, planId }: PlanRosterClientProps) {
                   {roster.map((emp) => {
                     const isSelected = selectedIds.has(emp.employee_id)
                     const isSent = emp.sent_to_namelist
-                    const fullName = `${emp.prefix ? emp.prefix + ' ' : ''}${emp.first_name || ''} ${emp.last_name || ''}`.trim()
+                    const fullName = `${emp.first_name || ''} ${emp.last_name || ''}`.trim()
 
                     return (
                       <tr

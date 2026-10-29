@@ -16,8 +16,10 @@ export function DepartmentPanel({ warehouse, session, onCountChange }: Props) {
   const [loading, setLoading] = useState(true)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
+  const [editType, setEditType] = useState('')
   const [editShiftName, setEditShiftName] = useState('')
   const [newName, setNewName] = useState('')
+  const [newType, setNewType] = useState('')
   const [newShiftName, setNewShiftName] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -45,7 +47,7 @@ export function DepartmentPanel({ warehouse, session, onCountChange }: Props) {
     const res = await fetch('/api/dropdown/departments', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ warehouse, name: newName.trim(), shift_name: newShiftName.trim().toUpperCase() }),
+      body: JSON.stringify({ warehouse, type: newType.trim(), name: newName.trim(), shift_name: newShiftName.trim().toUpperCase() }),
     })
     const data = await res.json()
     if (res.ok) {
@@ -53,6 +55,7 @@ export function DepartmentPanel({ warehouse, session, onCountChange }: Props) {
       setItems(next)
       onCountChange(next.length)
       setNewName('')
+      setNewType('')
       setNewShiftName('')
     } else {
       setError(data.error || 'เกิดข้อผิดพลาด')
@@ -65,12 +68,14 @@ export function DepartmentPanel({ warehouse, session, onCountChange }: Props) {
     const res = await fetch(`/api/dropdown/departments/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: editName, shift_name: editShiftName.toUpperCase() }),
+      body: JSON.stringify({ type: editType.trim(), name: editName, shift_name: editShiftName.toUpperCase() }),
     })
     const data = await res.json()
     if (res.ok) {
       setItems((prev) => prev.map((d) => (d.id === id ? data.department : d)))
       setEditingId(null)
+    } else {
+      setError(data.error || 'เกิดข้อผิดพลาด')
     }
     setSaving(false)
   }
@@ -122,9 +127,20 @@ export function DepartmentPanel({ warehouse, session, onCountChange }: Props) {
               {items.map((item) => (
                 <tr key={item.id} className="hover:bg-[#F4F6FA]/50 transition-colors">
                   <td className="px-7 py-4">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-bold bg-[#EEF3FC] text-[#2558B8]">
-                      {item.warehouse}
-                    </span>
+                    {editingId === item.id ? (
+                      <input
+                        value={editType}
+                        onChange={(e) => setEditType(e.target.value)}
+                        className="input py-1.5 text-sm max-w-[120px]"
+                        placeholder="เช่น IB"
+                      />
+                    ) : item.type ? (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-bold bg-[#EEF3FC] text-[#2558B8]">
+                        {item.type}
+                      </span>
+                    ) : (
+                      <span className="text-sm text-[#9AA5B8]">—</span>
+                    )}
                   </td>
                   <td className="px-3 py-4">
                     {editingId === item.id ? (
@@ -173,6 +189,7 @@ export function DepartmentPanel({ warehouse, session, onCountChange }: Props) {
                           <button
                             onClick={() => {
                               setEditingId(item.id)
+                              setEditType(item.type || '')
                               setEditName(item.name)
                               setEditShiftName(item.shift_name)
                             }}
@@ -204,6 +221,12 @@ export function DepartmentPanel({ warehouse, session, onCountChange }: Props) {
           className="flex items-center gap-3 px-7 py-4 border-t border-[#E1E6EF] bg-[#FAFBFC]"
         >
           <span className="text-xs font-medium text-[#5B6B85] flex-shrink-0">คลัง {warehouse}</span>
+          <input
+            value={newType}
+            onChange={(e) => setNewType(e.target.value)}
+            className="input text-sm max-w-[110px]"
+            placeholder="TYPE เช่น IB"
+          />
           <input
             value={newName}
             onChange={(e) => setNewName(e.target.value)}

@@ -37,6 +37,7 @@ export interface Bank {
 export interface Department {
   id: string
   warehouse: string
+  type?: string | null   // ข้อความกรอกเอง (แสดงในคอลัมน์ TYPE)
   name: string
   shift_name: string
 }
