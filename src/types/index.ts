@@ -128,6 +128,7 @@ export interface PlanEmployee {
   // joined
   po_id?: string
   ops_id?: string
+  id_card?: string
   prefix?: string
   first_name?: string
   last_name?: string

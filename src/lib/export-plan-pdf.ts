@@ -9,8 +9,8 @@ export interface PlanExportData {
 
 /**
  * ส่งออกเอกสารลงเวลาการทำงาน (Attendance Sheet) เป็น PDF
- * - คลังที่ไม่ขึ้นต้นด้วย SCOM: ใช้ Template มาตรฐาน PeopleOne (A4 แนวนอน พร้อมโลโก้ PeopleOne, ตารางบันทึกเวลา, ตารางเหตุผล, สรุป และลายเซ็น)
- * - คลังที่ขึ้นต้นด้วย SCOM: ใช้ Template ของ SCOM (แบบแนวตั้งเดิม จนกว่าผู้ใช้จะส่ง Template ใหม่มาให้)
+ * - คลังที่ไม่ขึ้นต้นด้วย SCOM: ใช้ Template มาตรฐาน PeopleOne (A4 แนวนอน 15 แถวต่อใบ)
+ * - คลังที่ขึ้นต้นด้วย SCOM: ใช้ Template เฉพาะของ Scommerce (A4 แนวนอน 40 แถวต่อใบ ตามแบบฟอร์ม F-HSE-039)
  * - รองรับพนักงานไม่จำกัดจำนวน: หากพนักงานเกินขนาด 1 ใบ จะรันต่อเป็นใบที่ 2, 3... พร้อมรันเลขลำดับและรายชื่อต่อเนื่องอัตโนมัติ
  */
 export function exportPlanAttendanceSheet(data: PlanExportData) {
@@ -640,23 +640,28 @@ function renderStandardPeopleOneAttendanceSheet(printWindow: Window, data: PlanE
 }
 
 /**
- * Template สำหรับคลังที่ขึ้นต้นด้วย SCOM (A4 แนวตั้ง)
- * - รองรับการแบ่งหน้าอัตโนมัติ (20 แถวต่อใบ)
- * - รันลำดับที่และรายชื่อพนักงานต่อเนื่อง
+ * Template สำหรับคลังที่ขึ้นต้นด้วย SCOM (A4 แนวนอน ตามแบบฟอร์ม F-HSE-039 ของ Scommerce / PeopleOne)
+ * - 40 ลำดับต่อใบ (ตามที่ผู้ใช้กำหนด)
+ * - โลโก้ PeopleOne และ Scommerce คู่กันที่มุมบนซ้าย
+ * - แบบฟอร์มการอบรมด้านความปลอดภัย ฯ และบันทึกการทำงาน (Safety Training and working time Record Form)
+ * - กล่องควบคุมเอกสารด้านขวา (F-HSE-039 / วันที่บังคับใช้ / หน้าที่ / ครั้งที่แก้ไข)
+ * - ช่องข้อความยินยอม PDPA และหมายเหตุโรคประจำตัว
+ * - คอลัมน์แยก "ชื่อ" และ "สกุล", เลขบัตรประชาชน, โอที (ทำโอที, ชั่วโมงโอที)
+ * - รองรับการรันลำดับต่อเนื่องหลายใบอัตโนมัติ (เช่น ใบที่ 1: 1-40, ใบที่ 2: 41-80)
  */
 function renderScomAttendanceSheet(printWindow: Window, data: PlanExportData) {
-  const { plan, roster, adminName } = data
+  const { plan, roster } = data
 
   const thaiDate = formatThaiDate(plan.date)
   const shiftText = plan.shift_start && plan.shift_end
     ? `${plan.shift_start} - ${plan.shift_end} (${plan.shift_type === 'N' ? 'กะดึก / Night' : 'กะกลางวัน / Day'})`
-    : '—'
-  const printTimestamp = new Date().toLocaleString('th-TH', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  })
+    : (plan.shift_start || plan.shift_end || '—')
 
-  const SCOM_ROWS_PER_PAGE = 20
+  const SCOMMERCE_LOGO_URL = 'https://mjwrehbozsbbqfzdpjhu.supabase.co/storage/v1/object/public/images_logo/Scommerce.png'
+  const PEOPLEONE_LOGO_URL = 'https://mjwrehbozsbbqfzdpjhu.supabase.co/storage/v1/object/public/images_logo/PeopleOne.png'
+
+  // ผู้ใช้กำหนด 40 ลำดับต่อแผ่น
+  const SCOM_ROWS_PER_PAGE = 40
   const totalItems = Math.max(roster.length, plan.required_count || 0)
   const totalPages = Math.max(1, Math.ceil(totalItems / SCOM_ROWS_PER_PAGE))
 
@@ -670,31 +675,47 @@ function renderScomAttendanceSheet(printWindow: Window, data: PlanExportData) {
     for (let i = pageStartIndex; i < pageEndIndex; i++) {
       const emp = roster[i]
       if (emp) {
-        const fullName = `${emp.first_name || ''} ${emp.last_name || ''}`.trim() || '—'
+        const poId = emp.po_id && emp.po_id !== '—' ? emp.po_id : ''
+        const firstName = emp.first_name || ''
+        const lastName = emp.last_name || ''
+        const idCard = emp.id_card && emp.id_card !== '—' ? emp.id_card : ''
+
         pageRowsHtml.push(`
           <tr>
-            <td class="text-center font-bold text-gray-500">${i + 1}</td>
-            <td class="text-center font-mono font-medium">${emp.po_id || '—'}</td>
-            <td class="font-medium">${fullName}</td>
-            <td class="text-center">${emp.position || plan.department_name || '—'}</td>
-            <td class="text-center">${emp.phone || '—'}</td>
-            <td class="text-center sign-col"></td>
-            <td class="text-center sign-col"></td>
-            <td class="text-center sign-col"></td>
-            <td></td>
+            <td class="text-center font-bold seq-cell">${i + 1}</td>
+            <td class="text-center font-mono">${poId}</td>
+            <td class="pl-1 text-left name-cell">${firstName}</td>
+            <td class="pl-1 text-left name-cell">${lastName}</td>
+            <td class="text-center"></td>
+            <td class="text-center"></td>
+            <td class="text-center"></td>
+            <td class="text-center"></td>
+            <td class="text-center font-mono id-card-cell">${idCard}</td>
+            <td class="text-center"></td>
+            <td class="text-center"></td>
+            <td class="text-center"></td>
+            <td class="text-center"></td>
+            <td class="text-center"></td>
+            <td class="text-center"></td>
           </tr>
         `)
       } else {
         pageRowsHtml.push(`
           <tr class="empty-row">
-            <td class="text-center text-gray-400">${i + 1}</td>
-            <td class="text-center text-gray-300">—</td>
-            <td class="text-gray-300 italic">(ว่าง / รอจัดสรร)</td>
-            <td class="text-center text-gray-300">${plan.department_name || '—'}</td>
-            <td class="text-center text-gray-300">—</td>
-            <td class="sign-col"></td>
-            <td class="sign-col"></td>
-            <td class="sign-col"></td>
+            <td class="text-center text-gray-500 font-bold seq-cell">${i + 1}</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
             <td></td>
           </tr>
         `)
@@ -702,62 +723,125 @@ function renderScomAttendanceSheet(printWindow: Window, data: PlanExportData) {
     }
 
     sheetsHtml.push(`
-      <div class="sheet-container sheet-page">
-        <table class="header-table">
+      <div class="scom-sheet-wrapper sheet-page">
+        <!-- Top Box Header -->
+        <table class="scom-header-table">
           <tr>
-            <td>
-              <h1 class="doc-title">ใบลงเวลาปฏิบัติงานประจำวัน (Daily Attendance Sheet)</h1>
-              <p class="doc-subtitle">ระบบบริหารจัดการพนักงานรายวัน (DEMS) · Daily Employee Management System</p>
+            <!-- Left: Logos -->
+            <td class="logo-box">
+              <div class="logos-container">
+                <img src="${PEOPLEONE_LOGO_URL}" alt="PeopleOne" class="logo-peopleone" />
+                <img src="${SCOMMERCE_LOGO_URL}" alt="Scommerce" class="logo-scommerce" />
+              </div>
             </td>
-            <td class="text-right" style="vertical-align: top;">
-              <span style="display: inline-block; padding: 4px 10px; background: #eff6ff; color: #1d4ed8; font-weight: 700; border-radius: 6px; font-size: 12px;">
-                คลัง: ${plan.warehouse} ${totalPages > 1 ? `· ใบที่ ${pageIndex + 1}/${totalPages}` : ''}
-              </span>
+
+            <!-- Middle: Form Title -->
+            <td class="title-box">
+              <div class="title-th">แบบฟอร์มการอบรมด้านความปลอดภัย ฯ และบันทึกการทำงาน</div>
+              <div class="title-en">(Safety Training and working time Record Form)</div>
+            </td>
+
+            <!-- Right: Doc Control Box -->
+            <td class="doc-control-box">
+              <div class="doc-company">บริษัท เอสคอมเมิร์ซ (ประเทศไทย) จำกัด</div>
+              <table class="doc-control-grid">
+                <tr>
+                  <td class="doc-grid-cell">รหัสเอกสาร : F-HSE-039</td>
+                  <td class="doc-grid-cell">หน้าที่ : ${pageIndex + 1}/${totalPages}</td>
+                </tr>
+                <tr>
+                  <td class="doc-grid-cell">วันที่บังคับใช้ : 30/05/2023</td>
+                  <td class="doc-grid-cell">ครั้งที่แก้ไข : 01</td>
+                </tr>
+              </table>
             </td>
           </tr>
         </table>
 
-        <div class="meta-box">
-          <div class="meta-item">
-            <span class="meta-label">วันที่ทำงาน:</span>
-            <span class="meta-val">${thaiDate}</span>
-          </div>
-          <div class="meta-item">
-            <span class="meta-label">คลัง/สาขา:</span>
-            <span class="meta-val">${plan.warehouse_name || plan.warehouse}</span>
-          </div>
-          <div class="meta-item">
-            <span class="meta-label">แผนก:</span>
-            <span class="meta-val font-bold" style="color: #1e40af;">${plan.department_name || '—'}</span>
-          </div>
-          <div class="meta-item">
-            <span class="meta-label">กะการทำงาน:</span>
-            <span class="meta-val">${shiftText}</span>
-          </div>
-          <div class="meta-item">
-            <span class="meta-label">จำนวนตามแพลน:</span>
-            <span class="meta-val font-bold">${plan.required_count} คน</span>
-          </div>
-          <div class="meta-item">
-            <span class="meta-label">จำนวนในรายชื่อ:</span>
-            <span class="meta-val font-bold" style="color: ${roster.length >= plan.required_count ? '#16a34a' : '#d97706'};">
-              ${roster.length} คน ${roster.length >= plan.required_count ? '(ครบตามแพลน)' : `(ขาด ${plan.required_count - roster.length} คน)`}
-            </span>
-          </div>
-        </div>
+        <!-- Metadata Section (Full width bordered box) -->
+        <table class="scom-meta-table">
+          <tr>
+            <td colspan="2">
+              <span class="meta-label">วันที่และเวลาในการอบรม (Date & Time) : </span>
+              <span class="meta-val">${thaiDate}</span>
+            </td>
+          </tr>
+          <tr>
+            <td colspan="2">
+              <span class="meta-label">ชื่อผู้อบรม (Trainer name) : </span>
+              <span class="meta-val"></span>
+            </td>
+          </tr>
+          <tr>
+            <td style="width: 70%; border-right: 1px solid #000;">
+              <span class="meta-label">แผนก (Department) : </span>
+              <span class="meta-val font-bold">${plan.department_name || '—'}</span>
+            </td>
+            <td style="width: 30%;">
+              <span class="meta-label">ยอดขอ : </span>
+              <span class="meta-val font-bold">${plan.required_count || roster.length || '—'}</span>
+              <span style="margin-left: 6px;">คน</span>
+            </td>
+          </tr>
+          <tr>
+            <td colspan="2">
+              <span class="meta-label">เวลาในการทำงาน : </span>
+              <span class="meta-val font-bold">${shiftText}</span>
+            </td>
+          </tr>
+          <tr>
+            <td colspan="2" class="disclaimer-cell">
+              *ข้าพเจ้ายินยอมให้บริษัท ช้อปปี้ (ประเทศไทย) จำกัด (บริษัทฯ) เก็บ รวบรวม ใช้ ประมวลผล และ/หรือ เปิดเผยให้กับบริษัทในเครือ ซึ่งข้อมูลที่ข้าพเจ้าได้ให้ไว้ในเอกสารนี้ เพื่อวัตถุประสงค์ที่เกี่ยวเนื่องกับกระบวนการสมัครงานและประกอบการพิจารณาสรรหาว่าจ้างงาน ทั้งนี้ ข้าพเจ้ารับทราบว่าการดำเนินการกับข้อมูลส่วนบุคคลของข้าพเจ้านั้นจะเป็นไป ตามนโยบายของบริษัทฯ และกฎหมายคุ้มครองข้อมูลส่วนบุคคลที่ใช้บังคับ
+            </td>
+          </tr>
+          <tr>
+            <td colspan="2" class="note-cell">
+              <strong>หมายเหตุ : </strong>กรณีมีโรคประจำตัว เช่น โรคหัวใจ ความดันสูง เบาหวาน หรืออื่น ๆ โปรดแจ้งก่อนเริ่มงาน หากพบว่ามีความเสี่ยงต่อลักษณะงานที่ทำบริษัทฯสามารถแจ้งให้หยุดงานได้
+            </td>
+          </tr>
+        </table>
 
-        <table class="attendance-table">
+        <!-- Legend Table (Checkmark instructions) -->
+        <table class="scom-legend-table">
+          <tr>
+            <td class="legend-symbol">✓</td>
+            <td class="legend-text">ระบุเครื่องหมายถูก กรณีปกติ</td>
+            <td class="legend-symbol">✕</td>
+            <td class="legend-text">ระบุเครื่องหมายผิด กรณีผิดปกติ</td>
+          </tr>
+        </table>
+
+        <!-- Main Attendance Table (40 rows) -->
+        <table class="scom-attendance-table">
           <thead>
-            <tr>
-              <th style="width: 38px;">ลำดับ</th>
-              <th style="width: 85px;">รหัสพนักงาน</th>
-              <th>ชื่อ - นามสกุล</th>
-              <th style="width: 95px;">แผนก / หน้าที่</th>
-              <th style="width: 95px;">เบอร์โทรศัพท์</th>
-              <th style="width: 65px;">เวลาเข้า</th>
-              <th style="width: 65px;">เวลาออก</th>
-              <th style="width: 100px;">ลายมือชื่อ</th>
-              <th style="width: 80px;">หมายเหตุ</th>
+            <!-- Group Header Tier 1 -->
+            <tr class="group-row">
+              <th colspan="4" class="group-name-col">Name</th>
+              <th colspan="11" class="group-subcontract-col">Sub-contractor name</th>
+            </tr>
+
+            <!-- Column Header Tier 2 -->
+            <tr class="header-col-row">
+              <th rowspan="2" class="th-seq">ลำดับ</th>
+              <th rowspan="2" class="th-po">รหัสพนักงาน</th>
+              <th rowspan="2" class="th-fname">ชื่อ</th>
+              <th rowspan="2" class="th-lname">สกุล</th>
+              <th rowspan="2" class="th-time">เวลาเข้า</th>
+              <th rowspan="2" class="th-time">เวลาออก</th>
+              <th rowspan="2" class="th-sign">ลงชื่อเข้า</th>
+              <th rowspan="2" class="th-sign">ลงชื่อออก</th>
+              <th rowspan="2" class="th-idcard">เลขบัตร</th>
+              <th colspan="2" class="th-ot-group">โอที (OT)</th>
+              <th rowspan="2" class="th-rest">ไม่ได้ทำงานต่อ<br/>เนื่อง ≥ 8 ชม. ก่อน<br/>มาเริ่มงานที่<br/>Shopee</th>
+              <th rowspan="2" class="th-disease">ไม่มีโรคประจำ<br/>ตัว</th>
+              <th rowspan="2" class="th-consent">*ข้าพเจ้า<br/>ให้ความ<br/>ยินยอม</th>
+              <th rowspan="2" class="th-wage">ค่าจ้าง</th>
+            </tr>
+
+            <!-- Column Header Tier 3 (OT Sub-cols) -->
+            <tr class="header-sub-row">
+              <th class="th-ot-sub">ทำโอที</th>
+              <th class="th-ot-sub">ชั่วโมง<br/>โอที</th>
             </tr>
           </thead>
           <tbody>
@@ -765,24 +849,20 @@ function renderScomAttendanceSheet(printWindow: Window, data: PlanExportData) {
           </tbody>
         </table>
 
-        <div class="sign-section">
-          <div class="sign-box">
-            <div style="font-weight: 600; color: #334155;">ผู้จัดทำแพลน / Admin Sub (${adminName || 'Admin'})</div>
-            <div class="sign-line"></div>
-            <div>(.......................................................................)</div>
-            <div style="margin-top: 6px; color: #64748b;">วันที่ ..... / ..... / .........</div>
+        <!-- Signatures Bottom Section -->
+        <div class="scom-signatures">
+          <div class="sig-col">
+            <span class="dots">......................................................................</span>
+            <span class="sig-title">หัวหน้างาน</span>
           </div>
-          <div class="sign-box">
-            <div style="font-weight: 600; color: #334155;">ผู้ตรวจสอบ / ผู้รับรองการปฏิบัติงาน</div>
-            <div class="sign-line"></div>
-            <div>(.......................................................................)</div>
-            <div style="margin-top: 6px; color: #64748b;">วันที่ ..... / ..... / .........</div>
+          <div class="sig-col">
+            <span class="dots">......................................................................</span>
+            <span class="sig-title">ผู้ตรวจสอบ</span>
           </div>
-        </div>
-
-        <div class="footer-note">
-          <span>DEMS System · ออกรายงานเมื่อ: ${printTimestamp} ${totalPages > 1 ? `· (ใบที่ ${pageIndex + 1} จาก ${totalPages})` : ''}</span>
-          <span>* สำหรับพิมพ์และให้พนักงานลงลายมือชื่อก่อนส่งเข้า Namelist ประจำวัน</span>
+          <div class="sig-col">
+            <span class="dots">......................................................................</span>
+            <span class="sig-title">Subcontractor Admin</span>
+          </div>
         </div>
       </div>
     `)
@@ -793,14 +873,14 @@ function renderScomAttendanceSheet(printWindow: Window, data: PlanExportData) {
 <html lang="th">
 <head>
   <meta charset="UTF-8">
-  <title>ใบลงเวลาการทำงาน_${plan.warehouse}_${plan.department_name}_${plan.date}</title>
+  <title>แบบฟอร์มการอบรมด้านความปลอดภัยและบันทึกการทำงาน_${plan.warehouse}_${plan.department_name || ''}_${plan.date}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     @page {
-      size: A4 portrait;
-      margin: 10mm 12mm 12mm 12mm;
+      size: A4 landscape;
+      margin: 3mm 5mm 3mm 5mm;
     }
     * {
       box-sizing: border-box;
@@ -809,9 +889,9 @@ function renderScomAttendanceSheet(printWindow: Window, data: PlanExportData) {
     }
     html, body {
       font-family: 'Sarabun', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      font-size: 13px;
-      line-height: 1.4;
-      color: #1a1a1a;
+      font-size: 8px;
+      line-height: 1.15;
+      color: #000;
       background: #f1f5f9;
       margin: 0;
       padding: 0;
@@ -819,19 +899,19 @@ function renderScomAttendanceSheet(printWindow: Window, data: PlanExportData) {
     .print-actions {
       background: #f1f5f9;
       border-bottom: 1px solid #cbd5e1;
-      padding: 10px 20px;
+      padding: 8px 16px;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 20px;
+      margin-bottom: 14px;
       position: sticky;
       top: 0;
       z-index: 100;
     }
     .btn {
-      padding: 8px 16px;
-      border-radius: 8px;
-      font-size: 13px;
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 12px;
       font-weight: 600;
       cursor: pointer;
       border: 1px solid transparent;
@@ -853,23 +933,22 @@ function renderScomAttendanceSheet(printWindow: Window, data: PlanExportData) {
       color: #475569;
     }
 
-    /* Screen view container */
+    /* Screen view wrapper */
     .sheets-container {
       width: 100%;
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 24px;
-      padding: 0 16px 40px 16px;
+      gap: 18px;
+      padding: 0 12px 30px 12px;
     }
-
-    .sheet-container {
+    .scom-sheet-wrapper {
       width: 100%;
-      max-width: 820px;
+      max-width: 1120px;
       background: #fff;
-      padding: 24px 28px;
+      padding: 10px 14px;
       border: 1px solid #cbd5e1;
-      border-radius: 8px;
+      border-radius: 6px;
       box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
       position: relative;
     }
@@ -886,7 +965,7 @@ function renderScomAttendanceSheet(printWindow: Window, data: PlanExportData) {
         padding: 0 !important;
         gap: 0 !important;
       }
-      .sheet-container {
+      .scom-sheet-wrapper {
         padding: 0 !important;
         margin: 0 !important;
         box-shadow: none !important;
@@ -898,134 +977,254 @@ function renderScomAttendanceSheet(printWindow: Window, data: PlanExportData) {
         page-break-inside: avoid !important;
         break-inside: avoid !important;
       }
-      .sheet-container:last-child {
+      .scom-sheet-wrapper:last-child {
         page-break-after: auto !important;
         break-after: auto !important;
       }
     }
 
-    .header-table {
-      width: 100%;
-      border-bottom: 2px solid #2563eb;
-      padding-bottom: 10px;
-      margin-bottom: 14px;
-    }
-    .doc-title {
-      font-size: 20px;
-      font-weight: 700;
-      color: #1e3a8a;
-      margin: 0 0 3px 0;
-    }
-    .doc-subtitle {
-      font-size: 12px;
-      color: #64748b;
-      margin: 0;
-    }
-    .meta-box {
-      background: #f8fafc;
-      border: 1px solid #e2e8f0;
-      border-radius: 8px;
-      padding: 10px 14px;
-      margin-bottom: 16px;
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 8px 16px;
-      font-size: 13px;
-    }
-    .meta-item {
-      display: flex;
-      gap: 6px;
-    }
-    .meta-label {
-      font-weight: 600;
-      color: #475569;
-      white-space: nowrap;
-    }
-    .meta-val {
-      color: #0f172a;
-      font-weight: 500;
-    }
-    .attendance-table {
+    /* Top Box Header Table */
+    .scom-header-table {
       width: 100%;
       border-collapse: collapse;
-      margin-bottom: 20px;
-      font-size: 12px;
-      page-break-inside: avoid;
-      break-inside: avoid;
+      border: 1px solid #000;
+      margin-bottom: 2px;
     }
-    .attendance-table th {
-      background: #f1f5f9;
-      color: #1e293b;
-      font-weight: 700;
-      border: 1px solid #cbd5e1;
-      padding: 7px 6px;
-      text-align: center;
+    .scom-header-table td {
+      border: 1px solid #000;
       vertical-align: middle;
+      padding: 2px 6px;
     }
-    .attendance-table td {
-      border: 1px solid #e2e8f0;
-      padding: 6px 8px;
-      vertical-align: middle;
-      color: #1e293b;
+    .logo-box {
+      width: 25%;
     }
-    .empty-row td {
-      background: #fafafa;
-    }
-    .text-center { text-align: center; }
-    .text-right { text-align: right; }
-    .font-bold { font-weight: 700; }
-    .font-medium { font-weight: 500; }
-    .font-mono { font-family: monospace; }
-    .sign-col {
-      width: 80px;
-      min-width: 80px;
-    }
-    .sign-section {
-      margin-top: 30px;
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 40px;
-      font-size: 12px;
-      page-break-inside: avoid;
-      break-inside: avoid;
-    }
-    .sign-box {
-      border: 1px dashed #cbd5e1;
-      border-radius: 8px;
-      padding: 14px 20px;
-      text-align: center;
-      background: #fafafa;
-    }
-    .sign-line {
-      margin: 30px auto 10px auto;
-      border-bottom: 1px solid #64748b;
-      width: 70%;
-    }
-    .footer-note {
-      margin-top: 20px;
-      font-size: 11px;
-      color: #94a3b8;
+    .logos-container {
       display: flex;
-      justify-content: space-between;
-      border-top: 1px solid #f1f5f9;
-      padding-top: 8px;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 12px;
+    }
+    .logo-peopleone {
+      height: 26px;
+      max-width: 110px;
+      object-fit: contain;
+    }
+    .logo-scommerce {
+      height: 24px;
+      max-width: 120px;
+      object-fit: contain;
+    }
+    .title-box {
+      width: 45%;
+      text-align: center;
+      padding: 4px 6px !important;
+    }
+    .title-th {
+      font-size: 11.5px;
+      font-weight: 700;
+      line-height: 1.25;
+      color: #000;
+    }
+    .title-en {
+      font-size: 9px;
+      font-weight: 600;
+      line-height: 1.2;
+      color: #000;
+    }
+    .doc-control-box {
+      width: 30%;
+      padding: 0 !important;
+    }
+    .doc-company {
+      font-size: 8px;
+      font-weight: 700;
+      text-align: center;
+      padding: 2.5px 4px;
+      border-bottom: 1px solid #000;
+    }
+    .doc-control-grid {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .doc-grid-cell {
+      border: none !important;
+      font-size: 7.5px;
+      padding: 1.5px 4px !important;
+      white-space: nowrap;
+    }
+
+    /* Metadata Table */
+    .scom-meta-table {
+      width: 100%;
+      border-collapse: collapse;
+      border: 1px solid #000;
+      font-size: 7.8px;
+      margin-bottom: 2px;
+    }
+    .scom-meta-table td {
+      border-bottom: 1px solid #000;
+      padding: 1.5px 5px;
+      height: 14px;
+      vertical-align: middle;
+    }
+    .scom-meta-table tr:last-child td {
+      border-bottom: none;
+    }
+    .meta-label {
+      font-weight: 700;
+    }
+    .meta-val {
+      font-weight: 500;
+    }
+    .disclaimer-cell {
+      font-size: 6.2px;
+      line-height: 1.15;
+      padding: 1.5px 5px !important;
+      text-align: justify;
+    }
+    .note-cell {
+      font-size: 6.8px;
+      line-height: 1.2;
+      padding: 1.5px 5px !important;
+    }
+
+    /* Legend Table */
+    .scom-legend-table {
+      width: 100%;
+      border-collapse: collapse;
+      border: 1px solid #000;
+      font-size: 7.5px;
+      margin-bottom: 2px;
+    }
+    .scom-legend-table td {
+      border: 1px solid #000;
+      padding: 1px 4px;
+      height: 13px;
+      vertical-align: middle;
+    }
+    .legend-symbol {
+      width: 24px;
+      text-align: center;
+      font-weight: 700;
+      font-size: 9px;
+    }
+    .legend-text {
+      width: 48%;
+      padding-left: 6px;
+    }
+
+    /* Main Attendance Table (40 Rows) */
+    .scom-attendance-table {
+      width: 100%;
+      border-collapse: collapse;
+      border: 1px solid #000;
+      font-size: 7.5px;
+      margin-bottom: 4px;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    .scom-attendance-table th, .scom-attendance-table td {
+      border: 1px solid #000;
+      padding: 0.5px 1.5px;
+      vertical-align: middle;
+      height: 11.2px;
+      line-height: 1.1;
+    }
+    .scom-attendance-table th {
+      background: #fff;
+      font-weight: 700;
+      text-align: center;
+    }
+    .group-row th {
+      background: #D9E1F2 !important;
+      font-size: 8px;
+      padding: 1.5px 0;
+      font-weight: 700;
+    }
+    .header-col-row th {
+      font-size: 7px;
+      padding: 1px 0.5px;
+    }
+    .header-sub-row th {
+      font-size: 6.8px;
+      padding: 1px 0.5px;
+    }
+
+    /* Column Widths */
+    .th-seq { width: 22px; }
+    .th-po { width: 56px; }
+    .th-fname { width: 72px; }
+    .th-lname { width: 72px; }
+    .th-time { width: 34px; }
+    .th-sign { width: 48px; }
+    .th-idcard { width: 82px; }
+    .th-ot-group { width: 64px; }
+    .th-ot-sub { width: 32px; }
+    .th-rest { width: 74px; }
+    .th-disease { width: 56px; }
+    .th-consent { width: 56px; }
+    .th-wage { width: 40px; }
+
+    .seq-cell { font-size: 7.5px; }
+    .name-cell {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 72px;
+    }
+    .id-card-cell {
+      font-size: 7px;
+      letter-spacing: -0.2px;
+    }
+
+    .text-center { text-align: center; }
+    .text-left { text-align: left; }
+    .font-bold { font-weight: 700; }
+    .font-mono { font-family: monospace; }
+    .pl-1 { padding-left: 3px !important; }
+
+    /* Signatures Bottom */
+    .scom-signatures {
+      width: 100%;
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      margin-top: 6px;
+      padding-top: 2px;
+      font-size: 8px;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    .sig-col {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+    }
+    .dots {
+      color: #000;
+      font-size: 8px;
+      letter-spacing: 0.5px;
+    }
+    .sig-title {
+      font-weight: 700;
+      color: #000;
     }
   </style>
 </head>
 <body>
   <div class="print-actions">
     <div>
-      <span style="font-weight: 600; color: #1e293b;">ใบลงเวลาการทำงาน (A4 แนวตั้ง${totalPages > 1 ? ` · ทั้งหมด ${totalPages} ใบ` : ''})</span>
-      <span style="color: #64748b; font-size: 12px; margin-left: 10px;">
+      <span style="font-weight: 700; color: #1e293b;">แบบฟอร์มการอบรมด้านความปลอดภัย ฯ และบันทึกการทำงาน (Scommerce Template · A4 แนวนอน${totalPages > 1 ? ` · ทั้งหมด ${totalPages} ใบ` : ''})</span>
+      <span style="color: #64748b; font-size: 11px; margin-left: 10px;">
         ${totalPages > 1
-          ? `จำนวนพนักงาน ${roster.length} คน (แบ่งเป็น ${totalPages} ใบให้อัตโนมัติ)`
-          : `สามารถคลิกปุ่มเพื่อพิมพ์ หรือเลือก 'Save as PDF' ในหน้าต่างสั่งพิมพ์`}
+          ? `จำนวนพนักงาน ${roster.length} คน (40 คนต่อแผ่น ระบบแบ่งเป็น ${totalPages} ใบให้อัตโนมัติ)`
+          : `พิมพ์ 40 ลำดับต่อแผ่น ตามแบบฟอร์ม F-HSE-039`}
       </span>
     </div>
     <div style="display: flex; gap: 8px;">
       <button class="btn btn-secondary" onclick="window.close()">ปิดหน้าต่าง</button>
       <button class="btn btn-primary" onclick="window.print()">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
         พิมพ์ / บันทึกเป็น PDF ${totalPages > 1 ? `(${totalPages} ใบ)` : ''}
       </button>
     </div>
