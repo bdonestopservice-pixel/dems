@@ -12,7 +12,7 @@ export const NAMELIST_SELECT = `
 export const NAMELIST_SELECT_INNER_DEPT = `
   *,
   employees:employee_id (id, po_id, prefix, first_name, last_name, warehouse),
-  departments!inner:department_id (id, name, warehouse),
+  departments:department_id!inner (id, name, warehouse),
   shifts:shift_id (id, warehouse, start_time, end_time, type)
 `
 
