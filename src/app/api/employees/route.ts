@@ -66,6 +66,7 @@ export async function GET(request: NextRequest) {
   }
 
   // 4. Search query (supports multi-word search e.g. "พงศกร เล็กดวง" or "นาย สมชาย")
+  // Optimized: Type-aware targeted column matching to eliminate redundant regex scanning on 16,000+ rows
   if (search) {
     const words = search
       .split(/\s+/)
@@ -74,9 +75,41 @@ export async function GET(request: NextRequest) {
 
     for (const word of words) {
       const s = `%${word}%`
-      query = query.or(
-        `first_name.ilike.${s},last_name.ilike.${s},prefix.ilike.${s},po_id.ilike.${s},id_card.ilike.${s},first_name_en.ilike.${s},last_name_en.ilike.${s},phone.ilike.${s},ops_id.ilike.${s}`
-      )
+      const isDigitsOnly = /^\d+$/.test(word)
+      const isPoIdPattern = /^(po|ops)/i.test(word)
+      const isThai = /[\u0E00-\u0E7F]/.test(word)
+      const isEnglish = /^[a-zA-Z\s]+$/.test(word)
+
+      let targetFields: string[]
+
+      if (isPoIdPattern) {
+        // Explicit PO or OPS ID pattern e.g. "PO100001", "ops123"
+        targetFields = [`po_id.ilike.${s}`, `ops_id.ilike.${s}`]
+      } else if (isDigitsOnly) {
+        // Pure digits e.g. "1103700123456" (ID card), "0812345678" (phone), or "10001" (PO numeric part)
+        targetFields = [`id_card.ilike.${s}`, `phone.ilike.${s}`, `po_id.ilike.${s}`]
+      } else if (isThai) {
+        // Thai text e.g. "สมชาย", "ใจดี" (can never match phone, id_card or po_id)
+        targetFields = [`first_name.ilike.${s}`, `last_name.ilike.${s}`, `prefix.ilike.${s}`]
+      } else if (isEnglish) {
+        // English text e.g. "John", "Smith"
+        targetFields = [
+          `first_name_en.ilike.${s}`,
+          `last_name_en.ilike.${s}`,
+          `first_name.ilike.${s}`,
+          `last_name.ilike.${s}`,
+        ]
+      } else {
+        // Mixed text fallback
+        targetFields = [
+          `first_name.ilike.${s}`,
+          `last_name.ilike.${s}`,
+          `po_id.ilike.${s}`,
+          `id_card.ilike.${s}`,
+        ]
+      }
+
+      query = query.or(targetFields.join(','))
     }
   }
 

@@ -6,8 +6,9 @@
 -- พร้อม RLS Policies และ Permissions ครบถ้วน
 -- ============================================================
 
--- 0. เปิดใช้งาน Extension สำหรับสร้าง UUID
+-- 0. เปิดใช้งาน Extension สำหรับสร้าง UUID และ Trigram Index ค้นหาข้อความ
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+CREATE EXTENSION IF NOT EXISTS "pg_trgm";
 
 
 -- ============================================================
@@ -717,6 +718,13 @@ CREATE INDEX IF NOT EXISTS idx_namelist_employee     ON namelist(employee_id);
 CREATE INDEX IF NOT EXISTS idx_departments_warehouse ON departments(warehouse);
 CREATE INDEX IF NOT EXISTS idx_shifts_warehouse      ON shifts(warehouse);
 CREATE INDEX IF NOT EXISTS idx_oa_options_warehouse  ON oa_options(warehouse);
+
+-- GIN Trigram Indexes สำหรับเร่งความเร็วการค้นหาข้อความและตัวเลข (ILIKE '%คำค้น%')
+CREATE INDEX IF NOT EXISTS idx_employees_first_name_trgm ON employees USING gin (first_name gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_employees_last_name_trgm  ON employees USING gin (last_name gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_employees_id_card_trgm    ON employees USING gin (id_card gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_employees_phone_trgm      ON employees USING gin (phone gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_employees_po_id_trgm      ON employees USING gin (po_id gin_trgm_ops);
 
 
 -- ============================================================
