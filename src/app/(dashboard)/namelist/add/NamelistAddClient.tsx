@@ -7,6 +7,7 @@ import { ChevronLeft, Search, Plus, Loader2, AlertCircle, Users } from 'lucide-r
 import { Topbar } from '@/components/layout/Topbar'
 import { employeeFullName, formatShiftRange } from '@/lib/namelist'
 import { DateInput } from '@/components/ui/DateInput'
+import { WarehouseSelect } from '@/components/ui/WarehouseSelect'
 import type { AuthSession, Warehouse, Department, Shift } from '@/types'
 
 interface NamelistAddClientProps {
@@ -22,6 +23,8 @@ interface EmployeeRow {
   first_name: string
   last_name: string
   warehouse: string
+  id_card?: string
+  phone?: string
 }
 
 const fieldCls =
@@ -293,7 +296,9 @@ export function NamelistAddClient({ session, initialDate, initialWarehouse }: Na
               </select>
             </div>
             <div>
-              <label className="block text-[11px] font-bold text-[#5B6B85] mb-1.5">แผนก</label>
+              <label className="block text-[11px] font-bold text-[#5B6B85] mb-1.5">
+                แผนก <span className="text-[#E5484D]">*</span>
+              </label>
               <select
                 value={departmentId}
                 onChange={(e) => setDepartmentId(e.target.value)}
@@ -308,7 +313,9 @@ export function NamelistAddClient({ session, initialDate, initialWarehouse }: Na
               </select>
             </div>
             <div>
-              <label className="block text-[11px] font-bold text-[#5B6B85] mb-1.5">กะ</label>
+              <label className="block text-[11px] font-bold text-[#5B6B85] mb-1.5">
+                กะ <span className="text-[#E5484D]">*</span>
+              </label>
               <select
                 value={shiftId}
                 onChange={(e) => setShiftId(e.target.value)}
@@ -348,17 +355,40 @@ export function NamelistAddClient({ session, initialDate, initialWarehouse }: Na
                 className="w-full bg-[#F8FAFC] border border-[#E1E6EF] text-[#16233D] placeholder-[#9AA5B8] text-xs rounded-xl pl-10 pr-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#2E6FE0] focus:bg-white"
               />
             </div>
-            <select value={empWarehouse} onChange={(e) => setEmpWarehouse(e.target.value)} className={fieldCls}>
-              <option value="all">ทุกคลัง</option>
-              {warehouses.map((w) => (
-                <option key={w.id} value={w.id}>
-                  {w.id}
-                </option>
-              ))}
-            </select>
+            <div className="w-full sm:w-auto">
+              <WarehouseSelect
+                value={empWarehouse}
+                onChange={(val) => setEmpWarehouse(val)}
+                warehouses={warehouses}
+                allLabel="ทุกคลัง"
+                className="py-2"
+              />
+            </div>
           </div>
 
-          <div className="max-h-[460px] overflow-y-auto">
+          {selectableVisible.length > 0 && (
+            <div className="px-6 py-2.5 bg-[#FAFBFD] border-b border-[#E1E6EF] flex items-center justify-between text-xs text-[#5B6B85]">
+              <label className="flex items-center gap-2.5 font-bold text-[#5B6B85] text-xs cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={allVisibleSelected}
+                  onChange={toggleAllVisible}
+                  className="rounded border-[#C6DCFD] text-[#2E6FE0] focus:ring-[#2E6FE0] w-4 h-4 cursor-pointer"
+                />
+                <span>เลือกทั้งหมดที่แสดง ({selectableVisible.length} คน)</span>
+              </label>
+              <div className="text-xs text-[#5B6B85]">
+                แสดง {employees.length} จาก {total.toLocaleString('th-TH')} คน
+                {selected.size > 0 && (
+                  <span className="ml-2 font-bold text-[#2E6FE0]">
+                    · เลือกแล้ว {selected.size} คน
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+
+          <div className="max-h-[500px] overflow-y-auto overflow-x-auto">
             {loadingEmployees ? (
               <div className="p-12 text-center">
                 <Loader2 className="w-6 h-6 text-[#2E6FE0] animate-spin mx-auto mb-2" />
@@ -370,70 +400,114 @@ export function NamelistAddClient({ session, initialDate, initialWarehouse }: Na
                 <p className="text-sm font-semibold text-[#16233D]">ไม่พบพนักงานที่ตรงกับเงื่อนไข</p>
               </div>
             ) : (
-              <div className="divide-y divide-[#F4F6FA]">
-                {selectableVisible.length > 0 && (
-                  <label className="flex items-center gap-4 px-6 py-2.5 bg-[#FAFBFD] text-[11px] font-bold text-[#5B6B85] cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={allVisibleSelected}
-                      onChange={toggleAllVisible}
-                      className="w-4 h-4 rounded text-[#2E6FE0] border-gray-300 cursor-pointer"
-                    />
-                    เลือกทั้งหมดที่แสดง ({selectableVisible.length} คน)
-                  </label>
-                )}
-                {employees.map((emp) => {
-                  const isExisting = existingIds.has(emp.id)
-                  const isSelected = selected.has(emp.id)
-                  return (
-                    <div
-                      key={emp.id}
-                      className={`flex items-center gap-4 px-6 py-3 transition-colors ${
-                        isExisting ? 'bg-[#F8FAFC] opacity-70' : isSelected ? 'bg-[#EEF3FC]/60' : 'hover:bg-[#FAFBFD]'
-                      }`}
-                    >
-                      <label className="flex items-center gap-4 flex-1 min-w-0 cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          disabled={isExisting}
-                          onChange={() => toggle(emp.id)}
-                          className="w-4 h-4 rounded text-[#2E6FE0] border-gray-300 cursor-pointer disabled:cursor-not-allowed"
-                        />
-                        <span className="font-mono text-xs font-bold text-[#16233D] min-w-[90px]">
-                          {emp.po_id || '—'}
-                        </span>
-                        <span className="text-xs font-bold text-[#16233D] truncate">{employeeFullName(emp)}</span>
-                        {empWarehouse === 'all' && emp.warehouse && (
-                          <span className="text-[10px] font-semibold text-[#5B6B85] bg-[#F4F6FA] border border-[#E1E6EF] px-1.5 py-0.5 rounded">
-                            {emp.warehouse}
-                          </span>
-                        )}
-                        {isExisting && (
-                          <span className="text-[10px] font-semibold text-[#B45F17] bg-[#FEF3E2] px-2 py-0.5 rounded-full whitespace-nowrap">
-                            อยู่ใน Namelist ของวันและกะนี้แล้ว
-                          </span>
-                        )}
-                      </label>
+              <table className="w-full border-collapse text-left text-xs min-w-[880px]">
+                <thead>
+                  <tr className="border-b border-[#E1E6EF] bg-[#F8FAFC] sticky top-0 z-10 text-[11px] font-semibold text-[#5B6B85]">
+                    <th className="w-12 px-4 py-3 text-center">
                       <input
-                        type="text"
-                        placeholder="หมายเหตุ (ถ้ามี)"
-                        value={notes[emp.id] || ''}
-                        disabled={isExisting}
-                        onChange={(e) => setNotes((prev) => ({ ...prev, [emp.id]: e.target.value }))}
-                        className="w-[180px] bg-white border border-[#E1E6EF] text-[#16233D] placeholder-[#9AA5B8] text-xs rounded-lg px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-[#2E6FE0] disabled:bg-gray-50"
+                        type="checkbox"
+                        checked={allVisibleSelected}
+                        onChange={toggleAllVisible}
+                        className="rounded border-[#C6DCFD] text-[#2E6FE0] focus:ring-[#2E6FE0] w-4 h-4 cursor-pointer"
+                        title="เลือกทั้งหมดที่แสดง"
                       />
-                    </div>
-                  )
-                })}
-                {total > employees.length && (
-                  <p className="px-6 py-3 text-[11px] text-[#5B6B85] text-center bg-[#FAFBFD]">
-                    แสดง {employees.length} จาก {total} คน — พิมพ์ชื่อหรือรหัสเพื่อค้นหาเพิ่มเติม
-                  </p>
-                )}
-              </div>
+                    </th>
+                    <th className="px-4 py-3 font-semibold text-[#5B6B85] whitespace-nowrap">รหัสพนักงาน</th>
+                    <th className="px-4 py-3 font-semibold text-[#5B6B85] whitespace-nowrap">ชื่อ-นามสกุล</th>
+                    <th className="px-4 py-3 font-semibold text-[#5B6B85] whitespace-nowrap">คลัง/สาขา</th>
+                    <th className="px-4 py-3 font-semibold text-[#5B6B85] whitespace-nowrap">เลขบัตรประชาชน</th>
+                    <th className="px-4 py-3 font-semibold text-[#5B6B85] whitespace-nowrap">เบอร์โทร</th>
+                    <th className="px-4 py-3 font-semibold text-[#5B6B85] whitespace-nowrap w-60">หมายเหตุ</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#E1E6EF]">
+                  {employees.map((emp) => {
+                    const isExisting = existingIds.has(emp.id)
+                    const isSelected = selected.has(emp.id)
+                    return (
+                      <tr
+                        key={emp.id}
+                        onClick={() => !isExisting && toggle(emp.id)}
+                        className={`transition-colors select-none ${
+                          isExisting
+                            ? 'bg-[#F8FAFC] opacity-70 cursor-not-allowed'
+                            : isSelected
+                            ? 'bg-[#EEF3FC]/50 hover:bg-[#EEF3FC]/70 cursor-pointer'
+                            : 'hover:bg-[#FAFBFD] cursor-pointer'
+                        }`}
+                      >
+                        {/* Checkbox */}
+                        <td className="w-12 px-4 py-3.5 text-center" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            disabled={isExisting}
+                            onChange={() => toggle(emp.id)}
+                            className="rounded border-[#C6DCFD] text-[#2E6FE0] focus:ring-[#2E6FE0] w-4 h-4 cursor-pointer disabled:cursor-not-allowed"
+                          />
+                        </td>
+
+                        {/* รหัสพนักงาน */}
+                        <td className="px-4 py-3.5 font-mono text-xs font-bold text-[#16233D] whitespace-nowrap">
+                          {emp.po_id || '—'}
+                        </td>
+
+                        {/* ชื่อ-นามสกุล */}
+                        <td className="px-4 py-3.5 font-semibold text-[#16233D] whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <span>{employeeFullName(emp)}</span>
+                            {isExisting && (
+                              <span className="text-[10px] font-semibold text-[#B45F17] bg-[#FEF3E2] px-2 py-0.5 rounded-full whitespace-nowrap">
+                                อยู่ใน Namelist แล้ว
+                              </span>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* คลัง/สาขา */}
+                        <td className="px-4 py-3.5 text-[#5B6B85] whitespace-nowrap">
+                          {emp.warehouse ? (
+                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-[#F4F6FA] text-[#5B6B85] border border-[#E1E6EF]">
+                              {emp.warehouse}
+                            </span>
+                          ) : (
+                            '—'
+                          )}
+                        </td>
+
+                        {/* เลขบัตรประชาชน */}
+                        <td className="px-4 py-3.5 font-mono text-xs text-[#5B6B85] whitespace-nowrap">
+                          {emp.id_card || '—'}
+                        </td>
+
+                        {/* เบอร์โทร */}
+                        <td className="px-4 py-3.5 text-xs text-[#5B6B85] whitespace-nowrap">
+                          {emp.phone || '—'}
+                        </td>
+
+                        {/* หมายเหตุ */}
+                        <td className="px-4 py-2" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="text"
+                            placeholder="หมายเหตุ (ถ้ามี)"
+                            value={notes[emp.id] || ''}
+                            disabled={isExisting}
+                            onChange={(e) => setNotes((prev) => ({ ...prev, [emp.id]: e.target.value }))}
+                            className="w-full bg-white border border-[#E1E6EF] text-[#16233D] placeholder-[#9AA5B8] text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#2E6FE0] disabled:bg-gray-50"
+                          />
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
             )}
           </div>
+          {total > employees.length && (
+            <p className="px-6 py-3 text-[11px] text-[#5B6B85] text-center bg-[#FAFBFD] border-t border-[#E1E6EF]">
+              แสดง {employees.length} จาก {total} คน — พิมพ์ชื่อหรือรหัสเพื่อค้นหาเพิ่มเติม
+            </p>
+          )}
 
           <div className="px-6 py-3.5 border-t border-[#E1E6EF] flex items-center justify-between">
             <div className="text-xs font-semibold text-[#2E6FE0]">เลือกแล้ว {selected.size} คน</div>
