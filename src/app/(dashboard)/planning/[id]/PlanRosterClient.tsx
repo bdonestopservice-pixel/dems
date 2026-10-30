@@ -17,7 +17,8 @@ import {
   Trash2,
 } from 'lucide-react'
 import { Topbar } from '@/components/layout/Topbar'
-import { formatThaiDate } from '@/lib/utils'
+import { cn, formatThaiDate } from '@/lib/utils'
+import { useSidebar } from '@/components/layout/SidebarContext'
 import { exportPlanAttendanceSheet } from '@/lib/export-plan-pdf'
 import { EditPlanModal } from '@/components/planning/EditPlanModal'
 import { DeletePlanModal } from '@/components/planning/DeletePlanModal'
@@ -33,6 +34,7 @@ interface PlanRosterClientProps {
 
 export function PlanRosterClient({ session, planId }: PlanRosterClientProps) {
   const router = useRouter()
+  const { isCollapsed } = useSidebar()
   const [plan, setPlan] = useState<Plan | null>(null)
   const [roster, setRoster] = useState<PlanEmployee[]>([])
   const [loading, setLoading] = useState(true)
@@ -486,7 +488,12 @@ export function PlanRosterClient({ session, planId }: PlanRosterClientProps) {
       </div>
 
       {/* Fixed Bottom Action Bar matching Mockup 4 */}
-      <div className="fixed bottom-0 left-0 right-0 lg:left-64 bg-white border-t border-[#E1E6EF] px-8 py-3.5 shadow-lg flex flex-col sm:flex-row items-center justify-between gap-3 z-20">
+      <div
+        className={cn(
+          'fixed bottom-0 right-0 bg-white border-t border-[#E1E6EF] px-8 py-3.5 shadow-lg flex flex-col sm:flex-row items-center justify-between gap-3 z-20 transition-all duration-300 ease-in-out',
+          isCollapsed ? 'left-16' : 'left-72'
+        )}
+      >
         <div>
           <div className="text-xs font-bold text-[#16233D]">
             เลือกแล้ว <span className="text-[#2E6FE0]">{selectedIds.size}</span> จาก{' '}

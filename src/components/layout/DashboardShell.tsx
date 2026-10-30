@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
 import { Sidebar } from './Sidebar'
+import { SidebarProvider, useSidebar } from './SidebarContext'
 import { cn } from '@/lib/utils'
 import type { AuthSession } from '@/types'
 import { RealtimeProvider, useRealtimeSession } from '@/components/providers/RealtimeProvider'
@@ -12,7 +12,7 @@ interface DashboardShellProps {
 }
 
 function DashboardShellContent({ children }: { children: React.ReactNode }) {
-  const [isCollapsed, setIsCollapsed] = useState(false)
+  const { isCollapsed, toggle } = useSidebar()
   const { session: liveSession } = useRealtimeSession()
 
   return (
@@ -20,7 +20,7 @@ function DashboardShellContent({ children }: { children: React.ReactNode }) {
       <Sidebar
         session={liveSession}
         isCollapsed={isCollapsed}
-        onToggle={() => setIsCollapsed(!isCollapsed)}
+        onToggle={toggle}
       />
       <main
         className={cn(
@@ -37,7 +37,9 @@ function DashboardShellContent({ children }: { children: React.ReactNode }) {
 export function DashboardShell({ session, children }: DashboardShellProps) {
   return (
     <RealtimeProvider initialSession={session}>
-      <DashboardShellContent>{children}</DashboardShellContent>
+      <SidebarProvider>
+        <DashboardShellContent>{children}</DashboardShellContent>
+      </SidebarProvider>
     </RealtimeProvider>
   )
 }

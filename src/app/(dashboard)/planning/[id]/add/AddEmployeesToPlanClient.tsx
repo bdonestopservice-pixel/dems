@@ -5,7 +5,8 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ChevronLeft, Search, Check, AlertCircle, Loader2, Users } from 'lucide-react'
 import { Topbar } from '@/components/layout/Topbar'
-import { formatThaiDate } from '@/lib/utils'
+import { cn, formatThaiDate } from '@/lib/utils'
+import { useSidebar } from '@/components/layout/SidebarContext'
 import { broadcastRealtime } from '@/lib/realtime'
 import type { AuthSession, Plan, Warehouse } from '@/types'
 
@@ -26,6 +27,7 @@ interface EligibleEmployee {
 
 export function AddEmployeesToPlanClient({ session, planId }: AddEmployeesToPlanClientProps) {
   const router = useRouter()
+  const { isCollapsed } = useSidebar()
   const isSuperAdmin = session.role === 'super_admin'
   const userWarehouses = session.warehouses || []
 
@@ -367,7 +369,12 @@ export function AddEmployeesToPlanClient({ session, planId }: AddEmployeesToPlan
       </div>
 
       {/* Fixed Bottom Action Bar matching Mockup 3 */}
-      <div className="fixed bottom-0 left-0 right-0 lg:left-64 bg-white border-t border-[#E1E6EF] px-8 py-3.5 shadow-lg flex items-center justify-between z-20">
+      <div
+        className={cn(
+          'fixed bottom-0 right-0 bg-white border-t border-[#E1E6EF] px-8 py-3.5 shadow-lg flex items-center justify-between z-20 transition-all duration-300 ease-in-out',
+          isCollapsed ? 'left-16' : 'left-72'
+        )}
+      >
         <div className="text-xs font-medium text-[#5B6B85]">
           เลือกแล้ว <span className="font-bold text-[#2E6FE0]">{selectedIds.size}</span> คน · จะเหลือขาดอีก{' '}
           <span className={`font-bold ${remainingMissing === 0 ? 'text-[#2E9E5B]' : 'text-[#E5484D]'}`}>
