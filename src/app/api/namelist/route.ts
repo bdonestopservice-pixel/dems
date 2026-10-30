@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { verifySession } from '@/lib/auth/session'
 import { getLiveUserWarehouses } from '@/lib/auth/warehouse-auth'
-import { NAMELIST_SELECT, mapNamelistRow, chunk } from '@/lib/namelist'
+import { NAMELIST_SELECT, NAMELIST_SELECT_INNER_DEPT, mapNamelistRow, chunk } from '@/lib/namelist'
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
@@ -30,23 +30,51 @@ export async function GET(request: NextRequest) {
 
   const supabase = createServerSupabaseClient()
 
-  // Start fetching work_statuses concurrently in background while loading namelist entries
+  // 1. Determine target warehouses for SQL filtering and OA options
+  const targetWarehouses: string[] =
+    warehouse !== 'all'
+      ? [warehouse]
+      : !isSuperAdmin && permitted && permitted.length > 0
+      ? permitted
+      : []
+
+  const hasSpecificWarehouseFilter = targetWarehouses.length > 0
+  const selectQuery = hasSpecificWarehouseFilter ? NAMELIST_SELECT_INNER_DEPT : NAMELIST_SELECT
+
+  // 2. Start fetching work_statuses and oa_options concurrently in parallel
   const statusesPromise = supabase
     .from('work_statuses')
     .select('id, name, sort_order')
     .order('sort_order')
 
-  // ดึงทั้งหมดของวันนั้น (วนทีละ 1000 แถว เพราะ Supabase จำกัดต่อ request)
+  const oaPromise = hasSpecificWarehouseFilter
+    ? supabase
+        .from('oa_options')
+        .select('warehouse, name, created_at')
+        .in('warehouse', targetWarehouses)
+        .order('created_at')
+    : null
+
+  // 3. Fetch namelist entries filtered directly at DATABASE (SQL) level
   const rows: any[] = []
   for (let page = 0; page < 30; page++) {
     const from = page * 1000
-    const { data, error } = await supabase
+    let query = supabase
       .from('namelist')
-      .select(NAMELIST_SELECT)
+      .select(selectQuery)
       .eq('date', date)
+
+    if (warehouse !== 'all') {
+      query = query.eq('departments.warehouse', warehouse)
+    } else if (!isSuperAdmin && permitted && permitted.length > 0) {
+      query = query.in('departments.warehouse', permitted)
+    }
+
+    const { data, error } = await query
       .order('created_at', { ascending: true })
       .order('id', { ascending: true })
       .range(from, from + 999)
+
     if (error) {
       console.error('Error fetching namelist:', error)
       return NextResponse.json({ error: error.message }, { status: 500 })
@@ -55,12 +83,14 @@ export async function GET(request: NextRequest) {
     if (!data || data.length < 1000) break
   }
 
-  let entries = rows.map(mapNamelistRow).filter((e) => {
-    const w = e.warehouse
-    if (warehouse !== 'all') return w === warehouse
-    if (permitted) return !!w && permitted.includes(w)
-    return true
-  })
+  let entries = rows.map(mapNamelistRow)
+
+  // Fail-safe sanity check (already filtered in database)
+  if (warehouse !== 'all') {
+    entries = entries.filter((e) => e.warehouse === warehouse)
+  } else if (permitted) {
+    entries = entries.filter((e) => !!e.warehouse && permitted.includes(e.warehouse))
+  }
 
   // เรียงตามเวลาเริ่มกะ แล้วตามรหัสพนักงาน
   entries.sort((a, b) => {
@@ -76,10 +106,12 @@ export async function GET(request: NextRequest) {
     night: entries.filter((e) => e.shift_type === 'N').length,
   }
 
-  // ตัวเลือก dropdown: Status (ส่วนกลาง) และ OA (ต่อคลัง) ดึงพร้อมกันด้วย Promise.all
+  // ตัวเลือก dropdown: รวมผลลัพธ์จาก Promise.all
   const whs = Array.from(new Set(entries.map((e) => e.warehouse).filter(Boolean))) as string[]
 
-  const oaPromise = whs.length > 0
+  const resolvedOaPromise = oaPromise
+    ? oaPromise
+    : whs.length > 0
     ? supabase
         .from('oa_options')
         .select('warehouse, name, created_at')
@@ -87,10 +119,13 @@ export async function GET(request: NextRequest) {
         .order('created_at')
     : Promise.resolve({ data: [] })
 
-  const [{ data: statuses }, { data: oaRows }] = await Promise.all([statusesPromise, oaPromise])
+  const [{ data: statuses }, { data: oaRows }] = await Promise.all([
+    statusesPromise,
+    resolvedOaPromise,
+  ])
 
   const oaOptions: Record<string, string[]> = {}
-  for (const w of whs) oaOptions[w] = []
+  for (const w of whs.length > 0 ? whs : targetWarehouses) oaOptions[w] = []
   for (const r of oaRows || []) oaOptions[r.warehouse]?.push(r.name)
 
   return NextResponse.json({

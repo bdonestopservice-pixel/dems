@@ -8,6 +8,14 @@ export const NAMELIST_SELECT = `
   shifts:shift_id (id, warehouse, start_time, end_time, type)
 `
 
+/** select string สำหรับดึง namelist พร้อม inner join แผนกเพื่อกรองตามคลังที่ระดับฐานข้อมูล (SQL level) */
+export const NAMELIST_SELECT_INNER_DEPT = `
+  *,
+  employees:employee_id (id, po_id, prefix, first_name, last_name, warehouse),
+  departments!inner:department_id (id, name, warehouse),
+  shifts:shift_id (id, warehouse, start_time, end_time, type)
+`
+
 /** ตัด HH:MM:SS → HH:MM */
 export function hhmm(t?: string | null): string {
   return t ? t.slice(0, 5) : ''

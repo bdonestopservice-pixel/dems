@@ -21,20 +21,25 @@ export async function GET(request: NextRequest) {
   const entries: { employee_id: string; shift_id: string | null }[] = []
   for (let page = 0; page < 30; page++) {
     const from = page * 1000
-    const { data, error } = await supabase
+    let query = supabase
       .from('namelist')
       .select('employee_id, shift_id')
       .eq('date', date)
+
+    if (shiftId) {
+      query = query.eq('shift_id', shiftId)
+    }
+
+    const { data, error } = await query
       .order('id', { ascending: true })
       .range(from, from + 999)
+
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     entries.push(...(data || []).map((r: any) => ({ employee_id: r.employee_id, shift_id: r.shift_id })))
     if (!data || data.length < 1000) break
   }
 
-  const employee_ids = shiftId
-    ? entries.filter((e) => e.shift_id === shiftId).map((e) => e.employee_id)
-    : entries.map((e) => e.employee_id)
+  const employee_ids = entries.map((e) => e.employee_id)
 
   return NextResponse.json({ entries, employee_ids })
 }
