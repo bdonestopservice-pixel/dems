@@ -47,10 +47,10 @@ export function NamelistAddClient({ session, initialDate, initialWarehouse }: Na
   const [departments, setDepartments] = useState<Department[]>([])
   const [shifts, setShifts] = useState<Shift[]>([])
 
-  // ค้นหา/กรองพนักงาน
+  // ค้นหา/กรองพนักงาน: เริ่มต้นเป็น "ทุกคลัง" ('all') ตลอด
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
-  const [empWarehouse, setEmpWarehouse] = useState<string>(nlWarehouse || 'all')
+  const [empWarehouse, setEmpWarehouse] = useState<string>('all')
   const [employees, setEmployees] = useState<EmployeeRow[]>([])
   const [loadingEmployees, setLoadingEmployees] = useState(true)
   const [total, setTotal] = useState(0)
@@ -78,7 +78,6 @@ export function NamelistAddClient({ session, initialDate, initialWarehouse }: Na
         setWarehouses(permitted)
         if (!nlWarehouse && permitted.length > 0) {
           setNlWarehouse(permitted[0].id)
-          setEmpWarehouse(permitted[0].id)
         }
       } catch (err) {
         console.error(err)
@@ -115,10 +114,6 @@ export function NamelistAddClient({ session, initialDate, initialWarehouse }: Na
     }
   }, [nlWarehouse])
 
-  // เมื่อเปลี่ยนคลังของ Namelist ให้ตัวกรองพนักงานตามไปด้วย (เปลี่ยนเป็น "ทุกคลัง" เองได้)
-  useEffect(() => {
-    if (nlWarehouse) setEmpWarehouse(nlWarehouse)
-  }, [nlWarehouse])
 
   // รายการที่อยู่ใน Namelist ของวันนั้นแล้ว (ทุกคลัง) → ใช้ร่วมกับกะที่เลือกเพื่อกันซ้ำ
   useEffect(() => {
@@ -403,15 +398,7 @@ export function NamelistAddClient({ session, initialDate, initialWarehouse }: Na
               <table className="w-full border-collapse text-left text-xs min-w-[880px]">
                 <thead>
                   <tr className="border-b border-[#E1E6EF] bg-[#F8FAFC] sticky top-0 z-10 text-[11px] font-semibold text-[#5B6B85]">
-                    <th className="w-12 px-4 py-3 text-center">
-                      <input
-                        type="checkbox"
-                        checked={allVisibleSelected}
-                        onChange={toggleAllVisible}
-                        className="rounded border-[#C6DCFD] text-[#2E6FE0] focus:ring-[#2E6FE0] w-4 h-4 cursor-pointer"
-                        title="เลือกทั้งหมดที่แสดง"
-                      />
-                    </th>
+                    <th className="w-12 px-4 py-3 text-center" />
                     <th className="px-4 py-3 font-semibold text-[#5B6B85] whitespace-nowrap">รหัสพนักงาน</th>
                     <th className="px-4 py-3 font-semibold text-[#5B6B85] whitespace-nowrap">ชื่อ-นามสกุล</th>
                     <th className="px-4 py-3 font-semibold text-[#5B6B85] whitespace-nowrap">คลัง/สาขา</th>
