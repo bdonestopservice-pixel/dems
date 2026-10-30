@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ChevronLeft, Search, Check, AlertCircle, Loader2, Users } from 'lucide-react'
 import { Topbar } from '@/components/layout/Topbar'
+import { WarehouseSelect } from '@/components/ui/WarehouseSelect'
 import { cn, formatThaiDate } from '@/lib/utils'
 import { useSidebar } from '@/components/layout/SidebarContext'
 import { broadcastRealtime } from '@/lib/realtime'
@@ -39,9 +40,9 @@ export function AddEmployeesToPlanClient({ session, planId }: AddEmployeesToPlan
   const [submitting, setSubmitting] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
-  // Filters
+  // Filters: เริ่มต้นเป็น "ทุกคลัง" ('all') ตลอดตามที่ต้องการ
   const [searchTerm, setSearchTerm] = useState('')
-  const [selectedWarehouse, setSelectedWarehouse] = useState<string>('')
+  const [selectedWarehouse, setSelectedWarehouse] = useState<string>('all')
 
   // Selected employee IDs set (preserves across searches and filters!)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -55,7 +56,7 @@ export function AddEmployeesToPlanClient({ session, planId }: AddEmployeesToPlan
         if (!res.ok) throw new Error('ไม่พบข้อมูลแพลนนี้')
         const data = await res.json()
         setPlan(data.plan)
-        setSelectedWarehouse(data.plan.warehouse)
+        // คงค่า selectedWarehouse ไว้เป็น 'all' เพื่อให้เริ่มต้นเป็นทุกคลังเสมอ
       } catch (err: any) {
         setErrorMsg(err.message || 'ไม่สามารถโหลดข้อมูลแพลนได้')
       } finally {
@@ -89,7 +90,7 @@ export function AddEmployeesToPlanClient({ session, planId }: AddEmployeesToPlan
     try {
       const params = new URLSearchParams()
       if (searchTerm.trim()) params.set('search', searchTerm.trim())
-      if (selectedWarehouse && selectedWarehouse !== 'all') {
+      if (selectedWarehouse) {
         params.set('warehouse', selectedWarehouse)
       }
 
@@ -292,18 +293,13 @@ export function AddEmployeesToPlanClient({ session, planId }: AddEmployeesToPlan
 
             {/* Warehouse Filter Dropdown */}
             <div className="w-full sm:w-auto">
-              <select
+              <WarehouseSelect
                 value={selectedWarehouse}
-                onChange={(e) => setSelectedWarehouse(e.target.value)}
-                className="w-full sm:w-auto bg-white border border-[#E1E6EF] text-[#16233D] text-xs font-medium rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#2E6FE0] shadow-sm cursor-pointer"
-              >
-                <option value="all">ทุกคลัง</option>
-                {warehouses.map((wh) => (
-                  <option key={wh.id} value={wh.id}>
-                    {wh.id}
-                  </option>
-                ))}
-              </select>
+                onChange={(val) => setSelectedWarehouse(val)}
+                warehouses={warehouses}
+                allLabel="ทุกคลัง"
+                className="py-2"
+              />
             </div>
           </div>
         </div>
@@ -320,7 +316,9 @@ export function AddEmployeesToPlanClient({ session, planId }: AddEmployeesToPlan
               <Users className="w-8 h-8 mx-auto mb-2 text-gray-300" />
               <p className="text-sm font-semibold text-[#16233D]">ไม่พบพนักงานที่สามารถเพิ่มได้</p>
               <p className="text-xs text-[#5B6B85] mt-1">
-                พนักงานในคลังนี้อาจถูกเพิ่มเข้าแพลนหมดแล้ว หรือไม่มีพนักงานที่ตรงกับเงื่อนไขค้นหา
+                {selectedWarehouse === 'all'
+                  ? 'พนักงานทุกคนอาจถูกเพิ่มเข้าแพลนนี้หมดแล้ว หรือไม่มีพนักงานที่ตรงกับเงื่อนไขค้นหา'
+                  : 'พนักงานในคลังนี้อาจถูกเพิ่มเข้าแพลนหมดแล้ว หรือไม่มีพนักงานที่ตรงกับเงื่อนไขค้นหา'}
               </p>
             </div>
           ) : (
@@ -353,6 +351,11 @@ export function AddEmployeesToPlanClient({ session, planId }: AddEmployeesToPlan
                       {/* Name */}
                       <span className="text-xs font-medium text-[#16233D]">
                         {fullName}
+                      </span>
+
+                      {/* Warehouse Badge */}
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-[#F4F6FA] text-[#5B6B85] border border-[#E1E6EF]">
+                        {emp.warehouse || '—'}
                       </span>
                     </div>
 

@@ -39,7 +39,8 @@ export async function GET(
   const existingIds = (existingResult.data || []).map((e: any) => e.employee_id)
 
   // 3. Query active employees
-  const targetWarehouse = warehouseParam || plan.warehouse
+  // ค่าเริ่มต้นเป็น 'all' เพื่อดึงพนักงานจากทุกคลัง
+  const targetWarehouse = warehouseParam || 'all'
 
   let query = supabase
     .from('employees')
@@ -70,7 +71,7 @@ export async function GET(
     }
   }
 
-  query = query.order('po_id', { ascending: true })
+  query = query.order('po_id', { ascending: true }).limit(1000)
 
   const { data: employees, error: empErr } = await query
 
