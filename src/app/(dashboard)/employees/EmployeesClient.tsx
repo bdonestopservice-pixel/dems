@@ -349,7 +349,7 @@ export function EmployeesClient({ session }: EmployeesClientProps) {
                 setPage(1)
               }}
               warehouses={warehouses}
-              allLabel="คลังทั้งหมด"
+              allLabel="ทุกคลัง"
               className="py-2"
             />
 
