@@ -81,6 +81,20 @@ export function NamelistClient({ session: initialSession, initialDate, initialWa
   const [warehouse, setWarehouse] = useState<string>(
     initialWarehouse || (isSuperAdmin ? 'all' : userWarehouses[0] || 'all')
   )
+
+  // ซิงค์ date และ warehouse เมื่อ URL searchParams หรือ props เปลี่ยนแปลง
+  useEffect(() => {
+    if (initialDate && initialDate !== date) {
+      setDate(initialDate)
+    }
+  }, [initialDate, date])
+
+  useEffect(() => {
+    const targetWh = initialWarehouse || (isSuperAdmin ? 'all' : userWarehouses[0] || 'all')
+    if (targetWh && targetWh !== warehouse) {
+      setWarehouse(targetWh)
+    }
+  }, [initialWarehouse, isSuperAdmin, userWarehouses, warehouse])
   const [search, setSearch] = useState('')
   const [selectedDept, setSelectedDept] = useState<string | null>(null)
   const [page, setPage] = useState(1)
@@ -143,8 +157,11 @@ export function NamelistClient({ session: initialSession, initialDate, initialWa
       setLoadError(null)
     }
     try {
-      const params = new URLSearchParams({ date, warehouse })
-      const res = await fetch(`/api/namelist?${params.toString()}`)
+      const params = new URLSearchParams({ date, warehouse, _t: String(Date.now()) })
+      const res = await fetch(`/api/namelist?${params.toString()}`, {
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache' },
+      })
       const data = await res.json()
       if (seq !== requestSeq.current) return // มีการเปลี่ยนวัน/คลังซ้อนเข้ามา ทิ้งผลเก่า
       if (!res.ok) throw new Error(data.error || 'โหลดรายชื่อไม่สำเร็จ')
@@ -162,6 +179,23 @@ export function NamelistClient({ session: initialSession, initialDate, initialWa
   useEffect(() => {
     if (date) fetchEntries()
   }, [date, fetchEntries])
+
+  // ตรวจจับเมื่อกลับมาจากหน้าเพิ่ม/แก้ไข Namelist ให้ refetch ทันทีโดยไม่ต้องกด F5
+  useEffect(() => {
+    if (typeof window !== 'undefined' && sessionStorage.getItem('namelist_needs_refresh') === 'true') {
+      sessionStorage.removeItem('namelist_needs_refresh')
+      fetchEntries(true)
+    }
+  })
+
+  // Refetch อัตโนมัติเมื่อผู้ใช้สลับหน้าต่างกลับมาที่หน้านี้
+  useEffect(() => {
+    const onFocus = () => {
+      fetchEntries(true)
+    }
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [fetchEntries])
 
   // ซิงค์ข้อมูล Realtime สำหรับ Namelist แบบเงียบๆ ในเบื้องหลัง (ไม่ต้องมีจอโหลดกระพริบ)
   useRealtimeListener('namelist-updated', () => {

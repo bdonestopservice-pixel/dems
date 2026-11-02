@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { ChevronLeft, Check, Trash2, Loader2, AlertCircle } from 'lucide-react'
 import { Topbar } from '@/components/layout/Topbar'
 import { employeeFullName, formatShiftRange } from '@/lib/namelist'
+import { broadcastRealtime } from '@/lib/realtime'
 import { formatThaiDate, getInitials } from '@/lib/utils'
 import { DateInput } from '@/components/ui/DateInput'
 import type { AuthSession, NamelistEntry, Department, Shift } from '@/types'
@@ -108,6 +109,10 @@ export function NamelistEditClient({ session, entryId, backWarehouse }: Namelist
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'บันทึกไม่สำเร็จ')
+      broadcastRealtime('namelist-updated')
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('namelist_needs_refresh', 'true')
+      }
       // ไปที่วันที่ของรายการหลังแก้ไข (ถ้าย้ายวัน จะเห็นรายการอยู่ในวันใหม่)
       router.push(backHref(date))
       router.refresh()
@@ -131,6 +136,10 @@ export function NamelistEditClient({ session, entryId, backWarehouse }: Namelist
       const res = await fetch(`/api/namelist/${entryId}`, { method: 'DELETE' })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'ลบไม่สำเร็จ')
+      broadcastRealtime('namelist-updated')
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('namelist_needs_refresh', 'true')
+      }
       router.push(backHref(entry.date))
       router.refresh()
     } catch (err: any) {

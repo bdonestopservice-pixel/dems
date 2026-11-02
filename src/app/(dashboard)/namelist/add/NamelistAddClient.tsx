@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { ChevronLeft, Search, Plus, Loader2, AlertCircle, Users } from 'lucide-react'
 import { Topbar } from '@/components/layout/Topbar'
 import { employeeFullName, formatShiftRange } from '@/lib/namelist'
+import { broadcastRealtime } from '@/lib/realtime'
 import { DateInput } from '@/components/ui/DateInput'
 import { WarehouseSelect } from '@/components/ui/WarehouseSelect'
 import type { AuthSession, Warehouse, Department, Shift } from '@/types'
@@ -242,6 +243,10 @@ export function NamelistAddClient({ session, initialDate, initialWarehouse }: Na
           setSelected(new Set())
         }
         throw new Error(data.error || 'เพิ่มเข้า Namelist ไม่สำเร็จ')
+      }
+      broadcastRealtime('namelist-updated')
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('namelist_needs_refresh', 'true')
       }
       router.push(`/namelist?date=${date}&warehouse=${encodeURIComponent(nlWarehouse || 'all')}`)
       router.refresh()

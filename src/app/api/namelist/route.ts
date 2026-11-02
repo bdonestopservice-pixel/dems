@@ -4,6 +4,9 @@ import { verifySession } from '@/lib/auth/session'
 import { getLiveUserWarehouses } from '@/lib/auth/warehouse-auth'
 import { NAMELIST_SELECT, NAMELIST_SELECT_INNER_DEPT, mapNamelistRow, chunk } from '@/lib/namelist'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
 // GET /api/namelist?date=YYYY-MM-DD&warehouse=SOCE|all
@@ -128,12 +131,21 @@ export async function GET(request: NextRequest) {
   for (const w of whs.length > 0 ? whs : targetWarehouses) oaOptions[w] = []
   for (const r of oaRows || []) oaOptions[r.warehouse]?.push(r.name)
 
-  return NextResponse.json({
-    entries,
-    summary,
-    work_statuses: (statuses || []).map((s: any) => s.name),
-    oa_options: oaOptions,
-  })
+  return NextResponse.json(
+    {
+      entries,
+      summary,
+      work_statuses: (statuses || []).map((s: any) => s.name),
+      oa_options: oaOptions,
+    },
+    {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        Pragma: 'no-cache',
+        Expires: '0',
+      },
+    }
+  )
 }
 
 // POST /api/namelist
