@@ -109,43 +109,86 @@ export function AddEmployeesToPlanClient({ session, planId }: AddEmployeesToPlan
     fetchEligible()
   }, [fetchEligible])
 
-  // Toggle selection
-  const toggleSelect = (id: string) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) {
-        next.delete(id)
-      } else {
-        next.add(id)
-      }
-      return next
-    })
-  }
-
-  // Toggle select all currently visible
-  const handleSelectAllVisible = () => {
-    const visibleIds = eligibleEmployees.map((e) => e.id)
-    const allVisibleSelected = visibleIds.every((id) => selectedIds.has(id))
-
-    setSelectedIds((prev) => {
-      const next = new Set(prev)
-      if (allVisibleSelected) {
-        visibleIds.forEach((id) => next.delete(id))
-      } else {
-        visibleIds.forEach((id) => next.add(id))
-      }
-      return next
-    })
-  }
-
   // Calculations for live progress bar and counts
   const currentCount = plan?.current_count || 0
   const requiredCount = plan?.required_count || 0
   const currentlyMissing = Math.max(0, requiredCount - currentCount)
+  const isPlanAlreadyFull = requiredCount > 0 && currentCount >= requiredCount
+  const isSelectionLimitReached = requiredCount > 0 && selectedIds.size >= currentlyMissing
   const countAfterAdding = currentCount + selectedIds.size
   const remainingMissing = Math.max(0, requiredCount - countAfterAdding)
   const progressPercent =
     requiredCount > 0 ? Math.min(100, Math.round((countAfterAdding / requiredCount) * 100)) : 0
+
+  // Toggle selection (ป้องกันไม่ให้เลือกเกินจำนวนที่แพลนต้องการ)
+  const toggleSelect = (id: string) => {
+    if (isPlanAlreadyFull) {
+      setErrorMsg(`แพลนนี้มีพนักงานครบตามที่กำหนดแล้ว (${requiredCount} คน) ไม่สามารถเพิ่มได้อีก`)
+      return
+    }
+
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) {
+        next.delete(id)
+        setErrorMsg(null)
+      } else {
+        if (requiredCount > 0 && prev.size >= currentlyMissing) {
+          setErrorMsg(
+            `สามารถเลือกพนักงานได้สูงสุดอีกเพียง ${currentlyMissing} คน ตามจำนวนที่แพลนต้องการ (${requiredCount} คน)`
+          )
+          return prev
+        }
+        next.add(id)
+        setErrorMsg(null)
+      }
+      return next
+    })
+  }
+
+  // Toggle select all currently visible (เติมคนให้พอดีกับโควตาที่เหลือ ไม่เกินแพลน)
+  const handleSelectAllVisible = () => {
+    if (isPlanAlreadyFull) {
+      setErrorMsg(`แพลนนี้มีพนักงานครบตามที่กำหนดแล้ว (${requiredCount} คน)`)
+      return
+    }
+
+    const visibleIds = eligibleEmployees.map((e) => e.id)
+    const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id))
+
+    if (allVisibleSelected) {
+      setSelectedIds((prev) => {
+        const next = new Set(prev)
+        visibleIds.forEach((id) => next.delete(id))
+        return next
+      })
+      setErrorMsg(null)
+    } else {
+      setSelectedIds((prev) => {
+        const next = new Set(prev)
+        const unselectedVisible = visibleIds.filter((id) => !next.has(id))
+        const slotsLeft = requiredCount > 0 ? Math.max(0, currentlyMissing - next.size) : unselectedVisible.length
+
+        if (slotsLeft === 0) {
+          setErrorMsg(`เลือกพนักงานครบตามโควตาที่แพลนต้องการแล้ว (${currentlyMissing} คน)`)
+          return prev
+        }
+
+        const toAdd = unselectedVisible.slice(0, slotsLeft)
+        toAdd.forEach((id) => next.add(id))
+
+        if (unselectedVisible.length > slotsLeft) {
+          setErrorMsg(
+            `เลือกเพิ่ม ${toAdd.length} คน เพื่อเติมแพลนให้ครบ ${requiredCount} คนพอดี (ไม่เกินตามที่กำหนด)`
+          )
+        } else {
+          setErrorMsg(null)
+        }
+
+        return next
+      })
+    }
+  }
 
   // Submit addition to roster
   const handleAddSubmit = async () => {
@@ -268,6 +311,16 @@ export function AddEmployeesToPlanClient({ session, planId }: AddEmployeesToPlan
           </div>
         </div>
 
+        {/* Full Plan Alert */}
+        {isPlanAlreadyFull && (
+          <div className="mb-5 p-4 rounded-xl bg-[#E7F6ED] border border-[#A3E5BA] flex items-center gap-2.5 text-[#2E9E5B] text-xs font-semibold">
+            <Check className="w-4 h-4 flex-shrink-0" />
+            <span>
+              แพลนนี้มีพนักงานครบตามจำนวนที่กำหนดแล้ว ({currentCount}/{requiredCount} คน) ไม่สามารถเพิ่มพนักงานได้อีก
+            </span>
+          </div>
+        )}
+
         {/* Error Alert */}
         {errorMsg && (
           <div className="mb-5 p-4 rounded-xl bg-[#FCE8E8] border border-[#F87171] flex items-center gap-2.5 text-[#E5484D] text-xs font-semibold">
@@ -325,22 +378,33 @@ export function AddEmployeesToPlanClient({ session, planId }: AddEmployeesToPlan
             <div className="divide-y divide-[#F4F6FA]">
               {eligibleEmployees.map((emp) => {
                 const isSelected = selectedIds.has(emp.id)
+                const isDisabled = isPlanAlreadyFull || (isSelectionLimitReached && !isSelected)
                 const fullName = `${emp.first_name} ${emp.last_name}`
 
                 return (
                   <label
                     key={emp.id}
-                    className={`flex items-center justify-between px-6 py-3.5 hover:bg-[#FAFBFD] cursor-pointer transition-colors select-none ${
-                      isSelected ? 'bg-[#EEF3FC]/50' : ''
-                    }`}
+                    title={
+                      isDisabled
+                        ? isPlanAlreadyFull
+                          ? 'แพลนนี้มีพนักงานครบตามที่กำหนดแล้ว'
+                          : `เลือกครบตามโควตาที่ต้องการแล้ว (${currentlyMissing} คน)`
+                        : undefined
+                    }
+                    className={`flex items-center justify-between px-6 py-3.5 transition-colors select-none ${
+                      isDisabled
+                        ? 'opacity-40 cursor-not-allowed bg-gray-50/50'
+                        : 'hover:bg-[#FAFBFD] cursor-pointer'
+                    } ${isSelected ? 'bg-[#EEF3FC]/50' : ''}`}
                   >
                     <div className="flex items-center gap-4">
                       {/* Custom Checkbox */}
                       <input
                         type="checkbox"
                         checked={isSelected}
+                        disabled={isDisabled}
                         onChange={() => toggleSelect(emp.id)}
-                        className="w-4 h-4 rounded text-[#2E6FE0] focus:ring-[#2E6FE0] border-gray-300 cursor-pointer"
+                        className="w-4 h-4 rounded text-[#2E6FE0] focus:ring-[#2E6FE0] border-gray-300 cursor-pointer disabled:cursor-not-allowed"
                       />
 
                       {/* PO-ID */}
@@ -379,17 +443,23 @@ export function AddEmployeesToPlanClient({ session, planId }: AddEmployeesToPlan
         )}
       >
         <div className="text-xs font-medium text-[#5B6B85]">
-          เลือกแล้ว <span className="font-bold text-[#2E6FE0]">{selectedIds.size}</span> คน · จะเหลือขาดอีก{' '}
-          <span className={`font-bold ${remainingMissing === 0 ? 'text-[#2E9E5B]' : 'text-[#E5484D]'}`}>
-            {remainingMissing}
-          </span>{' '}
-          คน
+          เลือกแล้ว <span className="font-bold text-[#2E6FE0]">{selectedIds.size}</span> คน ·{' '}
+          {isPlanAlreadyFull ? (
+            <span className="font-bold text-[#2E9E5B]">แพลนนี้มีคนครบแล้ว</span>
+          ) : remainingMissing === 0 ? (
+            <span className="font-bold text-[#2E9E5B]">ครบตามจำนวนที่แพลนต้องการแล้ว</span>
+          ) : (
+            <>
+              จะเหลือขาดอีก{' '}
+              <span className="font-bold text-[#E5484D]">{remainingMissing}</span> คน
+            </>
+          )}
         </div>
 
         <button
           type="button"
           onClick={handleAddSubmit}
-          disabled={selectedIds.size === 0 || submitting}
+          disabled={selectedIds.size === 0 || isPlanAlreadyFull || countAfterAdding > requiredCount || submitting}
           className="inline-flex items-center gap-2 bg-[#2E6FE0] hover:bg-[#2558B8] text-white text-xs font-bold px-6 py-2.5 rounded-xl shadow-sm hover:shadow transition-all disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {submitting ? (
@@ -397,7 +467,7 @@ export function AddEmployeesToPlanClient({ session, planId }: AddEmployeesToPlan
           ) : (
             <Check className="w-4 h-4" />
           )}
-          เพิ่มเข้าแพลนนี้
+          {isPlanAlreadyFull ? 'แพลนเต็มแล้ว' : `เพิ่มเข้าแพลนนี้ (${selectedIds.size} คน)`}
         </button>
       </div>
     </>

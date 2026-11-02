@@ -25,7 +25,7 @@ export async function POST(
 
   // 1. Check plan existence and fetch existing employees concurrently in parallel
   const [planResult, existingResult] = await Promise.all([
-    supabase.from('plans').select('id, warehouse').eq('id', id).single(),
+    supabase.from('plans').select('id, warehouse, required_count').eq('id', id).single(),
     supabase.from('plan_employees').select('employee_id').eq('plan_id', id),
   ])
 
@@ -48,6 +48,31 @@ export async function POST(
       added_count: 0,
       message: 'พนักงานที่เลือกอยู่ในแพลนนี้อยู่แล้ว',
     })
+  }
+
+  // 2. ตรวจสอบโควตาพนักงาน ห้ามใส่เกินจำนวนที่แพลนระบุไว้ (required_count)
+  const requiredCount = typeof plan.required_count === 'number' ? plan.required_count : 0
+  const currentCount = existingSet.size
+  const availableSlots = Math.max(0, requiredCount - currentCount)
+
+  if (requiredCount > 0) {
+    if (currentCount >= requiredCount) {
+      return NextResponse.json(
+        {
+          error: `แพลนนี้มีพนักงานครบตามจำนวนที่กำหนดแล้ว (${currentCount}/${requiredCount} คน) ไม่สามารถเพิ่มพนักงานได้อีก`,
+        },
+        { status: 400 }
+      )
+    }
+
+    if (currentCount + toAdd.length > requiredCount) {
+      return NextResponse.json(
+        {
+          error: `ไม่สามารถเพิ่มพนักงานเกินจำนวนที่แพลนกำหนดได้ (แพลนต้องการ ${requiredCount} คน ปัจจุบันมี ${currentCount} คน สามารถเพิ่มได้อีกไม่เกิน ${availableSlots} คน แต่เลือกมา ${toAdd.length} คน)`,
+        },
+        { status: 400 }
+      )
+    }
   }
 
   // 3. Batch insert new roster entries
