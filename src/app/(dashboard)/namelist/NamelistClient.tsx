@@ -82,19 +82,37 @@ export function NamelistClient({ session: initialSession, initialDate, initialWa
     initialWarehouse || (isSuperAdmin ? 'all' : userWarehouses[0] || 'all')
   )
 
-  // ซิงค์ date และ warehouse เมื่อ URL searchParams หรือ props เปลี่ยนแปลง
+  // ซิงค์ date และ warehouse เฉพาะเมื่อ initial props จากการ redirect หรือ URL ภายนอกเปลี่ยนแปลง
+  const prevInitialDateRef = useRef(initialDate)
   useEffect(() => {
-    if (initialDate && initialDate !== date) {
+    if (initialDate && initialDate !== prevInitialDateRef.current) {
+      prevInitialDateRef.current = initialDate
       setDate(initialDate)
     }
-  }, [initialDate, date])
+  }, [initialDate])
 
+  const prevInitialWarehouseRef = useRef(initialWarehouse)
   useEffect(() => {
-    const targetWh = initialWarehouse || (isSuperAdmin ? 'all' : userWarehouses[0] || 'all')
-    if (targetWh && targetWh !== warehouse) {
-      setWarehouse(targetWh)
+    if (initialWarehouse !== prevInitialWarehouseRef.current) {
+      prevInitialWarehouseRef.current = initialWarehouse
+      if (initialWarehouse) {
+        setWarehouse(initialWarehouse)
+      }
     }
-  }, [initialWarehouse, isSuperAdmin, userWarehouses, warehouse])
+  }, [initialWarehouse])
+
+  // อัปเดต URL searchParams ในเบราว์เซอร์เมื่อผู้ใช้เปลี่ยนวันหรือคลัง โดยไม่ทำให้หน้า reload
+  const updateUrlParams = useCallback((newDate: string, newWarehouse: string) => {
+    if (typeof window === 'undefined') return
+    const url = new URL(window.location.href)
+    url.searchParams.set('date', newDate)
+    if (newWarehouse && newWarehouse !== 'all') {
+      url.searchParams.set('warehouse', newWarehouse)
+    } else {
+      url.searchParams.delete('warehouse')
+    }
+    window.history.replaceState({}, '', url.toString())
+  }, [])
   const [search, setSearch] = useState('')
   const [selectedDept, setSelectedDept] = useState<string | null>(null)
   const [page, setPage] = useState(1)
@@ -316,6 +334,7 @@ export function NamelistClient({ session: initialSession, initialDate, initialWa
                 setDate(val)
                 setSelectedDept(null)
                 setPage(1)
+                updateUrlParams(val, warehouse)
               }
             }}
             title="เลือกวันที่ (วัน/เดือน/ปี)"
@@ -327,6 +346,7 @@ export function NamelistClient({ session: initialSession, initialDate, initialWa
               setWarehouse(val)
               setSelectedDept(null)
               setPage(1)
+              updateUrlParams(date, val)
             }}
             warehouses={warehouses}
             showAllOption={isSuperAdmin || warehouses.length > 1}
