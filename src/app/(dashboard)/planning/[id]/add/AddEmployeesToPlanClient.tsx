@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ChevronLeft, Search, Check, AlertCircle, Loader2, Users } from 'lucide-react'
+import { ChevronLeft, Search, Check, AlertCircle, Loader2, Users, Clock } from 'lucide-react'
 import { Topbar } from '@/components/layout/Topbar'
 import { WarehouseSelect } from '@/components/ui/WarehouseSelect'
 import { cn, formatThaiDate } from '@/lib/utils'
@@ -24,6 +24,8 @@ interface EligibleEmployee {
   last_name: string
   phone?: string
   warehouse: string
+  recently_used?: boolean
+  usage_count?: number
 }
 
 export function AddEmployeesToPlanClient({ session, planId }: AddEmployeesToPlanClientProps) {
@@ -46,6 +48,8 @@ export function AddEmployeesToPlanClient({ session, planId }: AddEmployeesToPlan
 
   // Selected employee IDs set (preserves across searches and filters!)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const initialAutoSelectedRef = useRef(false)
+  const recentlyUsedMap = useRef<Map<string, boolean>>(new Map())
 
   // 1. Fetch Plan details
   useEffect(() => {
@@ -97,7 +101,22 @@ export function AddEmployeesToPlanClient({ session, planId }: AddEmployeesToPlan
       const res = await fetch(`/api/plans/${planId}/eligible-employees?${params.toString()}`)
       if (!res.ok) throw new Error('Failed to fetch eligible employees')
       const data = await res.json()
-      setEligibleEmployees(data.employees || [])
+      const emps: EligibleEmployee[] = data.employees || []
+      setEligibleEmployees(emps)
+
+      // บันทึกสถานะ Recently used ของพนักงาน
+      emps.forEach((e) => {
+        if (e.recently_used) recentlyUsedMap.current.set(e.id, true)
+      })
+
+      // เลือกพนักงาน Recently used ให้อัตโนมัติในครั้งแรกที่โหลด (คนไหนไม่เอาให้เลือกออกเอง)
+      if (!initialAutoSelectedRef.current && emps.length > 0) {
+        initialAutoSelectedRef.current = true
+        const recentIds = emps.filter((e) => e.recently_used).map((e) => e.id)
+        if (recentIds.length > 0) {
+          setSelectedIds(new Set(recentIds))
+        }
+      }
     } catch (err: any) {
       console.error(err)
     } finally {
@@ -108,6 +127,15 @@ export function AddEmployeesToPlanClient({ session, planId }: AddEmployeesToPlan
   useEffect(() => {
     fetchEligible()
   }, [fetchEligible])
+
+  // นับจำนวนพนักงาน Recently used ที่ถูกเลือกอยู่ขณะนี้
+  const recentlyUsedSelectedCount = useMemo(() => {
+    let count = 0
+    for (const id of selectedIds) {
+      if (recentlyUsedMap.current.get(id)) count++
+    }
+    return count
+  }, [selectedIds])
 
   // Calculations for live progress bar and counts
   const currentCount = plan?.current_count || 0
@@ -359,6 +387,15 @@ export function AddEmployeesToPlanClient({ session, planId }: AddEmployeesToPlan
 
         {/* Employee Checkbox List Card */}
         <div className="bg-white rounded-2xl border border-[#E1E6EF] overflow-hidden shadow-sm">
+          {/* Recently Used Notice Header matching Mockup */}
+          <div className="px-6 py-3 bg-[#FAF5FF] border-b border-[#F3E8FF] flex items-center gap-2.5 select-none">
+            <div className="w-1 h-4 bg-[#7C3AED] rounded-full flex-shrink-0" />
+            <p className="text-xs text-[#5B21B6]">
+              <span className="font-bold text-[#6D28D9]">สีม่วง = Recently used</span>{' '}
+              เพิ่มเข้าแพลนให้อัตโนมัติ โดยเลือกไว้ให้ทุกคน คนไหนที่ไม่เอาให้เลือกออกเอง
+            </p>
+          </div>
+
           {loadingEmployees ? (
             <div className="p-12 text-center">
               <Loader2 className="w-6 h-6 text-[#2E6FE0] animate-spin mx-auto mb-2" />
@@ -378,6 +415,7 @@ export function AddEmployeesToPlanClient({ session, planId }: AddEmployeesToPlan
             <div className="divide-y divide-[#F4F6FA]">
               {eligibleEmployees.map((emp) => {
                 const isSelected = selectedIds.has(emp.id)
+                const isRecent = !!emp.recently_used
                 const isDisabled = isPlanAlreadyFull || (isSelectionLimitReached && !isSelected)
                 const fullName = `${emp.first_name} ${emp.last_name}`
 
@@ -391,20 +429,32 @@ export function AddEmployeesToPlanClient({ session, planId }: AddEmployeesToPlan
                           : `เลือกครบตามโควตาที่ต้องการแล้ว (${currentlyMissing} คน)`
                         : undefined
                     }
-                    className={`flex items-center justify-between px-6 py-3.5 transition-colors select-none ${
+                    className={cn(
+                      'flex items-center justify-between px-6 py-3.5 transition-colors select-none',
                       isDisabled
                         ? 'opacity-40 cursor-not-allowed bg-gray-50/50'
-                        : 'hover:bg-[#FAFBFD] cursor-pointer'
-                    } ${isSelected ? 'bg-[#EEF3FC]/50' : ''}`}
+                        : isRecent
+                        ? isSelected
+                          ? 'bg-[#FAF5FF] hover:bg-[#F3E8FF]/60 cursor-pointer'
+                          : 'bg-[#FCFAFF] hover:bg-[#FAF5FF] cursor-pointer'
+                        : isSelected
+                        ? 'bg-[#EEF3FC]/50 hover:bg-[#E5EEFA] cursor-pointer'
+                        : 'bg-white hover:bg-[#FAFBFD] cursor-pointer'
+                    )}
                   >
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-4 flex-wrap">
                       {/* Custom Checkbox */}
                       <input
                         type="checkbox"
                         checked={isSelected}
                         disabled={isDisabled}
                         onChange={() => toggleSelect(emp.id)}
-                        className="w-4 h-4 rounded text-[#2E6FE0] focus:ring-[#2E6FE0] border-gray-300 cursor-pointer disabled:cursor-not-allowed"
+                        className={cn(
+                          'w-4 h-4 rounded cursor-pointer disabled:cursor-not-allowed transition-colors',
+                          isRecent
+                            ? 'accent-[#7C3AED] text-[#7C3AED] focus:ring-[#7C3AED] border-[#C4B5FD]'
+                            : 'text-[#2E6FE0] focus:ring-[#2E6FE0] border-gray-300'
+                        )}
                       />
 
                       {/* PO-ID */}
@@ -416,6 +466,19 @@ export function AddEmployeesToPlanClient({ session, planId }: AddEmployeesToPlan
                       <span className="text-xs font-medium text-[#16233D]">
                         {fullName}
                       </span>
+
+                      {/* Recently Used Badge & Count */}
+                      {isRecent && (
+                        <div className="flex items-center gap-2">
+                          <span className="inline-flex items-center gap-1 bg-[#7C3AED] text-white text-[11px] font-semibold px-2.5 py-0.5 rounded-full shadow-xs">
+                            <Clock className="w-3 h-3" />
+                            Recently used
+                          </span>
+                          <span className="text-xs font-semibold text-[#6D28D9]">
+                            ใช้ {emp.usage_count || 1} ครั้ง
+                          </span>
+                        </div>
+                      )}
 
                       {/* Warehouse Badge */}
                       <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-[#F4F6FA] text-[#5B6B85] border border-[#E1E6EF]">
@@ -435,7 +498,7 @@ export function AddEmployeesToPlanClient({ session, planId }: AddEmployeesToPlan
         </div>
       </div>
 
-      {/* Fixed Bottom Action Bar matching Mockup 3 */}
+      {/* Fixed Bottom Action Bar matching Mockup */}
       <div
         className={cn(
           'fixed bottom-0 right-0 bg-white border-t border-[#E1E6EF] px-8 py-3.5 shadow-lg flex items-center justify-between z-20 transition-all duration-300 ease-in-out',
@@ -443,9 +506,19 @@ export function AddEmployeesToPlanClient({ session, planId }: AddEmployeesToPlan
         )}
       >
         <div className="text-xs font-medium text-[#5B6B85]">
-          เลือกแล้ว <span className="font-bold text-[#2E6FE0]">{selectedIds.size}</span> คน ·{' '}
+          เลือกแล้ว <span className="font-bold text-[#2E6FE0]">{selectedIds.size}</span> คน
+          {recentlyUsedSelectedCount > 0 && (
+            <span className="text-[#6D28D9] font-medium">
+              {' '}(รวม Recently used ที่ติ๊กไว้ให้อัตโนมัติ {recentlyUsedSelectedCount} คน)
+            </span>
+          )}{' '}
+          ·{' '}
           {isPlanAlreadyFull ? (
             <span className="font-bold text-[#2E9E5B]">แพลนนี้มีคนครบแล้ว</span>
+          ) : countAfterAdding > requiredCount && requiredCount > 0 ? (
+            <span className="font-bold text-[#E5484D]">
+              เลือกเกินโควตา {countAfterAdding - requiredCount} คน (เหลือที่ว่างอีก {currentlyMissing} คน — กรุณาเลือกออก)
+            </span>
           ) : remainingMissing === 0 ? (
             <span className="font-bold text-[#2E9E5B]">ครบตามจำนวนที่แพลนต้องการแล้ว</span>
           ) : (
@@ -459,7 +532,12 @@ export function AddEmployeesToPlanClient({ session, planId }: AddEmployeesToPlan
         <button
           type="button"
           onClick={handleAddSubmit}
-          disabled={selectedIds.size === 0 || isPlanAlreadyFull || countAfterAdding > requiredCount || submitting}
+          disabled={
+            selectedIds.size === 0 ||
+            isPlanAlreadyFull ||
+            (requiredCount > 0 && countAfterAdding > requiredCount) ||
+            submitting
+          }
           className="inline-flex items-center gap-2 bg-[#2E6FE0] hover:bg-[#2558B8] text-white text-xs font-bold px-6 py-2.5 rounded-xl shadow-sm hover:shadow transition-all disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {submitting ? (
@@ -467,7 +545,11 @@ export function AddEmployeesToPlanClient({ session, planId }: AddEmployeesToPlan
           ) : (
             <Check className="w-4 h-4" />
           )}
-          {isPlanAlreadyFull ? 'แพลนเต็มแล้ว' : `เพิ่มเข้าแพลนนี้ (${selectedIds.size} คน)`}
+          {isPlanAlreadyFull
+            ? 'แพลนเต็มแล้ว'
+            : countAfterAdding > requiredCount && requiredCount > 0
+            ? `เลือกเกิน ${countAfterAdding - requiredCount} คน`
+            : `เพิ่มเข้าแพลนนี้ (${selectedIds.size} คน)`}
         </button>
       </div>
     </>

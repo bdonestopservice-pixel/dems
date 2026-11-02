@@ -3,6 +3,8 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { verifySession } from '@/lib/auth/session'
 import { hasWarehouseAccess } from '@/lib/auth/warehouse-auth'
 
+export const dynamic = 'force-dynamic'
+
 // GET /api/plans/[id]/eligible-employees
 // Returns active employees that are NOT yet in this plan
 export async function GET(
@@ -22,7 +24,7 @@ export async function GET(
 
   // 1. Fetch plan and existing employees concurrently in parallel
   const [planResult, existingResult] = await Promise.all([
-    supabase.from('plans').select('id, warehouse').eq('id', id).single(),
+    supabase.from('plans').select('id, warehouse, department_id').eq('id', id).single(),
     supabase.from('plan_employees').select('employee_id').eq('plan_id', id),
   ])
 
@@ -37,6 +39,30 @@ export async function GET(
   }
 
   const existingIds = (existingResult.data || []).map((e: any) => e.employee_id)
+
+  // 2. Fetch namelist usage counts for this plan's department (Recently used)
+  const usageMap = new Map<string, number>()
+  if (plan.department_id) {
+    for (let page = 0; page < 10; page++) {
+      const from = page * 1000
+      const { data: nlRows, error: nlErr } = await supabase
+        .from('namelist')
+        .select('employee_id')
+        .eq('department_id', plan.department_id)
+        .range(from, from + 999)
+
+      if (nlErr) {
+        console.error('Error fetching namelist usage counts:', nlErr)
+        break
+      }
+      for (const r of nlRows || []) {
+        if (r.employee_id) {
+          usageMap.set(r.employee_id, (usageMap.get(r.employee_id) || 0) + 1)
+        }
+      }
+      if (!nlRows || nlRows.length < 1000) break
+    }
+  }
 
   // 3. Query active employees
   // ค่าเริ่มต้นเป็น 'all' เพื่อดึงพนักงานจากทุกคลัง
@@ -73,15 +99,37 @@ export async function GET(
 
   query = query.order('po_id', { ascending: true }).limit(1000)
 
-  const { data: employees, error: empErr } = await query
+  const { data: rawEmployees, error: empErr } = await query
 
   if (empErr) {
     console.error('Error fetching eligible employees:', empErr)
     return NextResponse.json({ error: empErr.message }, { status: 500 })
   }
 
+  // Map recently_used status and usage count based on department history
+  const formattedEmployees = (rawEmployees || []).map((emp: any) => {
+    const count = usageMap.get(emp.id) || 0
+    return {
+      ...emp,
+      recently_used: count > 0,
+      usage_count: count,
+    }
+  })
+
+  // เรียง Recently used ไว้ด้านบนสุด (เรียงตามจำนวนครั้งที่ใช้มากไปน้อย) แล้วตามด้วยคนทั่วไปตาม po_id
+  formattedEmployees.sort((a: any, b: any) => {
+    if (a.recently_used && !b.recently_used) return -1
+    if (!a.recently_used && b.recently_used) return 1
+    if (a.recently_used && b.recently_used) {
+      if (b.usage_count !== a.usage_count) {
+        return b.usage_count - a.usage_count
+      }
+    }
+    return (a.po_id || '').localeCompare(b.po_id || '')
+  })
+
   return NextResponse.json({
-    employees: employees || [],
+    employees: formattedEmployees,
     plan_warehouse: plan.warehouse,
   })
 }
