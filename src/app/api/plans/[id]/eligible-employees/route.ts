@@ -62,24 +62,84 @@ export async function GET(
       }
       if (!nlRows || nlRows.length < 1000) break
     }
+
+    // รวมพนักงานจาก plan_employees ที่มี sent_to_namelist = true ของแผนกนี้ด้วย
+    const { data: planList } = await supabase
+      .from('plans')
+      .select('id')
+      .eq('department_id', plan.department_id)
+
+    if (planList && planList.length > 0) {
+      const planIds = planList.map((p) => p.id)
+      const { data: peRows } = await supabase
+        .from('plan_employees')
+        .select('employee_id')
+        .in('plan_id', planIds)
+        .eq('sent_to_namelist', true)
+
+      for (const pe of peRows || []) {
+        if (pe.employee_id && !usageMap.has(pe.employee_id)) {
+          usageMap.set(pe.employee_id, 1)
+        }
+      }
+    }
   }
 
-  // 3. Query active employees
+  // 3. Query employees
   // ค่าเริ่มต้นเป็น 'all' เพื่อดึงพนักงานจากทุกคลัง
   const targetWarehouse = warehouseParam || 'all'
 
-  let query = supabase
+  // ดึงกลุ่ม Recently used ให้ครบถ้วนเสมอ โดยไม่โดนจำกัดด้วย SQL limit
+  const recentIds = Array.from(usageMap.keys()).filter((id) => !existingIds.includes(id))
+  let recentEmployees: any[] = []
+
+  if (recentIds.length > 0) {
+    for (let i = 0; i < recentIds.length; i += 100) {
+      const chunk = recentIds.slice(i, i + 100)
+      let q = supabase
+        .from('employees')
+        .select('id, po_id, prefix, first_name, last_name, phone, warehouse, is_active')
+        .in('id', chunk)
+        .eq('is_active', true)
+
+      if (targetWarehouse && targetWarehouse !== 'all') {
+        q = q.eq('warehouse', targetWarehouse)
+      }
+
+      if (search) {
+        const words = search
+          .split(/\s+/)
+          .map((w) => w.replace(/[,()]/g, '').trim())
+          .filter(Boolean)
+
+        for (const word of words) {
+          const s = `%${word}%`
+          q = q.or(`first_name.ilike.${s},last_name.ilike.${s},po_id.ilike.${s},phone.ilike.${s}`)
+        }
+      }
+
+      const { data: chunkData, error: chunkErr } = await q
+      if (!chunkErr && chunkData) {
+        recentEmployees.push(...chunkData)
+      }
+    }
+  }
+
+  // ดึงกลุ่มพนักงานทั่วไป (ไม่รวมคนที่อยู่ในแพลนแล้ว และไม่รวมคนที่อยู่ในกลุ่ม Recently used)
+  const excludedIds = [...new Set([...existingIds, ...recentEmployees.map((e) => e.id)])]
+
+  let generalQuery = supabase
     .from('employees')
     .select('id, po_id, prefix, first_name, last_name, phone, warehouse, is_active')
     .eq('is_active', true)
 
   if (targetWarehouse && targetWarehouse !== 'all') {
-    query = query.eq('warehouse', targetWarehouse)
+    generalQuery = generalQuery.eq('warehouse', targetWarehouse)
   }
 
-  // Exclude employees already in this plan
-  if (existingIds.length > 0) {
-    query = query.not('id', 'in', `(${existingIds.join(',')})`)
+  if (excludedIds.length > 0) {
+    const notInList = excludedIds.slice(0, 200).join(',')
+    generalQuery = generalQuery.not('id', 'in', `(${notInList})`)
   }
 
   // Multi-word search
@@ -91,33 +151,36 @@ export async function GET(
 
     for (const word of words) {
       const s = `%${word}%`
-      query = query.or(
+      generalQuery = generalQuery.or(
         `first_name.ilike.${s},last_name.ilike.${s},po_id.ilike.${s},phone.ilike.${s}`
       )
     }
   }
 
-  query = query.order('po_id', { ascending: true }).limit(1000)
+  generalQuery = generalQuery.order('po_id', { ascending: true }).limit(500)
 
-  const { data: rawEmployees, error: empErr } = await query
+  const { data: generalEmployees, error: empErr } = await generalQuery
 
   if (empErr) {
-    console.error('Error fetching eligible employees:', empErr)
-    return NextResponse.json({ error: empErr.message }, { status: 500 })
+    console.error('Error fetching general employees:', empErr)
   }
 
-  // Map recently_used status and usage count based on department history
-  const formattedEmployees = (rawEmployees || []).map((emp: any) => {
-    const count = usageMap.get(emp.id) || 0
-    return {
+  // รวมรายการพนักงาน Recently used (ติด badge และจำนวนครั้ง) กับพนักงานทั่วไป
+  const combined = [
+    ...recentEmployees.map((emp: any) => ({
       ...emp,
-      recently_used: count > 0,
-      usage_count: count,
-    }
-  })
+      recently_used: true,
+      usage_count: usageMap.get(emp.id) || 1,
+    })),
+    ...(generalEmployees || []).map((emp: any) => ({
+      ...emp,
+      recently_used: false,
+      usage_count: 0,
+    })),
+  ]
 
   // เรียง Recently used ไว้ด้านบนสุด (เรียงตามจำนวนครั้งที่ใช้มากไปน้อย) แล้วตามด้วยคนทั่วไปตาม po_id
-  formattedEmployees.sort((a: any, b: any) => {
+  combined.sort((a: any, b: any) => {
     if (a.recently_used && !b.recently_used) return -1
     if (!a.recently_used && b.recently_used) return 1
     if (a.recently_used && b.recently_used) {
@@ -129,7 +192,7 @@ export async function GET(
   })
 
   return NextResponse.json({
-    employees: formattedEmployees,
+    employees: combined,
     plan_warehouse: plan.warehouse,
   })
 }

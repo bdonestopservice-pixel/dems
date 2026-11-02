@@ -98,7 +98,9 @@ export function AddEmployeesToPlanClient({ session, planId }: AddEmployeesToPlan
         params.set('warehouse', selectedWarehouse)
       }
 
-      const res = await fetch(`/api/plans/${planId}/eligible-employees?${params.toString()}`)
+      const res = await fetch(`/api/plans/${planId}/eligible-employees?${params.toString()}&_t=${Date.now()}`, {
+        cache: 'no-store',
+      })
       if (!res.ok) throw new Error('Failed to fetch eligible employees')
       const data = await res.json()
       const emps: EligibleEmployee[] = data.employees || []
@@ -109,12 +111,16 @@ export function AddEmployeesToPlanClient({ session, planId }: AddEmployeesToPlan
         if (e.recently_used) recentlyUsedMap.current.set(e.id, true)
       })
 
-      // เลือกพนักงาน Recently used ให้อัตโนมัติในครั้งแรกที่โหลด (คนไหนไม่เอาให้เลือกออกเอง)
-      if (!initialAutoSelectedRef.current && emps.length > 0) {
-        initialAutoSelectedRef.current = true
+      // เลือกพนักงาน Recently used ให้อัตโนมัติเมื่อพบ (คนไหนไม่เอาให้เลือกออกเอง)
+      if (!initialAutoSelectedRef.current) {
         const recentIds = emps.filter((e) => e.recently_used).map((e) => e.id)
         if (recentIds.length > 0) {
-          setSelectedIds(new Set(recentIds))
+          initialAutoSelectedRef.current = true
+          setSelectedIds((prev) => {
+            const next = new Set(prev)
+            recentIds.forEach((id) => next.add(id))
+            return next
+          })
         }
       }
     } catch (err: any) {
