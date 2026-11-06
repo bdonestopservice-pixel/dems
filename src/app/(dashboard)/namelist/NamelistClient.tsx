@@ -13,6 +13,7 @@ import {
   ClipboardList,
   ChevronLeft,
   ChevronRight,
+  Download,
 } from 'lucide-react'
 import { Topbar } from '@/components/layout/Topbar'
 import { employeeFullName, formatShiftRange } from '@/lib/namelist'
@@ -21,6 +22,7 @@ import { useRealtimeListener, useRealtimeSession } from '@/components/providers/
 import { cn } from '@/lib/utils'
 import { DateInput } from '@/components/ui/DateInput'
 import { WarehouseSelect } from '@/components/ui/WarehouseSelect'
+import { ExportCustomerNamelistModal } from '@/components/namelist/ExportCustomerNamelistModal'
 import type { AuthSession, NamelistEntry, Warehouse } from '@/types'
 
 interface NamelistClientProps {
@@ -129,6 +131,9 @@ export function NamelistClient({ session: initialSession, initialDate, initialWa
   // สถานะสำหรับ Popup ยืนยันการลบ
   const [entryToDelete, setEntryToDelete] = useState<NamelistEntry | null>(null)
   const [deleting, setDeleting] = useState(false)
+
+  // สถานะสำหรับ Popup Export Namelist ลูกค้า
+  const [showExportModal, setShowExportModal] = useState(false)
 
   const requestSeq = useRef(0)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -364,6 +369,28 @@ export function NamelistClient({ session: initialSession, initialDate, initialWa
                 setPage(1)
               }}
               className="w-full bg-white border border-[#E1E6EF] text-[#16233D] placeholder-[#9AA5B8] text-xs rounded-xl pl-10 pr-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#2E6FE0] shadow-sm"
+            />
+          </div>
+
+          {/* ปุ่ม Export Namelist ลูกค้า (พร้อมตัวเลือกแผนกและกะก่อน Export) */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setShowExportModal((prev) => !prev)}
+              className="inline-flex items-center justify-center gap-1.5 bg-white hover:bg-[#F8FAFC] text-[#16233D] border border-[#E1E6EF] hover:border-[#CBD5E1] text-xs font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-all whitespace-nowrap cursor-pointer"
+              title="Export Namelist สำหรับส่งลูกค้า (Excel)"
+            >
+              <Download className="w-4 h-4 text-[#5B6B85]" />
+              <span>Export Namelist ลูกค้า</span>
+            </button>
+
+            <ExportCustomerNamelistModal
+              isOpen={showExportModal}
+              onClose={() => setShowExportModal(false)}
+              entries={entries}
+              date={date}
+              warehouse={warehouse}
+              initialDepartment={selectedDept}
             />
           </div>
 
