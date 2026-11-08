@@ -3,16 +3,16 @@ import type { NamelistEntry } from '@/types'
 /** select string สำหรับดึง namelist พร้อม join พนักงาน/แผนก/กะ */
 export const NAMELIST_SELECT = `
   *,
-  employees:employee_id (id, po_id, prefix, first_name, last_name, warehouse),
-  departments:department_id (id, name, warehouse),
+  employees:employee_id (id, po_id, prefix, first_name, last_name, warehouse, first_name_en, last_name_en, gender, dob, phone, id_card, start_date, ops_id, address_full, address_no, address_moo, address_trok, address_soi, address_road, address_tambon, address_amphoe, address_province, address_zipcode),
+  departments:department_id (id, name, warehouse, type, shift_name),
   shifts:shift_id (id, warehouse, start_time, end_time, type)
 `
 
 /** select string สำหรับดึง namelist พร้อม inner join แผนกเพื่อกรองตามคลังที่ระดับฐานข้อมูล (SQL level) */
 export const NAMELIST_SELECT_INNER_DEPT = `
   *,
-  employees:employee_id (id, po_id, prefix, first_name, last_name, warehouse),
-  departments:department_id!inner (id, name, warehouse),
+  employees:employee_id (id, po_id, prefix, first_name, last_name, warehouse, first_name_en, last_name_en, gender, dob, phone, id_card, start_date, ops_id, address_full, address_no, address_moo, address_trok, address_soi, address_road, address_tambon, address_amphoe, address_province, address_zipcode),
+  departments:department_id!inner (id, name, warehouse, type, shift_name),
   shifts:shift_id (id, warehouse, start_time, end_time, type)
 `
 
@@ -48,7 +48,27 @@ export function mapNamelistRow(row: any): NamelistEntry {
     prefix: row.employees?.prefix || '',
     first_name: row.employees?.first_name || '',
     last_name: row.employees?.last_name || '',
+    gender: row.employees?.gender || '',
+    first_name_en: row.employees?.first_name_en || '',
+    last_name_en: row.employees?.last_name_en || '',
+    dob: row.employees?.dob || '',
+    phone: row.employees?.phone || '',
+    id_card: row.employees?.id_card || '',
+    start_date: row.employees?.start_date || '',
+    ops_id: row.employees?.ops_id || '',
+    address_full: row.employees?.address_full || '',
+    address_no: row.employees?.address_no || '',
+    address_moo: row.employees?.address_moo || '',
+    address_trok: row.employees?.address_trok || '',
+    address_soi: row.employees?.address_soi || '',
+    address_road: row.employees?.address_road || '',
+    address_tambon: row.employees?.address_tambon || '',
+    address_amphoe: row.employees?.address_amphoe || '',
+    address_province: row.employees?.address_province || '',
+    address_zipcode: row.employees?.address_zipcode || '',
     department_name: row.departments?.name,
+    department_type: row.departments?.type,
+    department_shift_name: row.departments?.shift_name,
     shift_start: row.shifts?.start_time,
     shift_end: row.shifts?.end_time,
     shift_type: row.shifts?.type,

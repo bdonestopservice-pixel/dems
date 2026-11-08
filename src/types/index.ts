@@ -159,4 +159,24 @@ export interface NamelistEntry {
   shift_type?: 'D' | 'N' | 'H'
   /** คลังของรายการ (อนุมานจาก กะ → แผนก → คลังของพนักงาน) */
   warehouse?: string | null
+  department_type?: string
+  department_shift_name?: string
+  first_name_en?: string
+  last_name_en?: string
+  gender?: string
+  dob?: string
+  phone?: string
+  id_card?: string
+  start_date?: string
+  ops_id?: string
+  address_full?: string
+  address_no?: string
+  address_moo?: string
+  address_trok?: string
+  address_soi?: string
+  address_road?: string
+  address_tambon?: string
+  address_amphoe?: string
+  address_province?: string
+  address_zipcode?: string
 }
