@@ -34,3 +34,7 @@ yarn-error.log*
 
 # typescript
 *.tsbuildinfo
+
+# sidecar qa & monitoring dashboard (local only)
+/sidecar/
+sidecar/
