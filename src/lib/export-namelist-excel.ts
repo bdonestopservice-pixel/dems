@@ -1,5 +1,5 @@
 import type { NamelistEntry } from '@/types'
-import { employeeFullName, formatShiftRange } from '@/lib/namelist'
+import { employeeFullName, hhmm } from '@/lib/namelist'
 
 export interface ExportNamelistExcelOptions {
   date: string
@@ -28,7 +28,20 @@ export function getShiftTypeThaiLabel(
 }
 
 /**
+ * จัดรูปแบบวันที่ YYYY-MM-DD เป็น DD/MM/YYYY สำหรับแสดงผลใน Excel
+ */
+function formatDisplayDate(dateStr?: string | null): string {
+  if (!dateStr) return ''
+  const parts = dateStr.split('-')
+  if (parts.length === 3) {
+    return `${parts[2]}/${parts[1]}/${parts[0]}`
+  }
+  return dateStr
+}
+
+/**
  * ฟังก์ชันสร้างและดาวน์โหลดไฟล์ Excel สำหรับ Namelist ลูกค้า
+ * ปรับปรุงให้ตรงตาม Format ของโมดูลรายงาน (4 คอลัมน์: วันที่ | ค้นหา | เข้างาน | Shift Name)
  */
 export async function exportNamelistToExcel(
   entries: NamelistEntry[],
@@ -36,78 +49,37 @@ export async function exportNamelistToExcel(
 ) {
   const XLSX = await import('xlsx')
 
-  // แปลงรูปแบบวันที่ YYYY-MM-DD เป็น DD/MM/YYYY สำหรับแสดงผล
-  const dateParts = options.date ? options.date.split('-') : []
-  const displayDate =
-    dateParts.length === 3
-      ? `${dateParts[2]}/${dateParts[1]}/${dateParts[0]}`
-      : options.date || ''
-
-  // หัวตารางคอลัมน์
-  const headers = [
-    'ลำดับ',
-    'วันที่',
-    'คลัง',
-    'รหัสพนักงาน',
-    'คำนำหน้า',
-    'ชื่อ',
-    'นามสกุล',
-    'ชื่อ-นามสกุล',
-    'แผนก',
-    'กะเวลา',
-    'ประเภทกะ',
-    'ต่างพื้นที่',
-    'Status การทำงาน',
-    'หมายเหตุ',
-  ]
+  // หัวตาราง 4 คอลัมน์ตาม Worksheet: ExportNamelistลูกค้า (ตรงกับโมดูลรายงาน)
+  const headers = ['วันที่', 'ค้นหา', 'เข้างาน', 'Shift Name']
 
   // แถวข้อมูลพนักงาน
-  const rows = entries.map((entry, index) => {
-    const shiftType = getShiftTypeThaiLabel(entry.shift_type, entry.shift_start)
-    const shiftTime = formatShiftRange(entry.shift_start, entry.shift_end)
+  const rows = entries.map((entry) => {
+    // 1. วันที่ทำงาน (DD/MM/YYYY)
+    const dateFormatted = formatDisplayDate(entry.date || options.date)
+    // 2. ค้นหา = ชื่อ นามสกุล (ไม่รวมคำนำหน้า)
+    const fullName = employeeFullName(entry)
+    // 3. เข้างาน = เวลาเริ่มต้นของกะ เช่น 09:00 หรือ 06:00
+    const checkIn = hhmm(entry.shift_start) || ''
+    // 4. Shift Name = ชื่อแผนก / Shift Name ของแผนก
+    const shiftName = entry.department_shift_name || entry.department_name || ''
 
-    return [
-      index + 1,
-      displayDate,
-      entry.warehouse || (options.warehouse !== 'all' ? options.warehouse : '') || '',
-      entry.po_id || '',
-      entry.prefix || '',
-      entry.first_name || '',
-      entry.last_name || '',
-      employeeFullName(entry),
-      entry.department_name || '',
-      shiftTime === '—' ? '' : shiftTime,
-      shiftType,
-      entry.oa_status || '-',
-      entry.work_status || '',
-      entry.note || '',
-    ]
+    return [dateFormatted, fullName, checkIn, shiftName]
   })
 
   // สร้าง Worksheet จาก Array of Arrays
   const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows])
 
-  // กำหนดความกว้างคอลัมน์ให้อ่านง่ายพอดีกับข้อมูล
+  // กำหนดความกว้างคอลัมน์ให้อ่านง่ายพอดีกับข้อมูล (ตรงกับโมดูลรายงาน)
   worksheet['!cols'] = [
-    { wch: 8 },  // ลำดับ
     { wch: 14 }, // วันที่
-    { wch: 12 }, // คลัง
-    { wch: 16 }, // รหัสพนักงาน
-    { wch: 10 }, // คำนำหน้า
-    { wch: 16 }, // ชื่อ
-    { wch: 18 }, // นามสกุล
-    { wch: 24 }, // ชื่อ-นามสกุล
-    { wch: 18 }, // แผนก
-    { wch: 16 }, // กะเวลา
-    { wch: 14 }, // ประเภทกะ
-    { wch: 12 }, // ต่างพื้นที่
-    { wch: 18 }, // Status การทำงาน
-    { wch: 30 }, // หมายเหตุ
+    { wch: 28 }, // ค้นหา
+    { wch: 14 }, // เข้างาน
+    { wch: 24 }, // Shift Name
   ]
 
   // สร้าง Workbook
   const workbook = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(workbook, worksheet, 'Namelist')
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'ExportNamelistลูกค้า')
 
   // ตั้งชื่อไฟล์ Excel ให้ชัดเจนตามเงื่อนไขที่เลือก
   const whPart =
@@ -142,4 +114,3 @@ export async function exportNamelistToExcel(
     URL.revokeObjectURL(url)
   }
 }
-
