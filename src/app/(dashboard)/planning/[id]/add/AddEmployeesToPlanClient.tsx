@@ -44,7 +44,16 @@ export function AddEmployeesToPlanClient({ session, planId }: AddEmployeesToPlan
 
   // Filters: เริ่มต้นเป็น "ทุกคลัง" ('all') ตลอดตามที่ต้องการ
   const [searchTerm, setSearchTerm] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [selectedWarehouse, setSelectedWarehouse] = useState<string>('all')
+
+  // Debounce search input 300ms เพื่อป้องกันการยิง API ถี่เกินไปขณะกำลังพิมพ์
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [searchTerm])
 
   // Selected employee IDs set (preserves across searches and filters!)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -93,7 +102,7 @@ export function AddEmployeesToPlanClient({ session, planId }: AddEmployeesToPlan
     setLoadingEmployees(true)
     try {
       const params = new URLSearchParams()
-      if (searchTerm.trim()) params.set('search', searchTerm.trim())
+      if (debouncedSearch.trim()) params.set('search', debouncedSearch.trim())
       if (selectedWarehouse) {
         params.set('warehouse', selectedWarehouse)
       }
@@ -128,7 +137,7 @@ export function AddEmployeesToPlanClient({ session, planId }: AddEmployeesToPlan
     } finally {
       setLoadingEmployees(false)
     }
-  }, [planId, searchTerm, selectedWarehouse])
+  }, [planId, debouncedSearch, selectedWarehouse])
 
   useEffect(() => {
     fetchEligible()

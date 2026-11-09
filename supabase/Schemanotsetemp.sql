@@ -706,11 +706,16 @@ CREATE TABLE IF NOT EXISTS namelist (
 
 -- ============================================================
 -- 13. ดัชนีเพิ่มความเร็วการค้นหา (Performance Indexes)
+-- ปรับแต่งรองรับฐานข้อมูลขนาดใหญ่ (Employees 16,000+ รายการ & Namelist)
 -- ============================================================
+
+-- 13.1 ดัชนีเดี่ยวพื้นฐาน (Single-column Indexes)
 CREATE INDEX IF NOT EXISTS idx_employees_warehouse   ON employees(warehouse);
 CREATE INDEX IF NOT EXISTS idx_employees_is_active   ON employees(is_active);
 CREATE INDEX IF NOT EXISTS idx_employees_po_id       ON employees(po_id);
+CREATE INDEX IF NOT EXISTS idx_employees_bank_id     ON employees(bank_id);
 CREATE INDEX IF NOT EXISTS idx_plans_date_warehouse  ON plans(date, warehouse);
+CREATE INDEX IF NOT EXISTS idx_plans_dept_id         ON plans(department_id);
 CREATE INDEX IF NOT EXISTS idx_plan_employees_plan   ON plan_employees(plan_id);
 CREATE INDEX IF NOT EXISTS idx_plan_employees_emp    ON plan_employees(employee_id);
 CREATE INDEX IF NOT EXISTS idx_namelist_date         ON namelist(date);
@@ -719,7 +724,18 @@ CREATE INDEX IF NOT EXISTS idx_departments_warehouse ON departments(warehouse);
 CREATE INDEX IF NOT EXISTS idx_shifts_warehouse      ON shifts(warehouse);
 CREATE INDEX IF NOT EXISTS idx_oa_options_warehouse  ON oa_options(warehouse);
 
--- GIN Trigram Indexes สำหรับเร่งความเร็วการค้นหาข้อความและตัวเลข (ILIKE '%คำค้น%')
+-- 13.2 ดัชนีผสมประสิทธิภาพสูง (High-Performance Composite Indexes)
+-- ป้องกัน Full Table Scan และ BitmapAnd Memory Overhead ในการค้นหาจริง
+CREATE INDEX IF NOT EXISTS idx_employees_wh_active_po ON employees(warehouse, is_active, po_id);
+CREATE INDEX IF NOT EXISTS idx_employees_active_po    ON employees(is_active, po_id);
+CREATE INDEX IF NOT EXISTS idx_namelist_dept_date     ON namelist(department_id, date);
+CREATE INDEX IF NOT EXISTS idx_namelist_date_dept     ON namelist(date, department_id);
+CREATE INDEX IF NOT EXISTS idx_namelist_emp_date      ON namelist(employee_id, date);
+CREATE INDEX IF NOT EXISTS idx_plans_wh_date          ON plans(warehouse, date);
+CREATE INDEX IF NOT EXISTS idx_plan_employees_plan_sent ON plan_employees(plan_id, sent_to_namelist);
+CREATE INDEX IF NOT EXISTS idx_plan_employees_sent    ON plan_employees(sent_to_namelist, employee_id);
+
+-- 13.3 GIN Trigram Indexes สำหรับเร่งความเร็วการค้นหาข้อความและตัวเลข (ILIKE '%คำค้น%')
 CREATE INDEX IF NOT EXISTS idx_employees_first_name_trgm ON employees USING gin (first_name gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_employees_last_name_trgm  ON employees USING gin (last_name gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_employees_id_card_trgm    ON employees USING gin (id_card gin_trgm_ops);

@@ -34,6 +34,15 @@ export function PlanningOverviewClient({
   const [selectedWarehouse, setSelectedWarehouse] = useState<string>(initialWarehouse || 'all')
   const [selectedDate, setSelectedDate] = useState<string>(initialDate || todayLocal())
   const [searchTerm, setSearchTerm] = useState<string>('')
+  const [debouncedSearch, setDebouncedSearch] = useState<string>('')
+
+  // Debounce search input เพื่อลดการยิง API ถี่เกินไปขณะกำลังพิมพ์
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [searchTerm])
 
   // Edit & Delete Modal State
   const [editingPlan, setEditingPlan] = useState<Plan | null>(null)
@@ -111,8 +120,8 @@ export function PlanningOverviewClient({
       if (selectedDate) {
         params.set('date', selectedDate)
       }
-      if (searchTerm.trim()) {
-        params.set('search', searchTerm.trim())
+      if (debouncedSearch.trim()) {
+        params.set('search', debouncedSearch.trim())
       }
 
       const res = await fetch(`/api/plans?${params.toString()}`)
@@ -125,7 +134,7 @@ export function PlanningOverviewClient({
     } finally {
       setLoading(false)
     }
-  }, [selectedWarehouse, selectedDate, searchTerm])
+  }, [selectedWarehouse, selectedDate, debouncedSearch])
 
   useEffect(() => {
     fetchPlans()

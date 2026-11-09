@@ -40,44 +40,37 @@ export async function GET(
 
   const existingIds = (existingResult.data || []).map((e: any) => e.employee_id)
 
-  // 2. Fetch namelist usage counts for this plan's department (Recently used)
+  // 2. Fetch namelist usage counts & plan history for this plan's department concurrently (Recently used)
   const usageMap = new Map<string, number>()
   if (plan.department_id) {
-    for (let page = 0; page < 10; page++) {
-      const from = page * 1000
-      const { data: nlRows, error: nlErr } = await supabase
+    const [nlResult, peResult] = await Promise.all([
+      supabase
         .from('namelist')
         .select('employee_id')
         .eq('department_id', plan.department_id)
-        .range(from, from + 999)
+        .limit(2000),
+      supabase
+        .from('plan_employees')
+        .select('employee_id, plans!inner(department_id)')
+        .eq('plans.department_id', plan.department_id)
+        .eq('sent_to_namelist', true)
+        .limit(2000),
+    ])
 
-      if (nlErr) {
-        console.error('Error fetching namelist usage counts:', nlErr)
-        break
-      }
-      for (const r of nlRows || []) {
+    if (nlResult.error) {
+      console.error('Error fetching namelist usage counts:', nlResult.error)
+    } else {
+      for (const r of nlResult.data || []) {
         if (r.employee_id) {
           usageMap.set(r.employee_id, (usageMap.get(r.employee_id) || 0) + 1)
         }
       }
-      if (!nlRows || nlRows.length < 1000) break
     }
 
-    // รวมพนักงานจาก plan_employees ที่มี sent_to_namelist = true ของแผนกนี้ด้วย
-    const { data: planList } = await supabase
-      .from('plans')
-      .select('id')
-      .eq('department_id', plan.department_id)
-
-    if (planList && planList.length > 0) {
-      const planIds = planList.map((p) => p.id)
-      const { data: peRows } = await supabase
-        .from('plan_employees')
-        .select('employee_id')
-        .in('plan_id', planIds)
-        .eq('sent_to_namelist', true)
-
-      for (const pe of peRows || []) {
+    if (peResult.error) {
+      console.error('Error fetching plan_employees sent_to_namelist:', peResult.error)
+    } else {
+      for (const pe of peResult.data || []) {
         if (pe.employee_id && !usageMap.has(pe.employee_id)) {
           usageMap.set(pe.employee_id, 1)
         }
@@ -85,85 +78,84 @@ export async function GET(
     }
   }
 
-  // 3. Query employees
+  // 3. Query employees in parallel
   // ค่าเริ่มต้นเป็น 'all' เพื่อดึงพนักงานจากทุกคลัง
   const targetWarehouse = warehouseParam || 'all'
 
   // ดึงกลุ่ม Recently used ให้ครบถ้วนเสมอ โดยไม่โดนจำกัดด้วย SQL limit
   const recentIds = Array.from(usageMap.keys()).filter((id) => !existingIds.includes(id))
-  let recentEmployees: any[] = []
 
-  if (recentIds.length > 0) {
-    for (let i = 0; i < recentIds.length; i += 100) {
-      const chunk = recentIds.slice(i, i + 100)
-      let q = supabase
-        .from('employees')
-        .select('id, po_id, prefix, first_name, last_name, phone, warehouse, is_active')
-        .in('id', chunk)
-        .eq('is_active', true)
+  // Helper function to build employee query filters
+  const buildEmployeeQuery = (idFilter?: string[]) => {
+    let q = supabase
+      .from('employees')
+      .select('id, po_id, prefix, first_name, last_name, phone, warehouse, is_active')
+      .eq('is_active', true)
 
-      if (targetWarehouse && targetWarehouse !== 'all') {
-        q = q.eq('warehouse', targetWarehouse)
-      }
+    if (idFilter && idFilter.length > 0) {
+      q = q.in('id', idFilter)
+    }
 
-      if (search) {
-        const words = search
-          .split(/\s+/)
-          .map((w) => w.replace(/[,()]/g, '').trim())
-          .filter(Boolean)
+    if (targetWarehouse && targetWarehouse !== 'all') {
+      q = q.eq('warehouse', targetWarehouse)
+    }
 
-        for (const word of words) {
-          const s = `%${word}%`
-          q = q.or(`first_name.ilike.${s},last_name.ilike.${s},po_id.ilike.${s},phone.ilike.${s}`)
-        }
-      }
+    if (search) {
+      const words = search
+        .split(/\s+/)
+        .map((w) => w.replace(/[,()]/g, '').trim())
+        .filter(Boolean)
 
-      const { data: chunkData, error: chunkErr } = await q
-      if (!chunkErr && chunkData) {
-        recentEmployees.push(...chunkData)
+      for (const word of words) {
+        const s = `%${word}%`
+        q = q.or(`first_name.ilike.${s},last_name.ilike.${s},po_id.ilike.${s},phone.ilike.${s}`)
       }
     }
+
+    return q
   }
 
-  // ดึงกลุ่มพนักงานทั่วไป (ไม่รวมคนที่อยู่ในแพลนแล้ว และไม่รวมคนที่อยู่ในกลุ่ม Recently used)
-  const excludedIds = [...new Set([...existingIds, ...recentEmployees.map((e) => e.id)])]
-
-  let generalQuery = supabase
-    .from('employees')
-    .select('id, po_id, prefix, first_name, last_name, phone, warehouse, is_active')
-    .eq('is_active', true)
-
-  if (targetWarehouse && targetWarehouse !== 'all') {
-    generalQuery = generalQuery.eq('warehouse', targetWarehouse)
+  // หั่น recentIds เป็น chunks ย่อยๆ แล้วยิงคำขอแบบคู่ขนาน (Promise.all)
+  const chunks: string[][] = []
+  for (let i = 0; i < recentIds.length; i += 100) {
+    chunks.push(recentIds.slice(i, i + 100))
   }
+  const recentPromises = chunks.map((chunk) => buildEmployeeQuery(chunk))
 
-  if (excludedIds.length > 0) {
-    const notInList = excludedIds.slice(0, 200).join(',')
+  // ดึงกลุ่มพนักงานทั่วไปพร้อมกันไปเลยในรอบเดียว (Parallel execution)
+  let generalQuery = buildEmployeeQuery()
+
+  const excludeFromSql = [...new Set([...existingIds, ...recentIds])].slice(0, 200)
+  if (excludeFromSql.length > 0) {
+    const notInList = excludeFromSql.join(',')
     generalQuery = generalQuery.not('id', 'in', `(${notInList})`)
-  }
-
-  // Multi-word search
-  if (search) {
-    const words = search
-      .split(/\s+/)
-      .map((w) => w.replace(/[,()]/g, '').trim())
-      .filter(Boolean)
-
-    for (const word of words) {
-      const s = `%${word}%`
-      generalQuery = generalQuery.or(
-        `first_name.ilike.${s},last_name.ilike.${s},po_id.ilike.${s},phone.ilike.${s}`
-      )
-    }
   }
 
   generalQuery = generalQuery.order('po_id', { ascending: true }).limit(500)
 
-  const { data: generalEmployees, error: empErr } = await generalQuery
+  // รันทั้ง recent chunks และ general query พร้อมกันผ่าน Promise.all
+  const [recentChunkResults, generalResult] = await Promise.all([
+    Promise.all(recentPromises),
+    generalQuery,
+  ])
 
-  if (empErr) {
-    console.error('Error fetching general employees:', empErr)
+  const recentEmployees: any[] = []
+  for (const res of recentChunkResults) {
+    if (!res.error && res.data) {
+      recentEmployees.push(...res.data)
+    }
   }
+
+  if (generalResult.error) {
+    console.error('Error fetching general employees:', generalResult.error)
+  }
+
+  // ป้องกันข้อมูลซ้ำซ้อนในฝั่ง JavaScript
+  const recentIdSet = new Set(recentEmployees.map((e) => e.id))
+  const existingIdSet = new Set(existingIds)
+  const generalEmployees = (generalResult.data || []).filter(
+    (emp: any) => !recentIdSet.has(emp.id) && !existingIdSet.has(emp.id)
+  )
 
   // รวมรายการพนักงาน Recently used (ติด badge และจำนวนครั้ง) กับพนักงานทั่วไป
   const combined = [
