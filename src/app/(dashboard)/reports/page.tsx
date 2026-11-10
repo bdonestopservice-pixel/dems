@@ -16,6 +16,7 @@ interface ReportsPageProps {
 export default async function ReportsPage({ searchParams }: ReportsPageProps) {
   const session = await getSession()
   if (!session) redirect('/login')
+  if (session.role === 'admin') redirect('/overview')
 
   const resolvedParams = searchParams ? await searchParams : {}
 

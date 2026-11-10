@@ -9,6 +9,23 @@ export interface ExportNamelistExcelOptions {
 }
 
 /**
+ * กำหนดรหัสประเภทกะ (D / N / H) จาก shift_type หรือเวลาเริ่มกะ
+ */
+export function getShiftTypeCode(
+  type?: string | null,
+  start?: string | null
+): string {
+  if (type === 'D' || type === 'N' || type === 'H') return type
+  if (start) {
+    const h = parseInt(start.split(':')[0], 10)
+    if (!isNaN(h)) {
+      return h >= 6 && h < 18 ? 'D' : 'N'
+    }
+  }
+  return type || 'D'
+}
+
+/**
  * กำหนดชื่อประเภทกะภาษาไทยจาก shift_type หรือเวลาเริ่มกะ
  */
 export function getShiftTypeThaiLabel(

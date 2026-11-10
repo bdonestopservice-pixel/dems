@@ -29,7 +29,7 @@ const mainNav = [
   { href: '/employees', label: 'ข้อมูลพนักงาน', icon: User },
   { href: '/planning', label: 'จัดแพลนพนักงาน', icon: Calendar },
   { href: '/namelist', label: 'Namelist', icon: ClipboardList },
-  { href: '/reports', label: 'รายงาน', icon: Download },
+  { href: '/reports', label: 'รายงาน', icon: Download, roles: ['super_admin', 'payroll'] },
 ]
 
 const adminNav = [
@@ -124,6 +124,9 @@ export function Sidebar({ session, isCollapsed, onToggle }: SidebarProps) {
           )}
           <div className="space-y-1">
             {mainNav.map((item) => {
+              if (item.roles && (!session?.role || !item.roles.includes(session.role))) {
+                return null
+              }
               const Icon = item.icon
               const isActive = pathname.startsWith(item.href)
               return (

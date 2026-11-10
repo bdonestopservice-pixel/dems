@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils'
 import { formatShiftRange } from '@/lib/namelist'
 import {
   exportNamelistToExcel,
-  getShiftTypeThaiLabel,
+  getShiftTypeCode,
 } from '@/lib/export-namelist-excel'
 import type { NamelistEntry } from '@/types'
 
@@ -105,8 +105,8 @@ export function ExportCustomerNamelistModal({
       const key = `${start || ''}_${end || ''}_${type || ''}`
       if (!map.has(key)) {
         const timeStr = formatShiftRange(start, end)
-        const typeLabel = getShiftTypeThaiLabel(type, start)
-        const label = timeStr !== '—' ? `${typeLabel} ${timeStr}` : typeLabel
+        const typeCode = getShiftTypeCode(type, start)
+        const label = timeStr !== '—' ? `${typeCode} ${timeStr}` : typeCode
         map.set(key, { key, label, type, start, end, count: 1 })
       } else {
         const existing = map.get(key)!
