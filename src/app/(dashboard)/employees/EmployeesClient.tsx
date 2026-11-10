@@ -15,13 +15,16 @@ import {
   Square,
   Users,
   Bell,
+  CheckCircle2,
+  AlertCircle,
 } from 'lucide-react'
-import { cn, getInitials, formatThaiDate } from '@/lib/utils'
+import { cn, getInitials, formatThaiDate, todayLocal } from '@/lib/utils'
 import { DateInput } from '@/components/ui/DateInput'
 import { WarehouseSelect } from '@/components/ui/WarehouseSelect'
 import { useRealtimeListener } from '@/components/providers/RealtimeProvider'
 import type { Employee, Warehouse, AuthSession } from '@/types'
-import { exportCustomerRegistryCSV, exportOpsCSV } from '@/lib/export-csv'
+import { exportOpsCSV } from '@/lib/export-csv'
+import { exportCustomerRegistryReport } from '@/lib/export-reports-excel'
 
 interface EmployeesClientProps {
   session: AuthSession
@@ -30,8 +33,16 @@ interface EmployeesClientProps {
 export function EmployeesClient({ session }: EmployeesClientProps) {
   const [employees, setEmployees] = useState<Employee[]>([])
   const [loading, setLoading] = useState(true)
-  const [exporting, setExporting] = useState(false)
+  const [exportingType, setExportingType] = useState<'registry' | 'ops' | null>(null)
   const [warehouses, setWarehouses] = useState<Warehouse[]>([])
+  const [toast, setToast] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const showToast = (t: { type: 'success' | 'error'; text: string }) => {
+    setToast(t)
+    if (toastTimer.current) clearTimeout(toastTimer.current)
+    toastTimer.current = setTimeout(() => setToast(null), 3500)
+  }
 
   // Search & Filters
   const [search, setSearch] = useState('')
@@ -178,27 +189,52 @@ export function EmployeesClient({ session }: EmployeesClientProps) {
       .filter((emp): emp is Employee => Boolean(emp))
   }
 
-  // Export Customer Registry CSV
+  // Export ทะเบียนลูกค้า (Excel 13 คอลัมน์ เหมือนโมดูลรายงาน)
   async function handleExportCustomerRegistry() {
     if (selectedIds.size === 0) return
-    setExporting(true)
+    setExportingType('registry')
     try {
       const employeesToExport = await getSelectedEmployeesData()
-      exportCustomerRegistryCSV(employeesToExport)
+      if (employeesToExport.length === 0) {
+        showToast({ type: 'error', text: 'ไม่พบข้อมูลพนักงานที่เลือก' })
+        return
+      }
+      await exportCustomerRegistryReport(employeesToExport, {
+        date: todayLocal(),
+        warehouse: selectedWarehouse,
+      })
+      showToast({
+        type: 'success',
+        text: `Export ทะเบียนลูกค้า (${employeesToExport.length} คน) เรียบร้อยแล้ว`,
+      })
+    } catch (err: any) {
+      console.error('Export customer registry error:', err)
+      showToast({ type: 'error', text: err?.message || 'Export ทะเบียนลูกค้าล้มเหลว' })
     } finally {
-      setExporting(false)
+      setExportingType(null)
     }
   }
 
   // Export OPS CSV
   async function handleExportOPS() {
     if (selectedIds.size === 0) return
-    setExporting(true)
+    setExportingType('ops')
     try {
       const employeesToExport = await getSelectedEmployeesData()
+      if (employeesToExport.length === 0) {
+        showToast({ type: 'error', text: 'ไม่พบข้อมูลพนักงานที่เลือก' })
+        return
+      }
       exportOpsCSV(employeesToExport)
+      showToast({
+        type: 'success',
+        text: `Export OPS (${employeesToExport.length} คน) เรียบร้อยแล้ว`,
+      })
+    } catch (err: any) {
+      console.error('Export OPS error:', err)
+      showToast({ type: 'error', text: err?.message || 'Export OPS ล้มเหลว' })
     } finally {
-      setExporting(false)
+      setExportingType(null)
     }
   }
 
@@ -252,6 +288,25 @@ export function EmployeesClient({ session }: EmployeesClientProps) {
         </div>
       </div>
 
+      {/* Toast Alert */}
+      {toast && (
+        <div
+          className={cn(
+            'mb-4 p-3.5 rounded-xl border flex items-center gap-2.5 text-xs font-semibold shadow-sm transition-all',
+            toast.type === 'success'
+              ? 'bg-[#E7F6ED] border-[#2E9E5B] text-[#2E9E5B]'
+              : 'bg-[#FCE8E8] border-[#F87171] text-[#E5484D]'
+          )}
+        >
+          {toast.type === 'success' ? (
+            <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+          ) : (
+            <AlertCircle className="w-4 h-4 flex-shrink-0" />
+          )}
+          <span>{toast.text}</span>
+        </div>
+      )}
+
       {/* Main Card Container */}
       <div className="bg-white rounded-2xl border border-[#E1E6EF] shadow-sm flex flex-col flex-1 overflow-hidden">
         {/* Toolbar Row 1: Search and Action Buttons */}
@@ -273,15 +328,15 @@ export function EmployeesClient({ session }: EmployeesClientProps) {
 
           {/* Right actions: Export and Add Buttons */}
           <div className="flex items-center gap-2.5 flex-shrink-0">
-            {/* Export CSV (ทะเบียนลูกค้า) */}
+            {/* Export ทะเบียนลูกค้า (Excel 13 คอลัมน์ เหมือนโมดูลรายงาน) */}
             <button
               type="button"
               onClick={handleExportCustomerRegistry}
-              disabled={selectedIds.size === 0 || exporting}
+              disabled={selectedIds.size === 0 || !!exportingType}
               className={cn(
-                'h-10 inline-flex items-center justify-center gap-2 px-4 text-xs font-semibold rounded-xl border transition-all shadow-2xs whitespace-nowrap',
-                selectedIds.size > 0
-                  ? 'bg-white text-[#16233D] border-[#E1E6EF] hover:bg-[#F4F6FA] active:bg-[#EEF3FC]'
+                'h-10 inline-flex items-center justify-center gap-2 px-4 text-xs font-semibold rounded-xl border transition-all shadow-2xs select-none whitespace-nowrap',
+                selectedIds.size > 0 && !exportingType
+                  ? 'bg-white hover:bg-[#F8FAFC] text-[#16233D] border-[#E1E6EF] hover:border-[#CBD5E1] cursor-pointer'
                   : 'bg-[#FAFBFC] text-[#9AA5B8] border-[#E1E6EF] cursor-not-allowed opacity-60'
               )}
               title={
@@ -290,10 +345,14 @@ export function EmployeesClient({ session }: EmployeesClientProps) {
                   : `Export ทะเบียนลูกค้า (${selectedIds.size} คน)`
               }
             >
-              <Download size={14} className="flex-shrink-0 text-[#5B6B85]" />
-              <span>Export CSV (ทะเบียนลูกค้า)</span>
+              {exportingType === 'registry' ? (
+                <Loader2 className="w-4 h-4 text-[#2E6FE0] animate-spin" />
+              ) : (
+                <Users className="w-4 h-4 text-[#2E6FE0]" />
+              )}
+              <span>Export ทะเบียนลูกค้า</span>
               {selectedIds.size > 0 && (
-                <span className="ml-0.5 px-1.5 py-0.5 rounded-full bg-[#2E6FE0] text-white text-[10px] font-bold">
+                <span className="bg-[#EEF3FC] text-[#2E6FE0] text-[10px] font-bold px-1.5 py-0.5 rounded-full">
                   {selectedIds.size}
                 </span>
               )}
@@ -303,11 +362,11 @@ export function EmployeesClient({ session }: EmployeesClientProps) {
             <button
               type="button"
               onClick={handleExportOPS}
-              disabled={selectedIds.size === 0 || exporting}
+              disabled={selectedIds.size === 0 || !!exportingType}
               className={cn(
                 'h-10 inline-flex items-center justify-center gap-2 px-4 text-xs font-semibold rounded-xl border transition-all shadow-2xs whitespace-nowrap',
-                selectedIds.size > 0
-                  ? 'bg-white text-[#16233D] border-[#E1E6EF] hover:bg-[#F4F6FA] active:bg-[#EEF3FC]'
+                selectedIds.size > 0 && !exportingType
+                  ? 'bg-white hover:bg-[#F8FAFC] text-[#16233D] border-[#E1E6EF] hover:border-[#CBD5E1] cursor-pointer'
                   : 'bg-[#FAFBFC] text-[#9AA5B8] border-[#E1E6EF] cursor-not-allowed opacity-60'
               )}
               title={
@@ -316,10 +375,14 @@ export function EmployeesClient({ session }: EmployeesClientProps) {
                   : `Export OPS (${selectedIds.size} คน)`
               }
             >
-              <Download size={14} className="flex-shrink-0 text-[#5B6B85]" />
+              {exportingType === 'ops' ? (
+                <Loader2 className="w-4 h-4 text-[#5B6B85] animate-spin" />
+              ) : (
+                <Download size={14} className="flex-shrink-0 text-[#5B6B85]" />
+              )}
               <span>Export OPS (CSV)</span>
               {selectedIds.size > 0 && (
-                <span className="ml-0.5 px-1.5 py-0.5 rounded-full bg-[#2E6FE0] text-white text-[10px] font-bold">
+                <span className="bg-[#EEF3FC] text-[#2E6FE0] text-[10px] font-bold px-1.5 py-0.5 rounded-full">
                   {selectedIds.size}
                 </span>
               )}

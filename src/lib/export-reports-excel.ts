@@ -1,5 +1,7 @@
-import type { NamelistEntry } from '@/types'
+import type { Employee, NamelistEntry } from '@/types'
 import { employeeFullName, formatShiftRange, hhmm } from '@/lib/namelist'
+
+export type RegistryExportable = NamelistEntry | Employee
 
 interface ExportReportOptions {
   date: string
@@ -21,7 +23,7 @@ function formatDisplayDate(dateStr?: string | null): string {
 /**
  * รวมที่อยู่ภาษาไทยแบบเต็ม
  */
-export function getEmployeeAddress(entry: NamelistEntry): string {
+export function getEmployeeAddress(entry: RegistryExportable): string {
   if (entry.address_full && entry.address_full.trim()) {
     return entry.address_full.trim()
   }
@@ -111,7 +113,7 @@ export async function exportCustomerNamelistReport(
  * คอลัมน์: วันที่เริ่มงาน | รหัสพนักงาน | ชื่อ | นามสกุล | เพศ | ชื่อเล่น | Name | Surname | รหัสบัตรประชาชน | เบอร์โทร | วันเดือนปีเกิด | ที่อยู่ตามบัตรประชาชน | OPS ID
  */
 export async function exportCustomerRegistryReport(
-  entries: NamelistEntry[],
+  entries: RegistryExportable[],
   options: ExportReportOptions
 ) {
   const XLSX = await import('xlsx')

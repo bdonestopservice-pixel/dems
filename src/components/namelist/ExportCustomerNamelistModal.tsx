@@ -16,6 +16,7 @@ interface ShiftOption {
   type?: string | null
   start?: string | null
   end?: string | null
+  count: number
 }
 
 interface ExportCustomerNamelistModalProps {
@@ -85,10 +86,16 @@ export function ExportCustomerNamelistModal({
     return Array.from(deptSet).sort((a, b) => a.localeCompare(b, 'th'))
   }, [entries])
 
-  // 2. ดึงรายการกะที่มีใน namelist ของวันนั้น
+  // 2. ดึงรายการกะที่มีคนทำงาน (ถ้าเลือกแผนกไว้ จะแสดงเฉพาะกะที่มีคนทำงานของแผนกนั้นเท่านั้น)
   const availableShifts = useMemo(() => {
     const map = new Map<string, ShiftOption>()
     for (const e of entries) {
+      // เมื่อเลือกแผนกแล้ว ให้พิจารณาเฉพาะพนักงานที่อยู่ในแผนกนั้นเท่านั้น
+      if (selectedDept) {
+        const d = e.department_name?.trim() || 'ไม่ระบุแผนก'
+        if (d !== selectedDept) continue
+      }
+
       const start = e.shift_start
       const end = e.shift_end
       const type = e.shift_type
@@ -100,11 +107,24 @@ export function ExportCustomerNamelistModal({
         const timeStr = formatShiftRange(start, end)
         const typeLabel = getShiftTypeThaiLabel(type, start)
         const label = timeStr !== '—' ? `${typeLabel} ${timeStr}` : typeLabel
-        map.set(key, { key, label, type, start, end })
+        map.set(key, { key, label, type, start, end, count: 1 })
+      } else {
+        const existing = map.get(key)!
+        existing.count += 1
       }
     }
     return Array.from(map.values()).sort((a, b) => (a.start || '').localeCompare(b.start || ''))
-  }, [entries])
+  }, [entries, selectedDept])
+
+  // รีเซ็ตกะที่เลือก หากกะนั้นไม่มีคนทำงานในแผนกใหม่ที่เลือก
+  useEffect(() => {
+    if (selectedShiftKey) {
+      const exists = availableShifts.some((s) => s.key === selectedShiftKey)
+      if (!exists) {
+        setSelectedShiftKey(null)
+      }
+    }
+  }, [availableShifts, selectedShiftKey])
 
   // 3. กรองรายการตามแผนกและกะที่เลือก
   const filteredEntries = useMemo(() => {
@@ -228,7 +248,11 @@ export function ExportCustomerNamelistModal({
         </div>
         <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-1">
           {availableShifts.length === 0 ? (
-            <p className="text-xs text-[#9AA5B8] italic">ไม่มีข้อมูลกะในวันนี้</p>
+            <p className="text-xs text-[#9AA5B8] italic py-2">
+              {selectedDept
+                ? `ไม่มีกะที่มีคนทำงานในแผนก "${selectedDept}"`
+                : 'ไม่มีข้อมูลกะที่มีคนทำงานในวันนี้'}
+            </p>
           ) : (
             availableShifts.map((shift) => {
               const isSelected = selectedShiftKey === shift.key
@@ -244,7 +268,19 @@ export function ExportCustomerNamelistModal({
                       : 'bg-white hover:bg-[#F8FAFC] text-[#16233D] border border-[#E1E6EF] hover:border-[#CBD5E1]'
                   )}
                 >
-                  <span>{shift.label}</span>
+                  <div className="flex items-center gap-2">
+                    <span>{shift.label}</span>
+                    <span
+                      className={cn(
+                        'text-[10px] font-bold px-1.5 py-0.5 rounded-full transition-colors',
+                        isSelected
+                          ? 'bg-[#2E6FE0] text-white'
+                          : 'bg-[#F4F6FA] text-[#5B6B85]'
+                      )}
+                    >
+                      {shift.count} คน
+                    </span>
+                  </div>
                   {isSelected && <Check className="w-4 h-4 text-[#2E6FE0] flex-shrink-0" />}
                 </button>
               )
