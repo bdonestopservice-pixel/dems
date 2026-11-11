@@ -1005,6 +1005,11 @@ export const OPS_DESIGNATIONS_MAP: Record<string, string[]> = {
 }
 
 /**
+ * รายการตัวเลือกฮับ (Station) อ้างอิงจากชีทหน่วยงานของ dropdown_lists.xlsx
+ */
+export const OPS_HUBS: string[] = OPS_DEPARTMENTS
+
+/**
  * ดึงรายการแผนก (Designations) ที่ผูกกับหน่วยงาน (Department) ที่เลือก
  */
 export function getDesignationsForDepartment(department?: string | null): string[] {

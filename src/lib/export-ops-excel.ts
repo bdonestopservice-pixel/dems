@@ -147,7 +147,7 @@ export async function exportOpsExcel(employees: Employee[], customFilename?: str
       formatOpsGender(emp.gender),                            // Gender *
       cleanIdCard || null,                                    // National ID
       null,                                                   // Passport ID
-      emp.ops_hub?.trim() || emp.warehouse?.trim() || '',     // Station * (ฮับ)
+      emp.ops_hub?.trim() || '',                              // Station * (ฮับ)
       emp.ops_contract_type?.trim() || '',                    // Contract Type * (ประเภทสัญญา)
       emp.ops_department?.trim() || '',                       // Department * (หน่วยงาน)
       emp.ops_designation?.trim() || '',                      // Designation * (แผนก)

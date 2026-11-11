@@ -11,6 +11,7 @@ import type { Employee, Warehouse, Bank, AuthSession } from '@/types'
 import {
   OPS_CONTRACT_TYPES,
   OPS_DEPARTMENTS,
+  OPS_HUBS,
   getDesignationsForDepartment,
 } from '@/lib/ops-dropdown-data'
 
@@ -267,6 +268,15 @@ export function EmployeeForm({ initialData, mode, session: propSession }: Employ
       setIdCardValid(false)
     }
   }, [formData.id_card, mode])
+
+  // ดึงรายการฮับ (Station) อ้างอิงจากชีทหน่วยงาน (dropdown_lists.xlsx)
+  const hubOptions = useMemo(() => {
+    const list = [...OPS_HUBS]
+    if (formData.ops_hub && !list.includes(formData.ops_hub)) {
+      list.unshift(formData.ops_hub)
+    }
+    return list
+  }, [formData.ops_hub])
 
   // ดึงรายการแผนก (Designation) ตามหน่วยงาน (Department) ที่เลือก
   const availableDesignations = useMemo(() => {
@@ -525,7 +535,7 @@ export function EmployeeForm({ initialData, mode, session: propSession }: Employ
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                {/* ฮับ (Station) */}
+                {/* ฮับ (Station) - อ้างอิงจากชีทหน่วยงาน */}
                 <div>
                   <label className="label text-xs mb-1">ฮับ</label>
                   <select
@@ -534,9 +544,9 @@ export function EmployeeForm({ initialData, mode, session: propSession }: Employ
                     className="input text-xs bg-white h-9"
                   >
                     <option value="">เลือกฮับ</option>
-                    {warehouses.map((w) => (
-                      <option key={w.id} value={w.id}>
-                        {w.name || w.id}
+                    {hubOptions.map((h) => (
+                      <option key={h} value={h}>
+                        {h}
                       </option>
                     ))}
                   </select>
