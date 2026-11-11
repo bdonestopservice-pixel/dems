@@ -67,6 +67,10 @@ export interface Employee {
   id: string
   po_id?: string        // TEXT (เช่น PO100001, PO112840)
   ops_id?: string       // TEXT (เช่น OPS-10234)
+  ops_hub?: string      // ฮับ (Station) เช่น SOCE
+  ops_contract_type?: string // ประเภทสัญญา เช่น Agency Full-time
+  ops_department?: string    // หน่วยงาน เช่น MM (RC)
+  ops_designation?: string   // แผนก (Designation) เช่น RC Supervisor
   id_card: string       // เลขบัตรประชาชน 13 หลัก
   prefix?: string       // นาย, นาง, นางสาว
   first_name: string

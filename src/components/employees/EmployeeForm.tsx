@@ -8,6 +8,11 @@ import { cn, getInitials } from '@/lib/utils'
 import { broadcastRealtime } from '@/lib/realtime'
 import { useRealtimeListener, useRealtimeSession } from '@/components/providers/RealtimeProvider'
 import type { Employee, Warehouse, Bank, AuthSession } from '@/types'
+import {
+  OPS_CONTRACT_TYPES,
+  OPS_DEPARTMENTS,
+  getDesignationsForDepartment,
+} from '@/lib/ops-dropdown-data'
 
 interface EmployeeFormProps {
   initialData?: Employee
@@ -75,6 +80,10 @@ export function EmployeeForm({ initialData, mode, session: propSession }: Employ
   // Form state
   const [formData, setFormData] = useState({
     ops_id: initialData?.ops_id || '',
+    ops_hub: initialData?.ops_hub || '',
+    ops_contract_type: initialData?.ops_contract_type || '',
+    ops_department: initialData?.ops_department || '',
+    ops_designation: initialData?.ops_designation || '',
     id_card: initialData?.id_card || '',
     prefix: initialData?.prefix || 'นาย',
     first_name: initialData?.first_name || '',
@@ -259,6 +268,33 @@ export function EmployeeForm({ initialData, mode, session: propSession }: Employ
     }
   }, [formData.id_card, mode])
 
+  // ดึงรายการแผนก (Designation) ตามหน่วยงาน (Department) ที่เลือก
+  const availableDesignations = useMemo(() => {
+    return getDesignationsForDepartment(formData.ops_department)
+  }, [formData.ops_department])
+
+  const designationOptions = useMemo(() => {
+    const list = [...availableDesignations]
+    if (formData.ops_designation && !list.includes(formData.ops_designation)) {
+      list.unshift(formData.ops_designation)
+    }
+    return list
+  }, [availableDesignations, formData.ops_designation])
+
+  function handleDepartmentChange(newDept: string) {
+    const nextDesignations = getDesignationsForDepartment(newDept)
+    setFormData((prev) => ({
+      ...prev,
+      ops_department: newDept,
+      ops_designation:
+        nextDesignations.includes(prev.ops_designation)
+          ? prev.ops_designation
+          : nextDesignations.length === 1
+          ? nextDesignations[0]
+          : '',
+    }))
+  }
+
   function handleChange(field: string, val: string) {
     setFormData((prev) => ({ ...prev, [field]: val }))
   }
@@ -348,6 +384,10 @@ export function EmployeeForm({ initialData, mode, session: propSession }: Employ
   function handleAddNewAnother() {
     setFormData({
       ops_id: '',
+      ops_hub: '',
+      ops_contract_type: '',
+      ops_department: '',
+      ops_designation: '',
       id_card: '',
       prefix: 'นาย',
       first_name: '',
@@ -446,30 +486,121 @@ export function EmployeeForm({ initialData, mode, session: propSession }: Employ
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* ============================================================ */}
-        {/* CARD 1: OPS ID */}
+        {/* CARD 1: OPS ID และข้อมูลสังกัด */}
         {/* ============================================================ */}
-        <div className="bg-white rounded-2xl border border-[#C6DCFD]/60 p-6 shadow-sm">
-          <div className="flex items-center gap-2 mb-1.5">
+        <div className="bg-white rounded-2xl border border-[#C6DCFD]/70 p-5 sm:p-6 shadow-sm">
+          <div className="flex items-center gap-2 mb-4">
             <span className="font-bold text-sm text-[#16233D]">1</span>
-            <span className="font-bold text-sm text-[#16233D]">OPS ID</span>
-            <span className="text-[11px] px-2 py-0.5 rounded-full bg-[#EEF3FC] text-[#2558B8] font-semibold">
-              เพิ่มภายหลัง
-            </span>
+            <span className="font-bold text-sm text-[#16233D]">OPS ID และข้อมูลสังกัด</span>
           </div>
-          <p className="text-xs text-[#5B6B85] mb-4">
-            ไม่ได้อยู่ในขั้นตอนสมัครพนักงาน — กรอกภายหลังเมื่อพนักงานผ่านกระบวนการ Operations แล้ว
-            (จำเป็นเฉพาะคลังที่มี OPS ID เท่านั้น)
-          </p>
 
-          <div className="max-w-md">
-            <label className="label text-xs">OPS ID</label>
-            <input
-              type="text"
-              value={formData.ops_id}
-              onChange={(e) => handleChange('ops_id', e.target.value)}
-              placeholder="ยังไม่มี OPS ID · เช่น OPS-10234"
-              className="input text-sm"
-            />
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+            {/* กล่องซ้าย: OPS ID */}
+            <div className="lg:col-span-5 bg-[#F8FAFC]/80 border border-[#E1E6EF] rounded-xl p-4 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <label className="text-xs font-bold text-[#16233D]">OPS ID</label>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#EEF3FC] text-[#2558B8] font-semibold">
+                    เพิ่มภายหลัง
+                  </span>
+                </div>
+                <input
+                  type="text"
+                  value={formData.ops_id}
+                  onChange={(e) => handleChange('ops_id', e.target.value)}
+                  placeholder="ยังไม่มี OPS ID · เช่น OPS-10234"
+                  className="input text-xs bg-white h-9"
+                />
+                <p className="text-[11px] text-[#5B6B85] mt-2.5 leading-relaxed">
+                  ไม่อยู่ในขั้นตอนสมัคร กรอกทีหลังเมื่อผ่านกระบวนการ Operations แล้ว จำเป็นเฉพาะสังกัดที่มี OPS ID
+                </p>
+              </div>
+            </div>
+
+            {/* กล่องขวา: ข้อมูลสังกัด */}
+            <div className="lg:col-span-7 bg-[#F8FAFC]/80 border border-[#E1E6EF] rounded-xl p-4">
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <span className="text-xs font-bold text-[#16233D]">ข้อมูลสังกัด</span>
+                <span className="text-[11px] text-[#5B6B85]">เลือกจาก Dropdown ที่ตั้งค่าไว้</span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                {/* ฮับ (Station) */}
+                <div>
+                  <label className="label text-xs mb-1">ฮับ</label>
+                  <select
+                    value={formData.ops_hub}
+                    onChange={(e) => handleChange('ops_hub', e.target.value)}
+                    className="input text-xs bg-white h-9"
+                  >
+                    <option value="">เลือกฮับ</option>
+                    {warehouses.map((w) => (
+                      <option key={w.id} value={w.id}>
+                        {w.name || w.id}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* ประเภทสัญญา (Contract Type) */}
+                <div>
+                  <label className="label text-xs mb-1">ประเภทสัญญา</label>
+                  <select
+                    value={formData.ops_contract_type}
+                    onChange={(e) => handleChange('ops_contract_type', e.target.value)}
+                    className="input text-xs bg-white h-9"
+                  >
+                    <option value="">เลือกประเภทสัญญา</option>
+                    {OPS_CONTRACT_TYPES.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* หน่วยงาน (Department) */}
+                <div>
+                  <label className="label text-xs mb-1">หน่วยงาน</label>
+                  <select
+                    value={formData.ops_department}
+                    onChange={(e) => handleDepartmentChange(e.target.value)}
+                    className="input text-xs bg-white h-9"
+                  >
+                    <option value="">เลือกหน่วยงาน</option>
+                    {OPS_DEPARTMENTS.map((d) => (
+                      <option key={d} value={d}>
+                        {d}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* แผนก (Designation) */}
+                <div>
+                  <label className="label text-xs mb-1">แผนก</label>
+                  <select
+                    value={formData.ops_designation}
+                    onChange={(e) => handleChange('ops_designation', e.target.value)}
+                    disabled={!formData.ops_department || designationOptions.length === 0}
+                    className={cn(
+                      'input text-xs bg-white h-9',
+                      (!formData.ops_department || designationOptions.length === 0) &&
+                        'bg-[#F4F6FA] text-[#8C9BAE] cursor-not-allowed'
+                    )}
+                  >
+                    <option value="">
+                      {formData.ops_department ? 'เลือกแผนก' : 'เลือกหน่วยงานก่อน'}
+                    </option>
+                    {designationOptions.map((desig) => (
+                      <option key={desig} value={desig}>
+                        {desig}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 

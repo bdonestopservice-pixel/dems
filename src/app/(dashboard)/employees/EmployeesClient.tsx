@@ -23,7 +23,7 @@ import { DateInput } from '@/components/ui/DateInput'
 import { WarehouseSelect } from '@/components/ui/WarehouseSelect'
 import { useRealtimeListener } from '@/components/providers/RealtimeProvider'
 import type { Employee, Warehouse, AuthSession } from '@/types'
-import { exportOpsCSV } from '@/lib/export-csv'
+import { exportOpsExcel } from '@/lib/export-ops-excel'
 import { exportCustomerRegistryReport } from '@/lib/export-reports-excel'
 
 interface EmployeesClientProps {
@@ -215,7 +215,7 @@ export function EmployeesClient({ session }: EmployeesClientProps) {
     }
   }
 
-  // Export OPS CSV
+  // Export OPS ID (Excel)
   async function handleExportOPS() {
     if (selectedIds.size === 0) return
     setExportingType('ops')
@@ -225,14 +225,14 @@ export function EmployeesClient({ session }: EmployeesClientProps) {
         showToast({ type: 'error', text: 'ไม่พบข้อมูลพนักงานที่เลือก' })
         return
       }
-      exportOpsCSV(employeesToExport)
+      await exportOpsExcel(employeesToExport)
       showToast({
         type: 'success',
-        text: `Export OPS (${employeesToExport.length} คน) เรียบร้อยแล้ว`,
+        text: `Export OPS ID (${employeesToExport.length} คน) เรียบร้อยแล้ว`,
       })
     } catch (err: any) {
-      console.error('Export OPS error:', err)
-      showToast({ type: 'error', text: err?.message || 'Export OPS ล้มเหลว' })
+      console.error('Export OPS ID error:', err)
+      showToast({ type: 'error', text: err?.message || 'Export OPS ID ล้มเหลว' })
     } finally {
       setExportingType(null)
     }
@@ -372,7 +372,7 @@ export function EmployeesClient({ session }: EmployeesClientProps) {
               title={
                 selectedIds.size === 0
                   ? 'เลือกพนักงานอย่างน้อย 1 คนเพื่อ Export'
-                  : `Export OPS (${selectedIds.size} คน)`
+                  : `Export OPS ID (${selectedIds.size} คน)`
               }
             >
               {exportingType === 'ops' ? (
@@ -380,7 +380,7 @@ export function EmployeesClient({ session }: EmployeesClientProps) {
               ) : (
                 <Download size={14} className="flex-shrink-0 text-[#5B6B85]" />
               )}
-              <span>Export OPS (CSV)</span>
+              <span>Export OPS ID</span>
               {selectedIds.size > 0 && (
                 <span className="bg-[#EEF3FC] text-[#2E6FE0] text-[10px] font-bold px-1.5 py-0.5 rounded-full">
                   {selectedIds.size}

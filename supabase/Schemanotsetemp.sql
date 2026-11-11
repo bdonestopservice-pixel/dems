@@ -604,6 +604,11 @@ CREATE TABLE IF NOT EXISTS employees (
   id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   po_id            TEXT UNIQUE DEFAULT ('PO' || nextval('employees_po_id_seq')),
   ops_id           TEXT,                   -- รหัส OPS
+  -- ข้อมูลสังกัดสำหรับ Export OPS ID
+  ops_hub          TEXT,                   -- ฮับ (Station)
+  ops_contract_type TEXT,                  -- ประเภทสัญญา (Contract Type)
+  ops_department   TEXT,                   -- หน่วยงาน (Department)
+  ops_designation  TEXT,                   -- แผนก (Designation)
   -- ข้อมูลส่วนตัว
   id_card          TEXT UNIQUE NOT NULL,   -- เลขบัตรประชาชน 13 หลัก
   prefix           TEXT,
