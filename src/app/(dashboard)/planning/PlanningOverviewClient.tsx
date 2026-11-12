@@ -20,6 +20,32 @@ interface PlanningOverviewClientProps {
   initialWarehouse?: string
 }
 
+function getShiftSortKey(shiftStart?: string | null): string {
+  if (!shiftStart) return '99:99'
+  const parts = shiftStart.trim().split(':')
+  if (parts.length >= 2) {
+    return `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`
+  }
+  return shiftStart
+}
+
+function sortPlansByNearestTime(list: Plan[]): Plan[] {
+  return [...list].sort((a, b) => {
+    // 1. ถ้าดูหลายวัน เรียงตามวันที่ล่าสุดก่อน (DESC)
+    if (a.date !== b.date) {
+      return (b.date || '').localeCompare(a.date || '')
+    }
+    // 2. ในวันเดียวกัน เรียงตามเวลาเริ่มกะ (shift_start) จากเวลาที่ใกล้ถึงที่สุด (ASC: 06:00 -> 23:00)
+    const timeA = getShiftSortKey(a.shift_start)
+    const timeB = getShiftSortKey(b.shift_start)
+    if (timeA !== timeB) {
+      return timeA.localeCompare(timeB)
+    }
+    // 3. หากเวลาเริ่มเท่ากัน เรียงตามชื่อแผนก
+    return (a.department_name || '').localeCompare(b.department_name || '')
+  })
+}
+
 export function PlanningOverviewClient({
   session: initialSession,
   initialDate,
@@ -53,7 +79,9 @@ export function PlanningOverviewClient({
 
   const handlePlanUpdated = (updatedPlan: any) => {
     setPlans((prev) =>
-      prev.map((item) => (item.id === updatedPlan.id ? { ...item, ...updatedPlan } : item))
+      sortPlansByNearestTime(
+        prev.map((item) => (item.id === updatedPlan.id ? { ...item, ...updatedPlan } : item))
+      )
     )
     setFeedbackMsg({ type: 'success', text: 'แก้ไขข้อมูลแพลนเรียบร้อยแล้ว' })
     setTimeout(() => setFeedbackMsg(null), 3000)
@@ -119,7 +147,7 @@ export function PlanningOverviewClient({
       const res = await fetch(`/api/plans?${params.toString()}`)
       if (!res.ok) throw new Error('Failed to fetch plans')
       const data = await res.json()
-      setPlans(data.plans || [])
+      setPlans(sortPlansByNearestTime(data.plans || []))
       setStats(data.stats || { total_plans: 0, completed_plans: 0, total_missing: 0 })
     } catch (err) {
       console.error(err)
@@ -282,11 +310,19 @@ export function PlanningOverviewClient({
               const missing = Math.max(0, required - current)
               const percent = required > 0 ? Math.min(100, Math.round((current / required) * 100)) : 0
 
-              // Color configuration
-              let progressColor = 'bg-[#2E6FE0]' // partial: blue
-              if (isFull) progressColor = 'bg-[#2E9E5B]' // full: green
-              else if (isZero) progressColor = 'bg-[#E5484D]' // 0: red
-              else if (percent <= 35) progressColor = 'bg-[#E5484D]' // low: red
+              // Color configuration:
+              // - ครบแล้ว (100%): สีเขียว
+              // - เลยครึ่งมาแล้ว (>= 50%): สีเหลือง แทนสีน้ำเงิน
+              // - ยังไม่มีคนเลย (0%): สีแดง
+              // - ต่ำกว่าครึ่ง (< 50%): สีน้ำเงิน
+              let progressColor = 'bg-[#2E6FE0]' // partial (< 50%): blue
+              if (isFull) {
+                progressColor = 'bg-[#2E9E5B]' // full: green
+              } else if (isZero) {
+                progressColor = 'bg-[#E5484D]' // 0%: red
+              } else if (percent >= 50) {
+                progressColor = 'bg-[#EAB308]' // เลยครึ่งมาแล้ว: yellow แทนสีน้ำเงิน
+              }
 
               return (
                 <div
@@ -400,7 +436,7 @@ export function PlanningOverviewClient({
                               : 'border-[#2E6FE0] bg-white text-[#2E6FE0] hover:bg-[#EEF3FC]'
                           }`}
                         >
-                          {isZero ? '+ เพิ่มด่วน' : '+ เพิ่มพนักงาน'}
+                          + เพิ่มพนักงาน
                         </Link>
                       </div>
                     )}

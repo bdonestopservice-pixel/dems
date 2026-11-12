@@ -322,7 +322,13 @@ export function AddEmployeesToPlanClient({ session, planId }: AddEmployeesToPlan
             <div className="flex items-center gap-4 flex-1 max-w-md md:justify-end">
               <div className="w-48 bg-[#E1E6EF] h-2 rounded-full overflow-hidden">
                 <div
-                  className="bg-[#2E6FE0] h-full transition-all duration-300 rounded-full"
+                  className={`h-full transition-all duration-300 rounded-full ${
+                    remainingMissing === 0
+                      ? 'bg-[#2E9E5B]'
+                      : progressPercent >= 50
+                      ? 'bg-[#EAB308]'
+                      : 'bg-[#2E6FE0]'
+                  }`}
                   style={{ width: `${progressPercent}%` }}
                 />
               </div>

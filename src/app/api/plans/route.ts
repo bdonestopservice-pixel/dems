@@ -129,6 +129,31 @@ export async function GET(request: NextRequest) {
     )
   }
 
+  // จัดเรียงแผนงานตามเวลาที่ใกล้ถึงในวันนั้น (shift_start เช้า -> ดึก)
+  const getShiftSortKey = (shiftStart?: string | null): string => {
+    if (!shiftStart) return '99:99'
+    const parts = shiftStart.trim().split(':')
+    if (parts.length >= 2) {
+      return `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`
+    }
+    return shiftStart
+  }
+
+  plans.sort((a, b) => {
+    // 1. ถ้าดูหลายวัน เรียงตามวันที่ล่าสุดก่อน (DESC)
+    if (a.date !== b.date) {
+      return (b.date || '').localeCompare(a.date || '')
+    }
+    // 2. ในวันเดียวกัน เรียงตามเวลาเริ่มกะ (shift_start) จากเวลาที่ใกล้ถึงที่สุด (ASC: 06:00 -> 23:00)
+    const timeA = getShiftSortKey(a.shift_start)
+    const timeB = getShiftSortKey(b.shift_start)
+    if (timeA !== timeB) {
+      return timeA.localeCompare(timeB)
+    }
+    // 3. หากเวลาเริ่มเท่ากัน เรียงตามชื่อแผนก
+    return (a.department_name || '').localeCompare(b.department_name || '')
+  })
+
   // Calculate statistics
   const total_plans = plans.length
   const completed_plans = plans.filter((p) => (p.current_count || 0) >= p.required_count).length

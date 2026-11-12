@@ -332,7 +332,7 @@ export function PlanRosterClient({ session, planId }: PlanRosterClientProps) {
               <div className="w-48 bg-[#E1E6EF] h-2 rounded-full overflow-hidden">
                 <div
                   className={`h-full transition-all duration-300 rounded-full ${
-                    isFull ? 'bg-[#2E9E5B]' : 'bg-[#2E6FE0]'
+                    isFull ? 'bg-[#2E9E5B]' : percent >= 50 ? 'bg-[#EAB308]' : 'bg-[#2E6FE0]'
                   }`}
                   style={{ width: `${percent}%` }}
                 />
