@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import Link from 'next/link'
-import { Plus, Search, Pencil, Users, Calendar, AlertCircle, CheckCircle2, Trash2, Loader2 } from 'lucide-react'
+import { Plus, Search, Pencil, Users, Calendar, AlertCircle, CheckCircle2, Trash2, Loader2, RotateCcw, X } from 'lucide-react'
 import { Topbar } from '@/components/layout/Topbar'
 import { formatThaiDate, todayLocal } from '@/lib/utils'
 import { EditPlanModal } from '@/components/planning/EditPlanModal'
@@ -258,65 +258,84 @@ export function PlanningOverviewClient({
         {/* Filter & Action Bar */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
           {/* Left filters */}
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-1 flex-wrap items-center gap-2.5 min-w-0">
             {/* Date filter */}
-            <DateInput
-              value={selectedDate}
-              onChange={(val) => setSelectedDate(val)}
-              clearable={true}
-              placeholder="วว/ดด/ปปปป"
-              title="กรองตามวันที่ (วัน/เดือน/ปี)"
-            />
+            <div className="flex-shrink-0">
+              <DateInput
+                value={selectedDate}
+                onChange={(val) => setSelectedDate(val)}
+                clearable={true}
+                placeholder="วว/ดด/ปปปป"
+                title="กรองตามวันที่ (วัน/เดือน/ปี)"
+              />
+            </div>
 
             {/* Warehouse filter */}
-            <WarehouseSelect
-              value={selectedWarehouse}
-              onChange={(val) => {
-                setSelectedWarehouse(val)
-                setSelectedShift('all')
-              }}
-              warehouses={warehouses}
-              allLabel="ทุกคลัง"
-            />
+            <div className="flex-shrink-0">
+              <WarehouseSelect
+                value={selectedWarehouse}
+                onChange={(val) => {
+                  setSelectedWarehouse(val)
+                  setSelectedShift('all')
+                }}
+                warehouses={warehouses}
+                allLabel="ทุกคลัง"
+              />
+            </div>
 
             {/* Shift filter */}
-            <ShiftSelect
-              value={selectedShift}
-              onChange={(val) => setSelectedShift(val)}
-              options={shiftOptions}
-              allLabel="ทุกกะ"
-            />
+            <div className="flex-shrink-0">
+              <ShiftSelect
+                value={selectedShift}
+                onChange={(val) => setSelectedShift(val)}
+                options={shiftOptions}
+                allLabel="ทุกกะ"
+              />
+            </div>
 
             {/* Department search */}
-            <div className="relative min-w-[180px] sm:min-w-[200px]">
-              <Search className="w-4 h-4 text-[#9AA5B8] absolute left-3 top-1/2 -translate-y-1/2" />
+            <div className="relative flex-1 min-w-[200px] max-w-md">
+              <Search className="w-4 h-4 text-[#9AA5B8] absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
-                placeholder="ค้นหาแผนก"
+                placeholder="ค้นหาแผนก..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full bg-white border border-[#E1E6EF] text-[#16233D] placeholder-[#9AA5B8] text-xs rounded-xl pl-9 pr-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#2E6FE0] shadow-sm"
+                className="w-full bg-white border border-[#E1E6EF] text-[#16233D] placeholder-[#9AA5B8] text-xs rounded-xl pl-9 pr-8 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#2E6FE0] shadow-2xs transition-all"
               />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#9AA5B8] hover:text-[#5B6B85] p-0.5 rounded-full hover:bg-gray-100 transition-colors cursor-pointer"
+                  title="ล้างข้อความค้นหา"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
 
             {/* Clear filters button if active */}
             {(selectedDate || selectedWarehouse !== 'all' || selectedShift !== 'all' || searchTerm) && (
               <button
+                type="button"
                 onClick={() => {
                   setSelectedDate('')
                   setSelectedWarehouse('all')
                   setSelectedShift('all')
                   setSearchTerm('')
                 }}
-                className="text-xs text-[#5B6B85] hover:text-[#E5484D] underline font-medium px-2 py-1"
+                className="inline-flex items-center gap-1.5 text-xs text-[#5B6B85] hover:text-[#E5484D] bg-white hover:bg-[#FCE8E8] border border-[#E1E6EF] hover:border-[#F87171]/40 font-medium px-3 py-2.5 rounded-xl shadow-2xs transition-all whitespace-nowrap cursor-pointer select-none flex-shrink-0"
+                title="ล้างค่าตัวกรองทั้งหมด"
               >
-                ล้างตัวกรอง
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>ล้างตัวกรอง</span>
               </button>
             )}
           </div>
 
           {/* Right Summary Stats & Create Button */}
-          <div className="flex items-center gap-4 self-end lg:self-auto">
+          <div className="flex items-center gap-4 self-end lg:self-auto flex-shrink-0">
             <div className="text-xs text-[#5B6B85] font-medium hidden sm:block">
               ทั้งหมด <span className="font-bold text-[#16233D]">{stats.total_plans}</span> แพลน · ครบแล้ว{' '}
               <span className="font-bold text-[#2E9E5B]">{stats.completed_plans}</span> · ยังขาดรวม{' '}
