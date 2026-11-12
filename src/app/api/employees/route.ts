@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { verifySession } from '@/lib/auth/session'
+import { validateThaiCitizenId, parseDobInput } from '@/lib/utils'
 
 // GET /api/employees
 // Query params:
@@ -229,6 +230,22 @@ export async function POST(request: NextRequest) {
     if (cleanIdCard.length !== 13) {
       return NextResponse.json(
         { error: 'เลขบัตรประชาชนต้องเป็นตัวเลข 13 หลัก' },
+        { status: 400 }
+      )
+    }
+
+    if (!validateThaiCitizenId(cleanIdCard)) {
+      return NextResponse.json(
+        { error: 'เลขบัตรประชาชนไม่ถูกต้องตามหลักการคำนวณ 13 หลักของกรมการปกครอง (Checksum ไม่ผ่าน)' },
+        { status: 400 }
+      )
+    }
+
+    // ตรวจสอบอายุต่ำกว่า 18 ปี
+    const dobCheck = parseDobInput(dob)
+    if (dobCheck.isUnder18) {
+      return NextResponse.json(
+        { error: `อายุพนักงานต้องไม่ต่ำกว่า 18 ปีบริบูรณ์ (ปัจจุบันอายุ ${dobCheck.age} ปี)` },
         { status: 400 }
       )
     }

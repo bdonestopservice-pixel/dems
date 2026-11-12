@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { verifySession } from '@/lib/auth/session'
+import { parseDobInput } from '@/lib/utils'
 
 // GET /api/employees/[id]
 export async function GET(
@@ -102,6 +103,15 @@ export async function PUT(
           { status: 400 }
         )
       }
+    }
+
+    // ตรวจสอบอายุต่ำกว่า 18 ปี
+    const dobCheck = parseDobInput(body.dob)
+    if (dobCheck.isUnder18) {
+      return NextResponse.json(
+        { error: `อายุพนักงานต้องไม่ต่ำกว่า 18 ปีบริบูรณ์ (ปัจจุบันอายุ ${dobCheck.age} ปี)` },
+        { status: 400 }
+      )
     }
 
     const supabase = createServerSupabaseClient()

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { verifySession } from '@/lib/auth/session'
+import { validateThaiCitizenId } from '@/lib/utils'
 
 // GET /api/employees/check-id-card?id_card=1103700123456
 // Checks whether an ID card already exists in the system in real time
@@ -15,7 +16,18 @@ export async function GET(request: NextRequest) {
   if (cleanIdCard.length !== 13) {
     return NextResponse.json({
       exists: false,
+      valid: false,
       message: 'เลขบัตรประชาชนต้องมี 13 หลัก',
+    })
+  }
+
+  // ตรวจสอบความถูกต้องตามหลัก Checksum ประเทศไทย
+  if (!validateThaiCitizenId(cleanIdCard)) {
+    return NextResponse.json({
+      exists: false,
+      valid: false,
+      invalidChecksum: true,
+      message: 'เลขบัตรประชาชนไม่ถูกต้องตามหลักการคำนวณ 13 หลักของกรมการปกครอง (Checksum ไม่ผ่าน)',
     })
   }
 

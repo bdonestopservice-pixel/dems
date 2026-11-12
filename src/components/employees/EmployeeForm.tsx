@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronLeft, Loader2, Save, X, AlertCircle, Check, Calendar } from 'lucide-react'
-import { cn, getInitials } from '@/lib/utils'
+import { cn, getInitials, validateThaiCitizenId, parseDobInput } from '@/lib/utils'
 import { broadcastRealtime } from '@/lib/realtime'
 import { useRealtimeListener, useRealtimeSession } from '@/components/providers/RealtimeProvider'
 import { useWarehouses } from '@/components/providers/WarehouseProvider'
@@ -217,18 +217,31 @@ export function EmployeeForm({ initialData, mode, session: propSession }: Employ
     }
   }, [formData.warehouse, banks, mode])
 
-  // Real-time ID card duplicate check state
+  // Real-time ID card validation & duplicate check state
   const [idCardChecking, setIdCardChecking] = useState(false)
   const [idCardDuplicate, setIdCardDuplicate] = useState(false)
   const [idCardDuplicateMsg, setIdCardDuplicateMsg] = useState('')
+  const [idCardFormatError, setIdCardFormatError] = useState('')
   const [idCardValid, setIdCardValid] = useState(false)
 
-  // ตรวจสอบเลขบัตรประชาชนซ้ำทันทีเมื่อกรอกครบ 13 หลัก
+  // ตรวจสอบความถูกต้องและซ้ำซ้อนของเลขบัตรประชาชนทันทีเมื่อกรอกครบ 13 หลัก
   useEffect(() => {
     if (mode !== 'create') return
 
     const clean = formData.id_card.replace(/[^0-9]/g, '')
     if (clean.length === 13) {
+      // 1. ตรวจสอบ Checksum ตามมาตรฐานกรมการปกครอง (ประเทศไทย)
+      if (!validateThaiCitizenId(clean)) {
+        setIdCardFormatError('เลขบัตรประชาชนไม่ถูกต้องตามหลักการคำนวณ 13 หลักของกรมการปกครอง (Checksum ไม่ผ่าน)')
+        setIdCardDuplicate(false)
+        setIdCardDuplicateMsg('')
+        setIdCardValid(false)
+        setIdCardChecking(false)
+        return
+      }
+
+      // Checksum ถูกต้อง -> เคลียร์ Format Error แล้วตรวจเช็คความซ้ำซ้อนในฐานข้อมูล
+      setIdCardFormatError('')
       let isMounted = true
       setIdCardChecking(true)
 
@@ -237,7 +250,11 @@ export function EmployeeForm({ initialData, mode, session: propSession }: Employ
         .then((data) => {
           if (!isMounted) return
           setIdCardChecking(false)
-          if (data.exists) {
+          if (!data.valid && data.invalidChecksum) {
+            setIdCardFormatError(data.message || 'เลขบัตรประชาชนไม่ถูกต้องตามหลักการคำนวณของกรมการปกครอง')
+            setIdCardDuplicate(false)
+            setIdCardValid(false)
+          } else if (data.exists) {
             setIdCardDuplicate(true)
             setIdCardDuplicateMsg(
               `เลขบัตรประชาชนนี้มีอยู่ในระบบแล้ว (${data.employee?.name || ''} · รหัส ${data.employee?.po_id || '-'})`
@@ -261,8 +278,12 @@ export function EmployeeForm({ initialData, mode, session: propSession }: Employ
       setIdCardDuplicate(false)
       setIdCardDuplicateMsg('')
       setIdCardValid(false)
+      setIdCardFormatError('')
     }
   }, [formData.id_card, mode])
+
+  // คำนวณอายุและตรวจสอบเกณฑ์อายุต่ำกว่า 18 ปี แบบ Real-time
+  const dobInfo = useMemo(() => parseDobInput(formData.dob), [formData.dob])
 
   // ดึงรายการฮับ (Station) อ้างอิงจากชีทหน่วยงาน (dropdown_lists.xlsx)
   const hubOptions = useMemo(() => {
@@ -330,10 +351,34 @@ export function EmployeeForm({ initialData, mode, session: propSession }: Employ
     setSaving(true)
 
     try {
-      // Validate id_card (13 digits)
+      // Validate id_card (13 digits + Checksum + Duplicate)
       const cleanIdCard = formData.id_card.replace(/[^0-9]/g, '')
-      if (mode === 'create' && cleanIdCard.length !== 13) {
-        setError('เลขบัตรประชาชนต้องเป็นตัวเลข 13 หลัก')
+      if (mode === 'create') {
+        if (cleanIdCard.length !== 13) {
+          setError('เลขบัตรประชาชนต้องเป็นตัวเลข 13 หลัก')
+          setSaving(false)
+          return
+        }
+        if (!validateThaiCitizenId(cleanIdCard)) {
+          setError('เลขบัตรประชาชนไม่ถูกต้องตามหลักการคำนวณ 13 หลักของกรมการปกครอง (Checksum ไม่ผ่าน)')
+          setSaving(false)
+          return
+        }
+        if (idCardDuplicate) {
+          setError(idCardDuplicateMsg || 'เลขบัตรประชาชนนี้มีอยู่ในระบบแล้ว')
+          setSaving(false)
+          return
+        }
+      }
+
+      // Validate age (ต้องมีอายุไม่ต่ำกว่า 18 ปีบริบูรณ์)
+      if (dobInfo.isUnder18) {
+        setError(`พนักงานต้องมีอายุไม่ต่ำกว่า 18 ปีบริบูรณ์ (ปัจจุบันอายุ ${dobInfo.age} ปี) ไม่สามารถบันทึกได้`)
+        setSaving(false)
+        return
+      }
+      if (dobInfo.error) {
+        setError(dobInfo.error)
         setSaving(false)
         return
       }
@@ -623,9 +668,9 @@ export function EmployeeForm({ initialData, mode, session: propSession }: Employ
                   className={cn(
                     'input text-sm transition-all',
                     mode === 'edit' && 'bg-[#F4F6FA] cursor-not-allowed text-[#5B6B85]',
-                    idCardDuplicate &&
+                    (idCardDuplicate || idCardFormatError) &&
                       'border-[#E5484D] ring-2 ring-[#E5484D]/20 focus:border-[#E5484D] focus:ring-[#E5484D]/30 bg-[#FCE8E8]/10 text-[#E5484D]',
-                    idCardValid && !idCardChecking && 'border-[#2E9E5B] focus:border-[#2E9E5B] focus:ring-[#2E9E5B]/20 pr-8'
+                    idCardValid && !idCardChecking && !idCardFormatError && 'border-[#2E9E5B] focus:border-[#2E9E5B] focus:ring-[#2E9E5B]/20 pr-8'
                   )}
                   required
                 />
@@ -634,12 +679,20 @@ export function EmployeeForm({ initialData, mode, session: propSession }: Employ
                     <Loader2 size={15} className="animate-spin text-[#2E6FE0]" />
                   </div>
                 )}
-                {idCardValid && !idCardChecking && (
+                {idCardValid && !idCardChecking && !idCardFormatError && (
                   <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[#2E9E5B]">
                     <Check size={16} />
                   </div>
                 )}
               </div>
+
+              {/* Format Error Message (กรอบแดง + ข้อความแจ้งเตือน Checksum) */}
+              {idCardFormatError && (
+                <div className="text-[11px] text-[#E5484D] font-medium mt-1.5 flex items-center gap-1.5 animate-in fade-in">
+                  <AlertCircle size={13} className="flex-shrink-0" />
+                  <span>{idCardFormatError}</span>
+                </div>
+              )}
 
               {/* Duplicate Error Message (กรอบแดง + ข้อความแจ้งเตือน) */}
               {idCardDuplicate && (
@@ -658,10 +711,10 @@ export function EmployeeForm({ initialData, mode, session: propSession }: Employ
               )}
 
               {/* Valid success message */}
-              {idCardValid && !idCardChecking && (
+              {idCardValid && !idCardChecking && !idCardFormatError && (
                 <div className="text-[11px] text-[#2E9E5B] font-medium mt-1.5 flex items-center gap-1.5 animate-in fade-in">
                   <Check size={13} className="flex-shrink-0" />
-                  <span>เลขบัตรประชาชนนี้สามารถใช้งานได้</span>
+                  <span>เลขบัตรประชาชนนี้ถูกต้องและสามารถใช้งานได้</span>
                 </div>
               )}
 
@@ -753,17 +806,50 @@ export function EmployeeForm({ initialData, mode, session: propSession }: Employ
               />
             </div>
 
-            {/* วันเดือนปีเกิด (พ.ศ.) */}
+            {/* วันเดือนปีเกิด (พ.ศ.) พร้อมคำนวณอายุและตรวจจับอายุต่ำกว่า 18 ปี */}
             <div>
-              <label className="label text-xs label-required">วันเดือนปีเกิด</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="label text-xs label-required mb-0">วันเดือนปีเกิด (พ.ศ.)</label>
+                {dobInfo.age !== null && (
+                  <span
+                    className={cn(
+                      'text-[11px] font-bold px-2 py-0.5 rounded-md inline-flex items-center gap-1 transition-all',
+                      dobInfo.isUnder18
+                        ? 'bg-[#FCE8E8] text-[#E5484D] border border-[#F87171]/30'
+                        : 'bg-[#EBF7EE] text-[#2E9E5B] border border-[#2E9E5B]/20'
+                    )}
+                  >
+                    อายุ {dobInfo.age} ปี {dobInfo.isUnder18 && '(ต่ำกว่า 18 ปี)'}
+                  </span>
+                )}
+              </div>
               <input
                 type="text"
                 value={formData.dob}
                 onChange={(e) => handleChange('dob', e.target.value)}
                 placeholder="วว/ดด/ปปปป (พ.ศ.) เช่น 20/11/2540"
-                className="input text-sm"
+                className={cn(
+                  'input text-sm transition-all',
+                  (dobInfo.isUnder18 || dobInfo.error) &&
+                    'border-[#E5484D] ring-2 ring-[#E5484D]/20 focus:border-[#E5484D] focus:ring-[#E5484D]/30 bg-[#FCE8E8]/10 text-[#E5484D]',
+                  dobInfo.age !== null && !dobInfo.isUnder18 && !dobInfo.error && 'border-[#2E9E5B]/50'
+                )}
                 required
               />
+              {/* ข้อความแจ้งเตือนเมื่ออายุต่ำกว่า 18 ปี */}
+              {dobInfo.isUnder18 && (
+                <div className="text-[11px] text-[#E5484D] font-medium mt-1.5 flex items-center gap-1.5 animate-in fade-in">
+                  <AlertCircle size={13} className="flex-shrink-0" />
+                  <span>อายุต่ำกว่า 18 ปีบริบูรณ์ (อายุ {dobInfo.age} ปี) ไม่ผ่านเกณฑ์อายุการทำงาน</span>
+                </div>
+              )}
+              {/* ข้อความแจ้งเตือนเมื่อรูปแบบวันที่ผิด */}
+              {dobInfo.error && !dobInfo.isUnder18 && (
+                <div className="text-[11px] text-[#E5484D] font-medium mt-1.5 flex items-center gap-1.5 animate-in fade-in">
+                  <AlertCircle size={13} className="flex-shrink-0" />
+                  <span>{dobInfo.error}</span>
+                </div>
+              )}
             </div>
           </div>
         </div>
