@@ -5,6 +5,7 @@ import { X, RefreshCw, Eye, EyeOff, Loader2, AlertTriangle, Copy, Check } from '
 import { generatePassword } from '@/lib/utils'
 import { broadcastRealtime } from '@/lib/realtime'
 import type { Warehouse, SystemUser } from '@/types'
+import { useWarehouses } from '@/components/providers/WarehouseProvider'
 
 interface EditUserModalProps {
   user: SystemUser
@@ -14,7 +15,7 @@ interface EditUserModalProps {
 }
 
 export function EditUserModal({ user, onClose, onSuccess, onDelete }: EditUserModalProps) {
-  const [warehouses, setWarehouses] = useState<Warehouse[]>([])
+  const { warehouses } = useWarehouses()
   const [form, setForm] = useState({
     name: user.name,
     email: user.email,
@@ -27,12 +28,6 @@ export function EditUserModal({ user, onClose, onSuccess, onDelete }: EditUserMo
   const [copiedCurrent, setCopiedCurrent] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-
-  useEffect(() => {
-    fetch('/api/warehouses')
-      .then((r) => r.json())
-      .then((d) => setWarehouses(d.warehouses || []))
-  }, [])
 
   function toggleWarehouse(id: string) {
     setForm((prev) => ({

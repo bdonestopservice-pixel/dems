@@ -9,6 +9,7 @@ import { employeeFullName, formatShiftRange } from '@/lib/namelist'
 import { broadcastRealtime } from '@/lib/realtime'
 import { DateInput } from '@/components/ui/DateInput'
 import { WarehouseSelect } from '@/components/ui/WarehouseSelect'
+import { useWarehouses } from '@/components/providers/WarehouseProvider'
 import type { AuthSession, Warehouse, Department, Shift } from '@/types'
 
 interface NamelistAddClientProps {
@@ -67,26 +68,16 @@ export function NamelistAddClient({ session, initialDate, initialWarehouse }: Na
 
   const empSeq = useRef(0)
 
-  // คลังที่มีสิทธิ์
+  const { warehouses: allWarehouses } = useWarehouses()
+
+  // คลังที่มีสิทธิ์ (จาก In-Memory Cache 0ms)
   useEffect(() => {
-    async function load() {
-      try {
-        const res = await fetch('/api/warehouses')
-        if (!res.ok) return
-        const data = await res.json()
-        const all: Warehouse[] = data.warehouses || []
-        const permitted = isSuperAdmin ? all : all.filter((w) => userWarehouses.includes(w.id))
-        setWarehouses(permitted)
-        if (!nlWarehouse && permitted.length > 0) {
-          setNlWarehouse(permitted[0].id)
-        }
-      } catch (err) {
-        console.error(err)
-      }
+    const permitted = isSuperAdmin ? allWarehouses : allWarehouses.filter((w) => userWarehouses.includes(w.id))
+    setWarehouses(permitted)
+    if (!nlWarehouse && permitted.length > 0) {
+      setNlWarehouse(permitted[0].id)
     }
-    load()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isSuperAdmin])
+  }, [isSuperAdmin, allWarehouses, userWarehouses, nlWarehouse])
 
   // แผนก/กะ ตามคลัง (ดึงจาก "จัดการข้อมูล Dropdown")
   useEffect(() => {

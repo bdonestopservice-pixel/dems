@@ -11,6 +11,7 @@ import { DateInput } from '@/components/ui/DateInput'
 import { WarehouseSelect } from '@/components/ui/WarehouseSelect'
 import { broadcastRealtime } from '@/lib/realtime'
 import { useRealtimeListener, useRealtimeSession } from '@/components/providers/RealtimeProvider'
+import { useWarehouses } from '@/components/providers/WarehouseProvider'
 import type { AuthSession, Plan, Warehouse } from '@/types'
 
 interface PlanningOverviewClientProps {
@@ -89,25 +90,16 @@ export function PlanningOverviewClient({
   const isSuperAdmin = session.role === 'super_admin'
   const userWarehouses = session.warehouses || []
 
-  // Load warehouses list
+  const { warehouses: allWarehouses } = useWarehouses()
+
+  // Load warehouses list (จาก In-Memory Cache 0ms)
   useEffect(() => {
-    async function loadWarehouses() {
-      try {
-        const res = await fetch('/api/warehouses')
-        if (!res.ok) return
-        const data = await res.json()
-        const all: Warehouse[] = data.warehouses || []
-        if (isSuperAdmin) {
-          setWarehouses(all)
-        } else {
-          setWarehouses(all.filter((w) => userWarehouses.includes(w.id)))
-        }
-      } catch (err) {
-        console.error('Failed to load warehouses:', err)
-      }
+    if (isSuperAdmin) {
+      setWarehouses(allWarehouses)
+    } else {
+      setWarehouses(allWarehouses.filter((w) => userWarehouses.includes(w.id)))
     }
-    loadWarehouses()
-  }, [isSuperAdmin, userWarehouses])
+  }, [isSuperAdmin, allWarehouses, userWarehouses])
 
   // Fetch plans
   const fetchPlans = useCallback(async () => {

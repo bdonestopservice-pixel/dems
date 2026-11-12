@@ -16,6 +16,7 @@ import {
 import { cn } from '@/lib/utils'
 import type { AuthSession, Warehouse as WarehouseType } from '@/types'
 import { useActiveWarehouse } from '@/lib/use-active-warehouse'
+import { useWarehouses } from '@/components/providers/WarehouseProvider'
 import { DepartmentPanel } from './panels/DepartmentPanel'
 import { ShiftPanel } from './panels/ShiftPanel'
 import { OaPanel } from './panels/OaPanel'
@@ -56,24 +57,23 @@ export function DropdownConfigClient({ session }: Props) {
   const [selectedWarehouse, setSelectedWarehouse] = useActiveWarehouse(
     session.warehouses[0] || ''
   )
-  const [warehouses, setWarehouses] = useState<WarehouseType[]>([])
+  const { warehouses: cachedWarehouses, refreshWarehouses } = useWarehouses()
+  const [warehouses, setWarehouses] = useState<WarehouseType[]>(cachedWarehouses)
   const [counts, setCounts] = useState<Partial<Record<CategoryId, number>>>({})
   const [showWarehousePicker, setShowWarehousePicker] = useState(false)
+
+  // Sync warehouses from cache
+  useEffect(() => {
+    setWarehouses(cachedWarehouses)
+  }, [cachedWarehouses])
 
   // Memoized count updater to avoid infinite re-render loops
   const updateCategoryCount = useCallback((category: CategoryId, n: number) => {
     setCounts((prev) => (prev[category] === n ? prev : { ...prev, [category]: n }))
   }, [])
 
-  // โหลดคลังทั้งหมด และดึง session ล่าสุดจาก DB (เผื่อมีการเพิ่มคลังให้ admin/payroll ใน user-management)
+  // ดึง session ล่าสุดจาก DB (เผื่อมีการเพิ่มคลังให้ admin/payroll ใน user-management)
   useEffect(() => {
-    fetch('/api/warehouses')
-      .then((r) => r.json())
-      .then((d) => {
-        const whs: WarehouseType[] = d.warehouses || []
-        setWarehouses(whs)
-      })
-
     fetch('/api/auth/me')
       .then((r) => r.json())
       .then((d) => {
@@ -393,10 +393,7 @@ export function DropdownConfigClient({ session }: Props) {
               <WarehousePanel
                 onCountChange={(n) => updateCategoryCount('warehouses', n)}
                 onWarehouseChange={() => {
-                  // Reload warehouses after add/edit
-                  fetch('/api/warehouses')
-                    .then((r) => r.json())
-                    .then((d) => setWarehouses(d.warehouses || []))
+                  refreshWarehouses()
                 }}
               />
             )}

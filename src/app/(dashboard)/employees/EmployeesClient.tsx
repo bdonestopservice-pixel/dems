@@ -22,6 +22,7 @@ import { cn, getInitials, formatThaiDate, todayLocal } from '@/lib/utils'
 import { DateInput } from '@/components/ui/DateInput'
 import { WarehouseSelect } from '@/components/ui/WarehouseSelect'
 import { useRealtimeListener } from '@/components/providers/RealtimeProvider'
+import { useWarehouses } from '@/components/providers/WarehouseProvider'
 import type { Employee, Warehouse, AuthSession } from '@/types'
 import { exportOpsExcel } from '@/lib/export-ops-excel'
 import { exportCustomerRegistryReport } from '@/lib/export-reports-excel'
@@ -34,7 +35,7 @@ export function EmployeesClient({ session }: EmployeesClientProps) {
   const [employees, setEmployees] = useState<Employee[]>([])
   const [loading, setLoading] = useState(true)
   const [exportingType, setExportingType] = useState<'registry' | 'ops' | null>(null)
-  const [warehouses, setWarehouses] = useState<Warehouse[]>([])
+  const { warehouses } = useWarehouses()
   const [toast, setToast] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -72,16 +73,6 @@ export function EmployeesClient({ session }: EmployeesClientProps) {
     }, 300)
     return () => clearTimeout(timer)
   }, [search])
-
-  // Load warehouses for filter
-  useEffect(() => {
-    fetch('/api/warehouses')
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.warehouses) setWarehouses(d.warehouses)
-      })
-      .catch(() => {})
-  }, [])
 
   // Fetch employees data
   const fetchEmployees = useCallback(async () => {

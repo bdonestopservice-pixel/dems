@@ -7,6 +7,7 @@ import { ChevronLeft, Loader2, Save, X, AlertCircle, Check, Calendar } from 'luc
 import { cn, getInitials } from '@/lib/utils'
 import { broadcastRealtime } from '@/lib/realtime'
 import { useRealtimeListener, useRealtimeSession } from '@/components/providers/RealtimeProvider'
+import { useWarehouses } from '@/components/providers/WarehouseProvider'
 import type { Employee, Warehouse, Bank, AuthSession } from '@/types'
 import {
   OPS_CONTRACT_TYPES,
@@ -76,7 +77,7 @@ export function EmployeeForm({ initialData, mode, session: propSession }: Employ
   const [saving, setSaving] = useState(false)
   const [showSuccessModal, setShowSuccessModal] = useState(false)
   const [error, setError] = useState('')
-  const [warehouses, setWarehouses] = useState<Warehouse[]>([])
+  const { warehouses } = useWarehouses()
   const [banks, setBanks] = useState<Bank[]>([])
 
   // Form state
@@ -117,15 +118,8 @@ export function EmployeeForm({ initialData, mode, session: propSession }: Employ
     note: initialData?.note || '',
   })
 
-  // Load warehouses & banks options
+  // Load banks options
   useEffect(() => {
-    fetch('/api/warehouses')
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.warehouses) setWarehouses(d.warehouses)
-      })
-      .catch(() => {})
-
     fetch('/api/dropdown/banks')
       .then((r) => r.json())
       .then((d) => {

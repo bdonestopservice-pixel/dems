@@ -7,6 +7,7 @@ import { ChevronLeft, Plus, X, Check, AlertCircle } from 'lucide-react'
 import { Topbar } from '@/components/layout/Topbar'
 import { todayLocal } from '@/lib/utils'
 import { DateInput } from '@/components/ui/DateInput'
+import { useWarehouses } from '@/components/providers/WarehouseProvider'
 import type { AuthSession, Warehouse, Shift, Department } from '@/types'
 
 interface CreatePlanClientProps {
@@ -49,29 +50,20 @@ export function CreatePlanClient({ session }: CreatePlanClientProps) {
   const [invalidRowIds, setInvalidRowIds] = useState<Set<string>>(new Set())
   const [submitting, setSubmitting] = useState(false)
 
-  // 1. Load warehouses
-  useEffect(() => {
-    async function loadWarehouses() {
-      try {
-        const res = await fetch('/api/warehouses')
-        if (!res.ok) return
-        const data = await res.json()
-        const all: Warehouse[] = data.warehouses || []
-        const permitted = isSuperAdmin ? all : all.filter((w) => userWarehouses.includes(w.id))
-        setWarehouses(permitted)
+  const { warehouses: allWarehouses } = useWarehouses()
 
-        // Set default warehouse for row 1 if empty
-        if (permitted.length > 0) {
-          setRows((prev) =>
-            prev.map((r, i) => (i === 0 && !r.warehouse ? { ...r, warehouse: permitted[0].id } : r))
-          )
-        }
-      } catch (err) {
-        console.error('Failed to load warehouses:', err)
-      }
+  // 1. Load warehouses (จาก In-Memory Cache 0ms)
+  useEffect(() => {
+    const permitted = isSuperAdmin ? allWarehouses : allWarehouses.filter((w) => userWarehouses.includes(w.id))
+    setWarehouses(permitted)
+
+    // Set default warehouse for row 1 if empty
+    if (permitted.length > 0) {
+      setRows((prev) =>
+        prev.map((r, i) => (i === 0 && !r.warehouse ? { ...r, warehouse: permitted[0].id } : r))
+      )
     }
-    loadWarehouses()
-  }, [isSuperAdmin, userWarehouses])
+  }, [isSuperAdmin, userWarehouses, allWarehouses])
 
   // Helper to load shifts & departments for a warehouse if not yet cached
   const ensureWarehouseData = async (whId: string) => {

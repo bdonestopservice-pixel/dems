@@ -1,3 +1,4 @@
+import { cache } from 'react'
 import { SignJWT, jwtVerify } from 'jose'
 import { cookies } from 'next/headers'
 import type { AuthSession } from '@/types'
@@ -39,8 +40,11 @@ export async function verifySession(token: string): Promise<AuthSession | null> 
  * 1. ตรวจสอบ JWT Token จากคุกกี้
  * 2. ตรวจสอบกับฐานข้อมูล (Database) เพื่อดึงสิทธิ์คลัง (Warehouses) และ Role ล่าสุดแบบ Realtime
  * 3. หากรหัสผ่านถูกเปลี่ยนแปลง หรือผู้ใช้ถูกระงับสิทธิ์ จะคืนค่า null เพื่อให้หลุดออกจากระบบทันที
+ *
+ * ห่อด้วย React.cache() เพื่อ Request-level Deduplication ใน Server Components
+ * ใน 1 Page Request (เช่น layout.tsx + page.tsx) จะ Query ฐานข้อมูลเพียง 1 ครั้งเท่านั้น
  */
-export async function getSession(): Promise<AuthSession | null> {
+export const getSession = cache(async (): Promise<AuthSession | null> => {
   const cookieStore = await cookies()
   const token = cookieStore.get(COOKIE_NAME)?.value
   if (!token) return null
@@ -85,7 +89,7 @@ export async function getSession(): Promise<AuthSession | null> {
     // ในกรณีที่เกิดปัญหาการเชื่อมต่อชั่วคราว ให้ fallback ใช้ payload จาก JWT
     return payload
   }
-}
+})
 
 export async function setSessionCookie(token: string, rememberMe = false) {
   const cookieStore = await cookies()

@@ -5,6 +5,7 @@ import { X, RefreshCw, Eye, EyeOff, Loader2 } from 'lucide-react'
 import { generatePassword } from '@/lib/utils'
 import { broadcastRealtime } from '@/lib/realtime'
 import type { Warehouse, SystemUser } from '@/types'
+import { useWarehouses } from '@/components/providers/WarehouseProvider'
 
 interface AddUserModalProps {
   onClose: () => void
@@ -12,7 +13,7 @@ interface AddUserModalProps {
 }
 
 export function AddUserModal({ onClose, onSuccess }: AddUserModalProps) {
-  const [warehouses, setWarehouses] = useState<Warehouse[]>([])
+  const { warehouses } = useWarehouses()
   const [form, setForm] = useState({
     name: '',
     email: '',
@@ -23,12 +24,6 @@ export function AddUserModal({ onClose, onSuccess }: AddUserModalProps) {
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-
-  useEffect(() => {
-    fetch('/api/warehouses')
-      .then((r) => r.json())
-      .then((d) => setWarehouses(d.warehouses || []))
-  }, [])
 
   function toggleWarehouse(id: string) {
     setForm((prev) => ({

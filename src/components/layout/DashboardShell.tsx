@@ -5,6 +5,7 @@ import { SidebarProvider, useSidebar } from './SidebarContext'
 import { cn } from '@/lib/utils'
 import type { AuthSession } from '@/types'
 import { RealtimeProvider, useRealtimeSession } from '@/components/providers/RealtimeProvider'
+import { WarehouseProvider } from '@/components/providers/WarehouseProvider'
 
 interface DashboardShellProps {
   session: AuthSession
@@ -37,9 +38,11 @@ function DashboardShellContent({ children }: { children: React.ReactNode }) {
 export function DashboardShell({ session, children }: DashboardShellProps) {
   return (
     <RealtimeProvider initialSession={session}>
-      <SidebarProvider>
-        <DashboardShellContent>{children}</DashboardShellContent>
-      </SidebarProvider>
+      <WarehouseProvider>
+        <SidebarProvider>
+          <DashboardShellContent>{children}</DashboardShellContent>
+        </SidebarProvider>
+      </WarehouseProvider>
     </RealtimeProvider>
   )
 }

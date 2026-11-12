@@ -19,6 +19,7 @@ import { Topbar } from '@/components/layout/Topbar'
 import { employeeFullName, formatShiftRange } from '@/lib/namelist'
 import { broadcastRealtime } from '@/lib/realtime'
 import { useRealtimeListener, useRealtimeSession } from '@/components/providers/RealtimeProvider'
+import { useWarehouses } from '@/components/providers/WarehouseProvider'
 import { cn } from '@/lib/utils'
 import { DateInput } from '@/components/ui/DateInput'
 import { WarehouseSelect } from '@/components/ui/WarehouseSelect'
@@ -155,22 +156,12 @@ export function NamelistClient({ session: initialSession, initialDate, initialWa
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [entryToDelete, deleting])
 
-  // โหลดรายการคลัง (จำกัดเฉพาะที่มีสิทธิ์)
+  const { warehouses: allWarehouses } = useWarehouses()
+
+  // โหลดรายการคลัง (จำกัดเฉพาะที่มีสิทธิ์ จาก In-Memory Cache 0ms)
   useEffect(() => {
-    async function loadWarehouses() {
-      try {
-        const res = await fetch('/api/warehouses')
-        if (!res.ok) return
-        const data = await res.json()
-        const all: Warehouse[] = data.warehouses || []
-        setWarehouses(isSuperAdmin ? all : all.filter((w) => userWarehouses.includes(w.id)))
-      } catch (err) {
-        console.error(err)
-      }
-    }
-    loadWarehouses()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isSuperAdmin])
+    setWarehouses(isSuperAdmin ? allWarehouses : allWarehouses.filter((w) => userWarehouses.includes(w.id)))
+  }, [isSuperAdmin, allWarehouses, userWarehouses])
 
   // โหลดข้อมูลของวัน/คลังที่เลือก (รองรับ silent update เบื้องหลังสำหรับ realtime โดยไม่กระพริบจอโหลด)
   const fetchEntries = useCallback(async (silent = false) => {
@@ -209,7 +200,7 @@ export function NamelistClient({ session: initialSession, initialDate, initialWa
       sessionStorage.removeItem('namelist_needs_refresh')
       fetchEntries(true)
     }
-  })
+  }, [fetchEntries])
 
   // Refetch อัตโนมัติเมื่อผู้ใช้สลับหน้าต่างกลับมาที่หน้านี้
   useEffect(() => {

@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { ChevronLeft, Search, Check, AlertCircle, Loader2, Users, Clock } from 'lucide-react'
 import { Topbar } from '@/components/layout/Topbar'
 import { WarehouseSelect } from '@/components/ui/WarehouseSelect'
+import { useWarehouses } from '@/components/providers/WarehouseProvider'
 import { cn, formatThaiDate } from '@/lib/utils'
 import { useSidebar } from '@/components/layout/SidebarContext'
 import { broadcastRealtime } from '@/lib/realtime'
@@ -79,22 +80,13 @@ export function AddEmployeesToPlanClient({ session, planId }: AddEmployeesToPlan
     loadPlan()
   }, [planId])
 
-  // 2. Load warehouses
+  const { warehouses: allWarehouses } = useWarehouses()
+
+  // 2. Load warehouses (จาก In-Memory Cache 0ms)
   useEffect(() => {
-    async function loadWarehouses() {
-      try {
-        const res = await fetch('/api/warehouses')
-        if (!res.ok) return
-        const data = await res.json()
-        const all: Warehouse[] = data.warehouses || []
-        const permitted = isSuperAdmin ? all : all.filter((w) => userWarehouses.includes(w.id))
-        setWarehouses(permitted)
-      } catch (err) {
-        console.error(err)
-      }
-    }
-    loadWarehouses()
-  }, [isSuperAdmin, userWarehouses])
+    const permitted = isSuperAdmin ? allWarehouses : allWarehouses.filter((w) => userWarehouses.includes(w.id))
+    setWarehouses(permitted)
+  }, [isSuperAdmin, userWarehouses, allWarehouses])
 
   // 3. Fetch eligible employees based on search & warehouse
   const fetchEligible = useCallback(async () => {

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Pencil, Trash2, Plus, Loader2, X, Check } from 'lucide-react'
 import type { Warehouse } from '@/types'
+import { invalidateWarehousesCache } from '@/components/providers/WarehouseProvider'
 
 interface Props {
   onCountChange: (n: number) => void
@@ -48,6 +49,7 @@ export function WarehousePanel({ onCountChange, onWarehouseChange }: Props) {
       onCountChange(next.length)
       setNewId('')
       setNewName('')
+      invalidateWarehousesCache()
       onWarehouseChange()
     } else {
       setError(data.error || 'เกิดข้อผิดพลาด')
@@ -66,6 +68,7 @@ export function WarehousePanel({ onCountChange, onWarehouseChange }: Props) {
     if (res.ok) {
       setItems((prev) => prev.map((w) => (w.id === id ? data.warehouse : w)))
       setEditingId(null)
+      invalidateWarehousesCache()
       onWarehouseChange()
     }
     setSaving(false)
@@ -78,6 +81,7 @@ export function WarehousePanel({ onCountChange, onWarehouseChange }: Props) {
       const next = items.filter((w) => w.id !== id)
       setItems(next)
       onCountChange(next.length)
+      invalidateWarehousesCache()
       onWarehouseChange()
     } else {
       const data = await res.json()

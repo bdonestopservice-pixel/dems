@@ -14,6 +14,7 @@ import { employeeFullName, formatShiftRange } from '@/lib/namelist'
 import { cn, todayLocal } from '@/lib/utils'
 import { DateInput } from '@/components/ui/DateInput'
 import { WarehouseSelect } from '@/components/ui/WarehouseSelect'
+import { useWarehouses } from '@/components/providers/WarehouseProvider'
 import { exportPpoWageReport } from '@/lib/export-reports-excel'
 import type { AuthSession, NamelistEntry, Warehouse } from '@/types'
 
@@ -146,21 +147,12 @@ export function ReportsClient({
     toastTimer.current = setTimeout(() => setToast(null), 3500)
   }
 
-  // โหลดรายชื่อคลัง (จำกัดเฉพาะที่ user มีสิทธิ์ตามกฎ Super Admin / Admin)
+  const { warehouses: allWarehouses } = useWarehouses()
+
+  // โหลดรายชื่อคลัง (จำกัดเฉพาะที่ user มีสิทธิ์ จาก In-Memory Cache 0ms)
   useEffect(() => {
-    async function loadWarehouses() {
-      try {
-        const res = await fetch('/api/warehouses')
-        if (!res.ok) return
-        const data = await res.json()
-        const all: Warehouse[] = data.warehouses || []
-        setWarehouses(isSuperAdmin ? all : all.filter((w) => userWarehouses.includes(w.id)))
-      } catch (err) {
-        console.error('Failed to load warehouses:', err)
-      }
-    }
-    loadWarehouses()
-  }, [isSuperAdmin, userWarehouses])
+    setWarehouses(isSuperAdmin ? allWarehouses : allWarehouses.filter((w) => userWarehouses.includes(w.id)))
+  }, [isSuperAdmin, userWarehouses, allWarehouses])
 
   // โหลด Namelist ตามวันและคลัง
   const fetchEntries = useCallback(async () => {
