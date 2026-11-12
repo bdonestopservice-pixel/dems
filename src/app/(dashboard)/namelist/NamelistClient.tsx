@@ -194,13 +194,14 @@ export function NamelistClient({ session: initialSession, initialDate, initialWa
     if (date) fetchEntries()
   }, [date, fetchEntries])
 
-  // ตรวจจับเมื่อกลับมาจากหน้าเพิ่ม/แก้ไข Namelist ให้ refetch ทันทีโดยไม่ต้องกด F5
+  // ตรวจจับเมื่อกลับมาจากหน้าเพิ่ม/แก้ไข Namelist ให้ refetch ทันทีโดยไม่ต้องกด F5 (ทำงานเฉพาะตอน Mount)
   useEffect(() => {
     if (typeof window !== 'undefined' && sessionStorage.getItem('namelist_needs_refresh') === 'true') {
       sessionStorage.removeItem('namelist_needs_refresh')
       fetchEntries(true)
     }
-  }, [fetchEntries])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Refetch อัตโนมัติเมื่อผู้ใช้สลับหน้าต่างกลับมาที่หน้านี้
   useEffect(() => {
