@@ -22,6 +22,7 @@ export async function GET(request: NextRequest) {
   const dateFrom = searchParams.get('date_from')
   const dateTo = searchParams.get('date_to')
   const warehouse = searchParams.get('warehouse') || 'all'
+  const shift = searchParams.get('shift') || 'all'
   const search = searchParams.get('search')?.trim().toLowerCase() || ''
   const limitParam = searchParams.get('limit')
   const limit = limitParam ? Math.min(200, Math.max(1, parseInt(limitParam, 10) || 100)) : 100
@@ -127,6 +128,20 @@ export async function GET(request: NextRequest) {
     plans = plans.filter((p) =>
       p.department_name?.toLowerCase().includes(search)
     )
+  }
+
+  // Apply shift filter
+  if (shift && shift !== 'all') {
+    plans = plans.filter((p) => {
+      if (shift === 'type:D' || shift === 'D') return p.shift_type === 'D'
+      if (shift === 'type:N' || shift === 'N') return p.shift_type === 'N'
+      if (shift === 'type:H' || shift === 'H') return p.shift_type === 'H'
+      if (p.shift_id === shift) return true
+      const range = `${p.shift_start || ''}-${p.shift_end || ''}`
+      if (range === shift) return true
+      if (p.shift_start === shift) return true
+      return false
+    })
   }
 
   // จัดเรียงแผนงานตามเวลาที่ใกล้ถึงในวันนั้น (shift_start เช้า -> ดึก)

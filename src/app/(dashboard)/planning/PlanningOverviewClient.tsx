@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import Link from 'next/link'
 import { Plus, Search, Pencil, Users, Calendar, AlertCircle, CheckCircle2, Trash2, Loader2 } from 'lucide-react'
 import { Topbar } from '@/components/layout/Topbar'
@@ -9,6 +9,7 @@ import { EditPlanModal } from '@/components/planning/EditPlanModal'
 import { DeletePlanModal } from '@/components/planning/DeletePlanModal'
 import { DateInput } from '@/components/ui/DateInput'
 import { WarehouseSelect } from '@/components/ui/WarehouseSelect'
+import { ShiftSelect } from '@/components/ui/ShiftSelect'
 import { broadcastRealtime } from '@/lib/realtime'
 import { useRealtimeListener, useRealtimeSession } from '@/components/providers/RealtimeProvider'
 import { useWarehouses } from '@/components/providers/WarehouseProvider'
@@ -59,9 +60,67 @@ export function PlanningOverviewClient({
 
   // Filters
   const [selectedWarehouse, setSelectedWarehouse] = useState<string>(initialWarehouse || 'all')
+  const [selectedShift, setSelectedShift] = useState<string>('all')
   const [selectedDate, setSelectedDate] = useState<string>(initialDate || todayLocal())
   const [searchTerm, setSearchTerm] = useState<string>('')
   const [debouncedSearch, setDebouncedSearch] = useState<string>('')
+  const [warehouseShifts, setWarehouseShifts] = useState<{ start_time: string; end_time: string; type: string }[]>([])
+
+  // โหลดรายการกะของคลังที่เลือกเพื่อสร้างตัวเลือกใน Filter กะ
+  useEffect(() => {
+    if (selectedWarehouse && selectedWarehouse !== 'all') {
+      fetch(`/api/dropdown/shifts?warehouse=${encodeURIComponent(selectedWarehouse)}`)
+        .then((r) => (r.ok ? r.json() : { shifts: [] }))
+        .then((d) => setWarehouseShifts(d.shifts || []))
+        .catch(() => setWarehouseShifts([]))
+    } else {
+      setWarehouseShifts([])
+    }
+  }, [selectedWarehouse])
+
+  // รวบรวมตัวเลือกกะสำหรับ Filter
+  const shiftOptions = useMemo(() => {
+    const list = [
+      { id: 'all', label: 'ทุกกะ' },
+      { id: 'type:D', label: 'กะกลางวัน (Day)' },
+      { id: 'type:N', label: 'กะดึก (Night)' },
+    ]
+
+    const seen = new Set<string>()
+
+    // 1. เพิ่มกะจาก Master Data ของคลังที่เลือก (ถ้ามี)
+    for (const s of warehouseShifts) {
+      const key = `${s.start_time}-${s.end_time}`
+      if (!seen.has(key)) {
+        seen.add(key)
+        const typeLabel = s.type === 'N' ? 'Night' : s.type === 'H' ? 'Half' : 'Day'
+        list.push({
+          id: key,
+          label: `${s.start_time}–${s.end_time} (${typeLabel})`,
+        })
+      }
+    }
+
+    // 2. เผื่อมีกะใน plans ที่ยังไม่อยู่ใน master หรือกรณีเลือก "ทุกคลัง"
+    for (const p of plans) {
+      if (p.shift_start && p.shift_end) {
+        const key = `${p.shift_start}-${p.shift_end}`
+        if (!seen.has(key)) {
+          seen.add(key)
+          const typeLabel = p.shift_type === 'N' ? 'Night' : p.shift_type === 'H' ? 'Half' : 'Day'
+          list.push({
+            id: key,
+            label: `${p.shift_start}–${p.shift_end} (${typeLabel})`,
+          })
+        }
+      }
+    }
+
+    const headerOptions = list.slice(0, 3)
+    const specificShifts = list.slice(3).sort((a, b) => a.id.localeCompare(b.id))
+
+    return [...headerOptions, ...specificShifts]
+  }, [warehouseShifts, plans])
 
   // Debounce search input เพื่อลดการยิง API ถี่เกินไปขณะกำลังพิมพ์
   useEffect(() => {
@@ -137,6 +196,9 @@ export function PlanningOverviewClient({
       if (selectedWarehouse && selectedWarehouse !== 'all') {
         params.set('warehouse', selectedWarehouse)
       }
+      if (selectedShift && selectedShift !== 'all') {
+        params.set('shift', selectedShift)
+      }
       if (selectedDate) {
         params.set('date', selectedDate)
       }
@@ -154,7 +216,7 @@ export function PlanningOverviewClient({
     } finally {
       setLoading(false)
     }
-  }, [selectedWarehouse, selectedDate, debouncedSearch])
+  }, [selectedWarehouse, selectedShift, selectedDate, debouncedSearch])
 
   useEffect(() => {
     fetchPlans()
@@ -190,13 +252,24 @@ export function PlanningOverviewClient({
             {/* Warehouse filter */}
             <WarehouseSelect
               value={selectedWarehouse}
-              onChange={(val) => setSelectedWarehouse(val)}
+              onChange={(val) => {
+                setSelectedWarehouse(val)
+                setSelectedShift('all')
+              }}
               warehouses={warehouses}
               allLabel="ทุกคลัง"
             />
 
+            {/* Shift filter */}
+            <ShiftSelect
+              value={selectedShift}
+              onChange={(val) => setSelectedShift(val)}
+              options={shiftOptions}
+              allLabel="ทุกกะ"
+            />
+
             {/* Department search */}
-            <div className="relative min-w-[220px]">
+            <div className="relative min-w-[180px] sm:min-w-[200px]">
               <Search className="w-4 h-4 text-[#9AA5B8] absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
@@ -208,11 +281,12 @@ export function PlanningOverviewClient({
             </div>
 
             {/* Clear filters button if active */}
-            {(selectedDate || selectedWarehouse !== 'all' || searchTerm) && (
+            {(selectedDate || selectedWarehouse !== 'all' || selectedShift !== 'all' || searchTerm) && (
               <button
                 onClick={() => {
                   setSelectedDate('')
                   setSelectedWarehouse('all')
+                  setSelectedShift('all')
                   setSearchTerm('')
                 }}
                 className="text-xs text-[#5B6B85] hover:text-[#E5484D] underline font-medium px-2 py-1"
