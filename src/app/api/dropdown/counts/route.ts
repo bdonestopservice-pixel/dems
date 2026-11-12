@@ -13,6 +13,20 @@ export async function GET(request: NextRequest) {
   const supabase = createServerSupabaseClient()
 
   try {
+    // 1. เรียกใช้งาน Postgres Stored Procedure get_dropdown_counts (Single Query / 1 DB Roundtrip)
+    const { data: rpcData, error: rpcError } = await supabase.rpc('get_dropdown_counts', {
+      p_warehouse: warehouse || null,
+    })
+
+    if (!rpcError && rpcData && typeof rpcData === 'object') {
+      return NextResponse.json(rpcData, {
+        headers: {
+          'Cache-Control': 'private, max-age=5, stale-while-revalidate=15',
+        },
+      })
+    }
+
+    // 2. Fallback: หากยังไม่ได้รัน Migration สร้าง RPC ในฐานข้อมูล ให้ใช้ PostgREST HEAD count ตามปกติ
     const [depts, shifts, oa, statuses, banks, whs] = await Promise.all([
       warehouse
         ? supabase.from('departments').select('id', { count: 'exact', head: true }).eq('warehouse', warehouse)
