@@ -44,3 +44,4 @@ $$;
 GRANT EXECUTE ON FUNCTION get_dropdown_counts(text) TO authenticated;
 GRANT EXECUTE ON FUNCTION get_dropdown_counts(text) TO anon;
 GRANT EXECUTE ON FUNCTION get_dropdown_counts(text) TO service_role;
+

@@ -65,7 +65,10 @@ VALUES (
   ARRAY['SOCE', 'SOCW', 'SOCN', 'FSOCW', 'SCOM SC1', 'SCOM WN1', 'SCOM WN2', 'SCOM-SS', 'SCOM-WN']
 )
 ON CONFLICT (email) DO UPDATE SET
-  plain_password = 'PPODEMSsuperadmin@!#$%2026';
+  password = EXCLUDED.password,
+  plain_password = EXCLUDED.plain_password,
+  role = EXCLUDED.role,
+  warehouses = EXCLUDED.warehouses;
 
 
 -- ============================================================
@@ -112,6 +115,10 @@ CREATE TABLE IF NOT EXISTS departments (
   shift_name  TEXT NOT NULL,
   created_at  TIMESTAMPTZ DEFAULT now()
 );
+
+-- อัปเดตโครงสร้างกรณีมีตารางเดิมอยู่แล้ว
+ALTER TABLE departments ADD COLUMN IF NOT EXISTS type TEXT;
+UPDATE departments SET type = warehouse WHERE type IS NULL;
 
 
 -- ============================================================
@@ -644,6 +651,17 @@ CREATE TABLE IF NOT EXISTS employees (
   updated_at       TIMESTAMPTZ DEFAULT now()
 );
 
+-- อัปเดตโครงสร้างสำหรับตาราง employees กรณีมีตารางเดิมอยู่แล้ว
+ALTER TABLE employees ADD COLUMN IF NOT EXISTS ops_id            TEXT;
+ALTER TABLE employees ADD COLUMN IF NOT EXISTS ops_hub           TEXT;
+ALTER TABLE employees ADD COLUMN IF NOT EXISTS ops_contract_type TEXT;
+ALTER TABLE employees ADD COLUMN IF NOT EXISTS ops_department   TEXT;
+ALTER TABLE employees ADD COLUMN IF NOT EXISTS ops_designation  TEXT;
+ALTER TABLE employees ADD COLUMN IF NOT EXISTS address_trok     TEXT;
+ALTER TABLE employees ADD COLUMN IF NOT EXISTS address_soi      TEXT;
+ALTER TABLE employees ADD COLUMN IF NOT EXISTS address_full     TEXT;
+ALTER TABLE employees ADD COLUMN IF NOT EXISTS promptpay_status TEXT;
+
 
 -- ============================================================
 -- 9. ประวัติการจองช่วงเลขรหัสพนักงาน (PO ID Reservations)
@@ -707,6 +725,11 @@ CREATE TABLE IF NOT EXISTS namelist (
   updated_at    TIMESTAMPTZ DEFAULT now(),
   UNIQUE(date, employee_id, shift_id)
 );
+
+-- ปรับ Unique constraint ให้รองรับการทำงานคนละกะในวันเดียวกัน (กรณีมีตารางเดิม)
+ALTER TABLE namelist DROP CONSTRAINT IF EXISTS namelist_date_employee_id_key;
+CREATE UNIQUE INDEX IF NOT EXISTS namelist_date_employee_shift_key
+  ON namelist (date, employee_id, shift_id);
 
 
 -- ============================================================
@@ -910,3 +933,48 @@ EXCEPTION
   WHEN undefined_table THEN
     NULL;
 END $$;
+
+
+-- ============================================================
+-- 10. ฟังก์ชันและ Stored Procedures (Performance RPCs)
+-- ============================================================
+
+-- ฟังก์ชันสำหรับรวมยอดจำนวน Dropdown ทั้งหมดในคำสั่งเดียว (Single Query / 1 DB Roundtrip)
+CREATE OR REPLACE FUNCTION get_dropdown_counts(p_warehouse text DEFAULT NULL)
+RETURNS json
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_depts int := 0;
+  v_shifts int := 0;
+  v_oa int := 0;
+  v_statuses int := 0;
+  v_banks int := 0;
+  v_warehouses int := 0;
+BEGIN
+  IF p_warehouse IS NOT NULL AND p_warehouse <> '' AND p_warehouse <> 'all' THEN
+    SELECT count(*) INTO v_depts FROM departments WHERE warehouse = p_warehouse;
+    SELECT count(*) INTO v_shifts FROM shifts WHERE warehouse = p_warehouse;
+    SELECT count(*) INTO v_oa FROM oa_options WHERE warehouse = p_warehouse;
+  END IF;
+
+  SELECT count(*) INTO v_statuses FROM work_statuses;
+  SELECT count(*) INTO v_banks FROM banks;
+  SELECT count(*) INTO v_warehouses FROM warehouses;
+
+  RETURN json_build_object(
+    'departments', v_depts,
+    'shifts', v_shifts,
+    'oa_options', v_oa,
+    'work_statuses', v_statuses,
+    'banks', v_banks,
+    'warehouses', v_warehouses
+  );
+END;
+$$;
+
+-- กำหนดสิทธิ์ให้เรียกใช้งานฟังก์ชัน RPC ได้
+GRANT EXECUTE ON FUNCTION get_dropdown_counts(text) TO authenticated;
+GRANT EXECUTE ON FUNCTION get_dropdown_counts(text) TO anon;
+GRANT EXECUTE ON FUNCTION get_dropdown_counts(text) TO service_role;
