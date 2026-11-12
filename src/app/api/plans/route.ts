@@ -130,6 +130,27 @@ export async function GET(request: NextRequest) {
     )
   }
 
+  // ดึงรายการกะที่มีอยู่จริงของวันนั้นๆ (ก่อนถูกกรองด้วย shift filter)
+  const available_shifts = Array.from(
+    new Set(
+      plans
+        .filter((p) => p.shift_start && p.shift_end)
+        .map((p) => `${p.shift_start}-${p.shift_end}`)
+    )
+  ).map((key) => {
+    const [start, end] = key.split('-')
+    const sample = plans.find((p) => p.shift_start === start && p.shift_end === end)
+    const type = sample?.shift_type || 'D'
+    const typeLabel = type === 'N' ? 'Night' : type === 'H' ? 'Half' : 'Day'
+    return {
+      id: key,
+      label: `${start}–${end} (${typeLabel})`,
+      shift_start: start,
+      shift_end: end,
+      shift_type: type,
+    }
+  })
+
   // Apply shift filter
   if (shift && shift !== 'all') {
     plans = plans.filter((p) => {
@@ -144,26 +165,52 @@ export async function GET(request: NextRequest) {
     })
   }
 
-  // จัดเรียงแผนงานตามเวลาที่ใกล้ถึงในวันนั้น (shift_start เช้า -> ดึก)
-  const getShiftSortKey = (shiftStart?: string | null): string => {
-    if (!shiftStart) return '99:99'
-    const parts = shiftStart.trim().split(':')
-    if (parts.length >= 2) {
-      return `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`
+  // Helper คำนวณความใกล้ชิดของกะกับเวลาปัจจุบัน ("เวลาที่ใกล้ที่สุดในตอนนั้น")
+  const now = new Date()
+  const currentMinutes = now.getHours() * 60 + now.getMinutes()
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+
+  const getShiftProximityScore = (startTime?: string | null, planDate?: string): number => {
+    if (!startTime) return 99999
+    const parts = startTime.trim().split(':')
+    const h = parseInt(parts[0], 10)
+    const m = parseInt(parts[1] || '0', 10)
+    if (isNaN(h)) return 99999
+    const shiftMinutes = h * 60 + m
+
+    if (planDate === today) {
+      // ถ้าเป็นวันนี้: กะที่กำลังจะมาถึง หรือเพิ่งเริ่มไปไม่เกิน 60 นาที (ongoing) จะมีคะแนนน้อย (ขึ้นก่อน)
+      const diff = shiftMinutes - currentMinutes
+      if (diff >= -60) {
+        return diff >= 0 ? diff : Math.abs(diff) + 0.1
+      } else {
+        // กะที่จบไปนานแล้ว (เช่น กะเช้าเมื่อเทียบกับเวลาเย็น) ให้อยู่ท้าย
+        return 2000 + Math.abs(diff)
+      }
     }
-    return shiftStart
+
+    // วันอื่น เรียงจากเช้าไปดึก (06:00 -> 23:00)
+    return shiftMinutes
   }
 
+  // จัดเรียง available_shifts ตามเวลาที่ใกล้ที่สุดในตอนนั้น
+  available_shifts.sort((a, b) => {
+    const scoreA = getShiftProximityScore(a.shift_start, date || today)
+    const scoreB = getShiftProximityScore(b.shift_start, date || today)
+    return scoreA - scoreB
+  })
+
+  // จัดเรียง plans
   plans.sort((a, b) => {
     // 1. ถ้าดูหลายวัน เรียงตามวันที่ล่าสุดก่อน (DESC)
     if (a.date !== b.date) {
       return (b.date || '').localeCompare(a.date || '')
     }
-    // 2. ในวันเดียวกัน เรียงตามเวลาเริ่มกะ (shift_start) จากเวลาที่ใกล้ถึงที่สุด (ASC: 06:00 -> 23:00)
-    const timeA = getShiftSortKey(a.shift_start)
-    const timeB = getShiftSortKey(b.shift_start)
-    if (timeA !== timeB) {
-      return timeA.localeCompare(timeB)
+    // 2. ในวันเดียวกัน เรียงตามเวลาที่ใกล้ที่สุดในตอนนั้นขึ้นมาก่อน
+    const scoreA = getShiftProximityScore(a.shift_start, a.date)
+    const scoreB = getShiftProximityScore(b.shift_start, b.date)
+    if (scoreA !== scoreB) {
+      return scoreA - scoreB
     }
     // 3. หากเวลาเริ่มเท่ากัน เรียงตามชื่อแผนก
     return (a.department_name || '').localeCompare(b.department_name || '')
@@ -184,6 +231,7 @@ export async function GET(request: NextRequest) {
       completed_plans,
       total_missing,
     },
+    available_shifts,
   })
 }
 

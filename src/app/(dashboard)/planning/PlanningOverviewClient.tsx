@@ -21,26 +21,49 @@ interface PlanningOverviewClientProps {
   initialWarehouse?: string
 }
 
-function getShiftSortKey(shiftStart?: string | null): string {
-  if (!shiftStart) return '99:99'
-  const parts = shiftStart.trim().split(':')
-  if (parts.length >= 2) {
-    return `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`
+function getShiftProximityScore(
+  startTime?: string | null,
+  currentMinutes: number = 0,
+  isToday: boolean = false
+): number {
+  if (!startTime) return 99999
+  const parts = startTime.trim().split(':')
+  const h = parseInt(parts[0], 10)
+  const m = parseInt(parts[1] || '0', 10)
+  if (isNaN(h)) return 99999
+  const shiftMinutes = h * 60 + m
+
+  if (isToday) {
+    // ถ้าเป็นวันนี้: กะที่กำลังจะมาถึง หรือเพิ่งเริ่มไปไม่เกิน 60 นาที (ongoing) จะมีคะแนนน้อย (ขึ้นก่อน)
+    const diff = shiftMinutes - currentMinutes
+    if (diff >= -60) {
+      return diff >= 0 ? diff : Math.abs(diff) + 0.1
+    } else {
+      // กะที่จบไปนานแล้ว (เช่น กะเช้าเมื่อเทียบกับเวลาเย็น) ให้อยู่ท้าย
+      return 2000 + Math.abs(diff)
+    }
   }
-  return shiftStart
+
+  // ถ้าเป็นวันอื่น (อนาคต หรือ อดีต): เรียงตามลำดับเวลาเริ่มจากเช้าไปดึก (06:00 -> 23:00)
+  return shiftMinutes
 }
 
-function sortPlansByNearestTime(list: Plan[]): Plan[] {
+function sortPlansByNearestTime(list: Plan[], targetDate?: string): Plan[] {
+  const today = todayLocal()
+  const now = new Date()
+  const currentMinutes = now.getHours() * 60 + now.getMinutes()
+
   return [...list].sort((a, b) => {
     // 1. ถ้าดูหลายวัน เรียงตามวันที่ล่าสุดก่อน (DESC)
     if (a.date !== b.date) {
       return (b.date || '').localeCompare(a.date || '')
     }
-    // 2. ในวันเดียวกัน เรียงตามเวลาเริ่มกะ (shift_start) จากเวลาที่ใกล้ถึงที่สุด (ASC: 06:00 -> 23:00)
-    const timeA = getShiftSortKey(a.shift_start)
-    const timeB = getShiftSortKey(b.shift_start)
-    if (timeA !== timeB) {
-      return timeA.localeCompare(timeB)
+    // 2. ในวันเดียวกัน เรียงตามเวลาที่ใกล้ที่สุดในตอนนั้นขึ้นมาก่อน
+    const planIsToday = a.date === today
+    const scoreA = getShiftProximityScore(a.shift_start, currentMinutes, planIsToday)
+    const scoreB = getShiftProximityScore(b.shift_start, currentMinutes, planIsToday)
+    if (scoreA !== scoreB) {
+      return scoreA - scoreB
     }
     // 3. หากเวลาเริ่มเท่ากัน เรียงตามชื่อแผนก
     return (a.department_name || '').localeCompare(b.department_name || '')
@@ -64,63 +87,55 @@ export function PlanningOverviewClient({
   const [selectedDate, setSelectedDate] = useState<string>(initialDate || todayLocal())
   const [searchTerm, setSearchTerm] = useState<string>('')
   const [debouncedSearch, setDebouncedSearch] = useState<string>('')
-  const [warehouseShifts, setWarehouseShifts] = useState<{ start_time: string; end_time: string; type: string }[]>([])
+  const [availableShifts, setAvailableShifts] = useState<{ id: string; label: string; shift_start?: string }[]>([])
 
-  // โหลดรายการกะของคลังที่เลือกเพื่อสร้างตัวเลือกใน Filter กะ
-  useEffect(() => {
-    if (selectedWarehouse && selectedWarehouse !== 'all') {
-      fetch(`/api/dropdown/shifts?warehouse=${encodeURIComponent(selectedWarehouse)}`)
-        .then((r) => (r.ok ? r.json() : { shifts: [] }))
-        .then((d) => setWarehouseShifts(d.shifts || []))
-        .catch(() => setWarehouseShifts([]))
-    } else {
-      setWarehouseShifts([])
-    }
-  }, [selectedWarehouse])
-
-  // รวบรวมตัวเลือกกะสำหรับ Filter
+  // ตัวเลือกกะสำหรับ Filter: มีเฉพาะ "ทุกกะ" + กะที่มีอยู่จริงของวันนั้นๆ โดยเรียงจากเวลาที่ใกล้ที่สุดในตอนนั้นขึ้นมาก่อน
   const shiftOptions = useMemo(() => {
-    const list = [
-      { id: 'all', label: 'ทุกกะ' },
-      { id: 'type:D', label: 'กะกลางวัน (Day)' },
-      { id: 'type:N', label: 'กะดึก (Night)' },
-    ]
+    const today = todayLocal()
+    const isToday = selectedDate === today
+    const now = new Date()
+    const currentMinutes = now.getHours() * 60 + now.getMinutes()
 
-    const seen = new Set<string>()
-
-    // 1. เพิ่มกะจาก Master Data ของคลังที่เลือก (ถ้ามี)
-    for (const s of warehouseShifts) {
-      const key = `${s.start_time}-${s.end_time}`
-      if (!seen.has(key)) {
-        seen.add(key)
-        const typeLabel = s.type === 'N' ? 'Night' : s.type === 'H' ? 'Half' : 'Day'
-        list.push({
-          id: key,
-          label: `${s.start_time}–${s.end_time} (${typeLabel})`,
-        })
-      }
-    }
-
-    // 2. เผื่อมีกะใน plans ที่ยังไม่อยู่ใน master หรือกรณีเลือก "ทุกคลัง"
-    for (const p of plans) {
-      if (p.shift_start && p.shift_end) {
-        const key = `${p.shift_start}-${p.shift_end}`
-        if (!seen.has(key)) {
-          seen.add(key)
-          const typeLabel = p.shift_type === 'N' ? 'Night' : p.shift_type === 'H' ? 'Half' : 'Day'
-          list.push({
+    // แหล่งที่มาของกะที่มีอยู่จริงของวันนั้นๆ (จาก availableShifts ที่ API ส่งมา หรือจาก plans ปัจจุบัน)
+    const rawList = availableShifts.length > 0
+      ? availableShifts
+      : Array.from(
+          new Set(
+            plans
+              .filter((p) => p.shift_start && p.shift_end)
+              .map((p) => `${p.shift_start}-${p.shift_end}`)
+          )
+        ).map((key) => {
+          const [start, end] = key.split('-')
+          const sample = plans.find((p) => p.shift_start === start && p.shift_end === end)
+          const type = sample?.shift_type || 'D'
+          const typeLabel = type === 'N' ? 'Night' : type === 'H' ? 'Half' : 'Day'
+          return {
             id: key,
-            label: `${p.shift_start}–${p.shift_end} (${typeLabel})`,
-          })
-        }
-      }
+            label: `${start}–${end} (${typeLabel})`,
+            shift_start: start,
+          }
+        })
+
+    // เรียงกะที่มีอยู่โดยเรียงจากเวลาที่ใกล้ที่สุดในตอนนั้นขึ้นมาก่อน
+    const sortedShifts = [...rawList].sort((a, b) => {
+      const scoreA = getShiftProximityScore(a.shift_start, currentMinutes, isToday)
+      const scoreB = getShiftProximityScore(b.shift_start, currentMinutes, isToday)
+      return scoreA - scoreB
+    })
+
+    return [
+      { id: 'all', label: 'ทุกกะ' },
+      ...sortedShifts.map((s) => ({ id: s.id, label: s.label })),
+    ]
+  }, [availableShifts, plans, selectedDate])
+
+  // รีเซ็ต selectedShift เป็น 'all' หากกะที่เลือกไว้เดิมไม่มีอยู่ในวันนั้นๆ
+  useEffect(() => {
+    if (selectedShift !== 'all' && !shiftOptions.some((o) => o.id === selectedShift)) {
+      setSelectedShift('all')
     }
-
-    const headerOptions = list.slice(0, 3)
-    const specificShifts = list.slice(3).sort((a, b) => a.id.localeCompare(b.id))
-
-    return [...headerOptions, ...specificShifts]
-  }, [warehouseShifts, plans])
+  }, [shiftOptions, selectedShift])
 
   // Debounce search input เพื่อลดการยิง API ถี่เกินไปขณะกำลังพิมพ์
   useEffect(() => {
@@ -139,7 +154,8 @@ export function PlanningOverviewClient({
   const handlePlanUpdated = (updatedPlan: any) => {
     setPlans((prev) =>
       sortPlansByNearestTime(
-        prev.map((item) => (item.id === updatedPlan.id ? { ...item, ...updatedPlan } : item))
+        prev.map((item) => (item.id === updatedPlan.id ? { ...item, ...updatedPlan } : item)),
+        selectedDate
       )
     )
     setFeedbackMsg({ type: 'success', text: 'แก้ไขข้อมูลแพลนเรียบร้อยแล้ว' })
@@ -209,8 +225,11 @@ export function PlanningOverviewClient({
       const res = await fetch(`/api/plans?${params.toString()}`)
       if (!res.ok) throw new Error('Failed to fetch plans')
       const data = await res.json()
-      setPlans(sortPlansByNearestTime(data.plans || []))
+      setPlans(sortPlansByNearestTime(data.plans || [], selectedDate))
       setStats(data.stats || { total_plans: 0, completed_plans: 0, total_missing: 0 })
+      if (Array.isArray(data.available_shifts)) {
+        setAvailableShifts(data.available_shifts)
+      }
     } catch (err) {
       console.error(err)
     } finally {
