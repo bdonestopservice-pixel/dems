@@ -14,6 +14,7 @@ import {
   OPS_HUBS,
   getDesignationsForDepartment,
 } from '@/lib/ops-dropdown-data'
+import { SearchableSelect } from '@/components/ui/SearchableSelect'
 
 interface EmployeeFormProps {
   initialData?: Employee
@@ -535,21 +536,16 @@ export function EmployeeForm({ initialData, mode, session: propSession }: Employ
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                {/* ฮับ (Station) - อ้างอิงจากชีทหน่วยงาน */}
+                {/* ฮับ (Station) - อ้างอิงจากชีทหน่วยงาน พิมพ์ค้นหาได้ */}
                 <div>
                   <label className="label text-xs mb-1">ฮับ</label>
-                  <select
+                  <SearchableSelect
                     value={formData.ops_hub}
-                    onChange={(e) => handleChange('ops_hub', e.target.value)}
-                    className="input text-xs bg-white h-9"
-                  >
-                    <option value="">เลือกฮับ</option>
-                    {hubOptions.map((h) => (
-                      <option key={h} value={h}>
-                        {h}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(val) => handleChange('ops_hub', val)}
+                    options={hubOptions}
+                    placeholder="เลือกฮับ"
+                    searchPlaceholder="ค้นหาฮับ... เช่น SPX, FSOCE"
+                  />
                 </div>
 
                 {/* ประเภทสัญญา (Contract Type) */}
@@ -569,21 +565,16 @@ export function EmployeeForm({ initialData, mode, session: propSession }: Employ
                   </select>
                 </div>
 
-                {/* หน่วยงาน (Department) */}
+                {/* หน่วยงาน (Department) - พิมพ์ค้นหาได้ */}
                 <div>
                   <label className="label text-xs mb-1">หน่วยงาน</label>
-                  <select
+                  <SearchableSelect
                     value={formData.ops_department}
-                    onChange={(e) => handleDepartmentChange(e.target.value)}
-                    className="input text-xs bg-white h-9"
-                  >
-                    <option value="">เลือกหน่วยงาน</option>
-                    {OPS_DEPARTMENTS.map((d) => (
-                      <option key={d} value={d}>
-                        {d}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(val) => handleDepartmentChange(val)}
+                    options={OPS_DEPARTMENTS}
+                    placeholder="เลือกหน่วยงาน"
+                    searchPlaceholder="ค้นหาหน่วยงาน... เช่น MM, Subcon"
+                  />
                 </div>
 
                 {/* แผนก (Designation) */}
