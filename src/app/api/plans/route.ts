@@ -8,8 +8,10 @@ import type { Plan } from '@/types'
 // Query params:
 // - date: filter by exact date (YYYY-MM-DD) or 'all'
 // - date_from: filter by date >= date_from
+// - date_to: filter by date <= date_to
 // - warehouse: filter by warehouse ID (or 'all')
 // - search: search department name
+// - limit: max records to return (default 100, max 200)
 export async function GET(request: NextRequest) {
   const token = request.cookies.get('dems_session')?.value
   const session = token ? await verifySession(token) : null
@@ -18,8 +20,11 @@ export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl
   const date = searchParams.get('date')
   const dateFrom = searchParams.get('date_from')
+  const dateTo = searchParams.get('date_to')
   const warehouse = searchParams.get('warehouse') || 'all'
   const search = searchParams.get('search')?.trim().toLowerCase() || ''
+  const limitParam = searchParams.get('limit')
+  const limit = limitParam ? Math.min(200, Math.max(1, parseInt(limitParam, 10) || 100)) : 100
 
   const supabase = createServerSupabaseClient()
 
@@ -44,8 +49,6 @@ export async function GET(request: NextRequest) {
       departments:department_id (id, name),
       plan_employees (id, employee_id, sent_to_namelist)
     `)
-    .order('date', { ascending: true })
-    .order('created_at', { ascending: false })
 
   // Apply warehouse permission & filter
   if (!isSuperAdmin) {
@@ -63,12 +66,33 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // Apply date filters
+  // Apply date filters & limits
   if (date && date !== 'all') {
     query = query.eq('date', date)
-  } else if (dateFrom) {
-    query = query.gte('date', dateFrom)
+    query = query.order('date', { ascending: true }).order('created_at', { ascending: false })
+  } else {
+    if (dateFrom) {
+      query = query.gte('date', dateFrom)
+    } else {
+      // ป้องกัน unbounded query: ค่าเริ่มต้นย้อนหลัง 30 วัน เมื่อไม่ได้ระบุวันที่
+      const d = new Date()
+      d.setDate(d.getDate() - 30)
+      const mm = String(d.getMonth() + 1).padStart(2, '0')
+      const dd = String(d.getDate()).padStart(2, '0')
+      const thirtyDaysAgo = `${d.getFullYear()}-${mm}-${dd}`
+      query = query.gte('date', thirtyDaysAgo)
+    }
+
+    if (dateTo) {
+      query = query.lte('date', dateTo)
+    }
+
+    // เมื่อดูหลายวัน/ทุกวัน ให้เรียงตามวันที่ล่าสุดก่อน
+    query = query.order('date', { ascending: false }).order('created_at', { ascending: false })
   }
+
+  // ป้องกันการดึงข้อมูลไม่จำกัดจำนวน (ค่าเริ่มต้น 100 รายการ สูงสุด 200 รายการ)
+  query = query.limit(limit)
 
   const { data, error } = await query
 
