@@ -199,6 +199,27 @@ export async function POST(request: NextRequest) {
     }
     const ids = Array.from(notes.keys())
 
+    // ตรวจสอบสถานะติดแบล็กลิสต์ (ห้ามเพิ่มพนักงานที่ติดแบล็กลิสต์เข้าสู่ Namelist เด็ดขาด)
+    const { data: empCheck } = await supabase
+      .from('employees')
+      .select('id, first_name, last_name, note, is_blacklisted')
+      .in('id', ids)
+
+    const blacklisted = (empCheck || []).find((e: any) => {
+      if (e.is_blacklisted) return true
+      if (e.note && e.note.includes('__BLACKLIST__:')) return true
+      return false
+    })
+
+    if (blacklisted) {
+      return NextResponse.json(
+        {
+          error: `ไม่สามารถเพิ่มพนักงาน "${blacklisted.first_name} ${blacklisted.last_name}" เข้าสู่ Namelist ได้ เนื่องจากติดสถานะแบล็กลิสต์`,
+        },
+        { status: 400 }
+      )
+    }
+
     // ตรวจรายชื่อที่มีใน Namelist ของ "วันที่ + กะ" เดียวกันอยู่แล้ว (ไม่ให้ซ้ำ) — ต่างกะเพิ่มซ้ำได้
     const duplicates = new Set<string>()
     for (const part of chunk(ids, 150)) {

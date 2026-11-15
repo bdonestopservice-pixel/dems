@@ -89,7 +89,7 @@ export async function GET(
   const buildEmployeeQuery = (idFilter?: string[]) => {
     let q = supabase
       .from('employees')
-      .select('id, po_id, prefix, first_name, last_name, phone, warehouse, is_active')
+      .select('id, po_id, prefix, first_name, last_name, phone, warehouse, is_active, note, is_blacklisted')
       .eq('is_active', true)
 
     if (idFilter && idFilter.length > 0) {
@@ -150,16 +150,24 @@ export async function GET(
     console.error('Error fetching general employees:', generalResult.error)
   }
 
-  // ป้องกันข้อมูลซ้ำซ้อนในฝั่ง JavaScript
-  const recentIdSet = new Set(recentEmployees.map((e) => e.id))
+  // Helper ตรวจสอบสถานะติดแบล็กลิสต์ (บล็อคไม่ให้เพิ่มลงในแพลนพนักงาน)
+  const isBlacklisted = (emp: any) => {
+    if (emp.is_blacklisted) return true
+    if (emp.note && emp.note.includes('__BLACKLIST__:')) return true
+    return false
+  }
+
+  // ป้องกันข้อมูลซ้ำซ้อน และคัดกรองพนักงานที่ติดแบล็กลิสต์ออกทั้งหมดในฝั่ง JavaScript
+  const nonBlacklistedRecent = recentEmployees.filter((e) => !isBlacklisted(e))
+  const recentIdSet = new Set(nonBlacklistedRecent.map((e) => e.id))
   const existingIdSet = new Set(existingIds)
   const generalEmployees = (generalResult.data || []).filter(
-    (emp: any) => !recentIdSet.has(emp.id) && !existingIdSet.has(emp.id)
+    (emp: any) => !recentIdSet.has(emp.id) && !existingIdSet.has(emp.id) && !isBlacklisted(emp)
   )
 
-  // รวมรายการพนักงาน Recently used (ติด badge และจำนวนครั้ง) กับพนักงานทั่วไป
+  // รวมรายการพนักงาน Recently used (ติด badge และจำนวนครั้ง) กับพนักงานทั่วไป (ไม่รวมคนที่ติดแบล็กลิสต์)
   const combined = [
-    ...recentEmployees.map((emp: any) => ({
+    ...nonBlacklistedRecent.map((emp: any) => ({
       ...emp,
       recently_used: true,
       usage_count: usageMap.get(emp.id) || 1,

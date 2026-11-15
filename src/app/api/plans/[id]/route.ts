@@ -37,6 +37,9 @@ export async function GET(
           last_name,
           phone,
           warehouse,
+          note,
+          is_blacklisted,
+          blacklist_reason,
           is_active
         )
       )
@@ -71,6 +74,10 @@ export async function GET(
     phone: pe.employees?.phone || '—',
     warehouse: pe.employees?.warehouse || plan.warehouse,
     department_name: plan.departments?.name || '—',
+    is_blacklisted:
+      Boolean(pe.employees?.is_blacklisted) ||
+      Boolean(pe.employees?.note && pe.employees.note.includes('__BLACKLIST__:')),
+    blacklist_reason: pe.employees?.blacklist_reason || null,
   }))
 
   const formattedPlan = {

@@ -16,6 +16,7 @@ import {
   Users,
   Pencil,
   Trash2,
+  Ban,
 } from 'lucide-react'
 import { Topbar } from '@/components/layout/Topbar'
 import { cn, formatThaiDate } from '@/lib/utils'
@@ -103,6 +104,9 @@ export function PlanRosterClient({ session, planId }: PlanRosterClientProps) {
 
   // Select / Deselect individual employee for Namelist
   const toggleSelect = (empId: string) => {
+    const targetEmp = roster.find((r) => r.employee_id === empId)
+    if (targetEmp?.is_blacklisted) return
+
     setSelectedIds((prev) => {
       const next = new Set(prev)
       if (next.has(empId)) {
@@ -114,9 +118,11 @@ export function PlanRosterClient({ session, planId }: PlanRosterClientProps) {
     })
   }
 
-  // Select / Deselect all eligible (not yet sent to namelist)
+  // Select / Deselect all eligible (not yet sent to namelist and not blacklisted)
   const handleSelectAll = () => {
-    const eligibleToSend = roster.filter((r) => !r.sent_to_namelist).map((r) => r.employee_id)
+    const eligibleToSend = roster
+      .filter((r) => !r.sent_to_namelist && !r.is_blacklisted)
+      .map((r) => r.employee_id)
     const allSelected = eligibleToSend.length > 0 && eligibleToSend.every((id) => selectedIds.has(id))
 
     if (allSelected) {
@@ -168,6 +174,16 @@ export function PlanRosterClient({ session, planId }: PlanRosterClientProps) {
   // Send selected employees to Namelist
   const handleSendNamelist = async () => {
     if (selectedIds.size === 0) return
+
+    const hasBlacklisted = Array.from(selectedIds).some((id) => {
+      const targetEmp = roster.find((r) => r.employee_id === id)
+      return targetEmp?.is_blacklisted
+    })
+    if (hasBlacklisted) {
+      setErrorMsg('มีพนักงานที่ติดสถานะแบล็กลิสต์อยู่ในรายการที่เลือก ไม่สามารถส่งเข้า Namelist ได้')
+      return
+    }
+
     setSendingNamelist(true)
     setErrorMsg(null)
     setSuccessMsg(null)
@@ -413,34 +429,58 @@ export function PlanRosterClient({ session, planId }: PlanRosterClientProps) {
                   {roster.map((emp) => {
                     const isSelected = selectedIds.has(emp.employee_id)
                     const isSent = emp.sent_to_namelist
+                    const isBlacklisted = !!emp.is_blacklisted
                     const fullName = `${emp.first_name || ''} ${emp.last_name || ''}`.trim()
 
                     return (
                       <tr
                         key={emp.id}
-                        className={`hover:bg-[#FAFBFD] transition-colors ${
-                          isSelected ? 'bg-[#EEF3FC]/40' : ''
-                        }`}
+                        className={cn(
+                          'transition-colors',
+                          isBlacklisted
+                            ? 'bg-[#FEF2F2] text-[#B91C1C]'
+                            : isSelected
+                            ? 'bg-[#EEF3FC]/40'
+                            : 'hover:bg-[#FAFBFD]'
+                        )}
                       >
                         {/* Checkbox for Namelist */}
                         <td className="py-3.5 px-4 text-center">
                           <input
                             type="checkbox"
                             checked={isSelected}
-                            disabled={isSent}
+                            disabled={isSent || isBlacklisted}
                             onChange={() => toggleSelect(emp.employee_id)}
                             className="w-4 h-4 rounded text-[#2E6FE0] focus:ring-[#2E6FE0] border-gray-300 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
                           />
                         </td>
 
                         {/* PO ID */}
-                        <td className="py-3.5 px-4 font-mono text-xs font-bold text-[#16233D]">
+                        <td
+                          className={cn(
+                            'py-3.5 px-4 font-mono text-xs font-bold',
+                            isBlacklisted ? 'text-[#E5484D]' : 'text-[#16233D]'
+                          )}
+                        >
                           {emp.po_id || '—'}
                         </td>
 
                         {/* Full Name */}
                         <td className="py-3.5 px-4 text-xs font-medium text-[#16233D]">
-                          {fullName}
+                          <div className="flex items-center gap-2">
+                            <span className={cn(isBlacklisted && 'text-[#B91C1C] font-semibold')}>
+                              {fullName}
+                            </span>
+                            {isBlacklisted && (
+                              <span
+                                className="inline-flex items-center gap-1 text-[10px] font-bold text-[#E5484D] bg-[#FCE8E8] border border-[#F8D3D4] px-2 py-0.5 rounded-full whitespace-nowrap"
+                                title={emp.blacklist_reason ? `เหตุผล: ${emp.blacklist_reason}` : 'ติดแบล็กลิสต์'}
+                              >
+                                <Ban size={10} className="stroke-[2.5]" />
+                                ติดแบล็กลิสต์ (บล็อค)
+                              </span>
+                            )}
+                          </div>
                         </td>
 
                         {/* Department / Position */}
@@ -455,7 +495,11 @@ export function PlanRosterClient({ session, planId }: PlanRosterClientProps) {
 
                         {/* Sent Status Badge */}
                         <td className="py-3.5 px-4 text-center">
-                          {isSent ? (
+                          {isBlacklisted ? (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[#E5484D] bg-[#FCE8E8] border border-[#F8D3D4] px-2.5 py-0.5 rounded-full">
+                              <Ban size={11} className="stroke-[2.5]" /> ถูกบล็อค
+                            </span>
+                          ) : isSent ? (
                             <span className="inline-flex items-center text-[11px] font-semibold text-[#2E9E5B] bg-[#E7F6ED] px-2.5 py-0.5 rounded-full">
                               ✓ ส่งแล้ว
                             </span>

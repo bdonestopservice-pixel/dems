@@ -143,6 +143,8 @@ export interface PlanEmployee {
   phone?: string
   position?: string
   warehouse?: string
+  is_blacklisted?: boolean
+  blacklist_reason?: string | null
 }
 
 export interface NamelistEntry {

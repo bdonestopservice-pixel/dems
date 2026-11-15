@@ -23,6 +23,27 @@ export async function POST(
 
   const supabase = createServerSupabaseClient()
 
+  // ตรวจสอบสถานะติดแบล็กลิสต์ (ห้ามส่งพนักงานที่ติดแบล็กลิสต์เข้า Namelist เด็ดขาด)
+  const { data: empCheck } = await supabase
+    .from('employees')
+    .select('id, first_name, last_name, note, is_blacklisted')
+    .in('id', employee_ids)
+
+  const blacklisted = (empCheck || []).find((e: any) => {
+    if (e.is_blacklisted) return true
+    if (e.note && e.note.includes('__BLACKLIST__:')) return true
+    return false
+  })
+
+  if (blacklisted) {
+    return NextResponse.json(
+      {
+        error: `ไม่สามารถส่งพนักงาน "${blacklisted.first_name} ${blacklisted.last_name}" เข้า Namelist ได้ เนื่องจากติดสถานะแบล็กลิสต์`,
+      },
+      { status: 400 }
+    )
+  }
+
   // 1. Fetch plan details
   const { data: plan, error: planErr } = await supabase
     .from('plans')

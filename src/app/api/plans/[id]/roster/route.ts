@@ -50,6 +50,27 @@ export async function POST(
     })
   }
 
+  // 1.1 ตรวจสอบสถานะติดแบล็กลิสต์ (ห้ามเพิ่มพนักงานที่ติดแบล็กลิสต์ลงในแพลนเด็ดขาด)
+  const { data: empCheck } = await supabase
+    .from('employees')
+    .select('id, first_name, last_name, note, is_blacklisted')
+    .in('id', toAdd)
+
+  const blacklisted = (empCheck || []).find((e: any) => {
+    if (e.is_blacklisted) return true
+    if (e.note && e.note.includes('__BLACKLIST__:')) return true
+    return false
+  })
+
+  if (blacklisted) {
+    return NextResponse.json(
+      {
+        error: `ไม่สามารถเพิ่มพนักงาน "${blacklisted.first_name} ${blacklisted.last_name}" ลงในแพลนได้ เนื่องจากติดสถานะแบล็กลิสต์`,
+      },
+      { status: 400 }
+    )
+  }
+
   // 2. ตรวจสอบโควตาพนักงาน ห้ามใส่เกินจำนวนที่แพลนระบุไว้ (required_count)
   const requiredCount = typeof plan.required_count === 'number' ? plan.required_count : 0
   const currentCount = existingSet.size

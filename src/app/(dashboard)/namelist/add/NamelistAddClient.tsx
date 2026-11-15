@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ChevronLeft, Search, Plus, Loader2, AlertCircle, Users } from 'lucide-react'
+import { ChevronLeft, Search, Plus, Loader2, AlertCircle, Users, Ban } from 'lucide-react'
 import { Topbar } from '@/components/layout/Topbar'
 import { employeeFullName, formatShiftRange } from '@/lib/namelist'
 import { broadcastRealtime } from '@/lib/realtime'
@@ -27,6 +27,8 @@ interface EmployeeRow {
   warehouse: string
   id_card?: string
   phone?: string
+  is_blacklisted?: boolean
+  blacklist_reason?: string | null
 }
 
 const fieldCls =
@@ -178,7 +180,8 @@ export function NamelistAddClient({ session, initialDate, initialWarehouse }: Na
   }, [debouncedSearch, empWarehouse])
 
   const toggle = (id: string) => {
-    if (existingIds.has(id)) return
+    const emp = employees.find((e) => e.id === id)
+    if (existingIds.has(id) || emp?.is_blacklisted) return
     setSelected((prev) => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id)
@@ -188,7 +191,7 @@ export function NamelistAddClient({ session, initialDate, initialWarehouse }: Na
   }
 
   const selectableVisible = useMemo(
-    () => employees.filter((e) => !existingIds.has(e.id)),
+    () => employees.filter((e) => !existingIds.has(e.id) && !e.is_blacklisted),
     [employees, existingIds]
   )
   const allVisibleSelected =
@@ -211,6 +214,14 @@ export function NamelistAddClient({ session, initialDate, initialWarehouse }: Na
     if (!departmentId) return setErrorMsg('กรุณาเลือกแผนก')
     if (!shiftId) return setErrorMsg('กรุณาเลือกกะ')
     if (selected.size === 0) return setErrorMsg('กรุณาเลือกพนักงานอย่างน้อย 1 คน')
+
+    const hasBlacklisted = Array.from(selected).some((id) => {
+      const emp = employees.find((e) => e.id === id)
+      return emp?.is_blacklisted
+    })
+    if (hasBlacklisted) {
+      return setErrorMsg('มีพนักงานที่ติดสถานะแบล็กลิสต์อยู่ในรายการที่เลือก ไม่สามารถเพิ่มเข้าสู่ Namelist ได้')
+    }
 
     setSubmitting(true)
     try {
@@ -406,13 +417,16 @@ export function NamelistAddClient({ session, initialDate, initialWarehouse }: Na
                 <tbody className="divide-y divide-[#E1E6EF]">
                   {employees.map((emp) => {
                     const isExisting = existingIds.has(emp.id)
+                    const isBlacklisted = !!emp.is_blacklisted
                     const isSelected = selected.has(emp.id)
                     return (
                       <tr
                         key={emp.id}
-                        onClick={() => !isExisting && toggle(emp.id)}
+                        onClick={() => !isExisting && !isBlacklisted && toggle(emp.id)}
                         className={`transition-colors select-none ${
-                          isExisting
+                          isBlacklisted
+                            ? 'bg-[#FEF2F2] opacity-80 cursor-not-allowed text-[#B91C1C]'
+                            : isExisting
                             ? 'bg-[#F8FAFC] opacity-70 cursor-not-allowed'
                             : isSelected
                             ? 'bg-[#EEF3FC]/50 hover:bg-[#EEF3FC]/70 cursor-pointer'
@@ -424,21 +438,36 @@ export function NamelistAddClient({ session, initialDate, initialWarehouse }: Na
                           <input
                             type="checkbox"
                             checked={isSelected}
-                            disabled={isExisting}
+                            disabled={isExisting || isBlacklisted}
                             onChange={() => toggle(emp.id)}
                             className="rounded border-[#C6DCFD] text-[#2E6FE0] focus:ring-[#2E6FE0] w-4 h-4 cursor-pointer disabled:cursor-not-allowed"
                           />
                         </td>
 
                         {/* รหัสพนักงาน */}
-                        <td className="px-4 py-3.5 font-mono text-xs font-bold text-[#16233D] whitespace-nowrap">
+                        <td
+                          className={`px-4 py-3.5 font-mono text-xs font-bold whitespace-nowrap ${
+                            isBlacklisted ? 'text-[#E5484D]' : 'text-[#16233D]'
+                          }`}
+                        >
                           {emp.po_id || '—'}
                         </td>
 
                         {/* ชื่อ-นามสกุล */}
                         <td className="px-4 py-3.5 font-semibold text-[#16233D] whitespace-nowrap">
                           <div className="flex items-center gap-2">
-                            <span>{employeeFullName(emp)}</span>
+                            <span className={isBlacklisted ? 'text-[#B91C1C]' : ''}>
+                              {employeeFullName(emp)}
+                            </span>
+                            {isBlacklisted && (
+                              <span
+                                className="inline-flex items-center gap-1 text-[10px] font-bold text-[#E5484D] bg-[#FCE8E8] border border-[#F8D3D4] px-2 py-0.5 rounded-full whitespace-nowrap"
+                                title={emp.blacklist_reason ? `เหตุผล: ${emp.blacklist_reason}` : 'ติดแบล็กลิสต์'}
+                              >
+                                <Ban size={10} className="stroke-[2.5]" />
+                                ติดแบล็กลิสต์ (บล็อค)
+                              </span>
+                            )}
                             {isExisting && (
                               <span className="text-[10px] font-semibold text-[#B45F17] bg-[#FEF3E2] px-2 py-0.5 rounded-full whitespace-nowrap">
                                 อยู่ใน Namelist แล้ว

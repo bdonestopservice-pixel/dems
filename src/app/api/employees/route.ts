@@ -26,6 +26,7 @@ export async function GET(request: NextRequest) {
   const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '100', 10)))
   const idsParam = searchParams.get('ids')
   const fetchAll = searchParams.get('all') === 'true'
+  const excludeBlacklisted = searchParams.get('exclude_blacklisted') === 'true'
 
   const supabase = createServerSupabaseClient()
 
@@ -170,9 +171,13 @@ export async function GET(request: NextRequest) {
     }
   })
 
+  const finalEmployees = excludeBlacklisted
+    ? formatted.filter((emp: any) => !emp.is_blacklisted)
+    : formatted
+
   return NextResponse.json({
-    employees: formatted,
-    total,
+    employees: finalEmployees,
+    total: excludeBlacklisted ? finalEmployees.length : total,
     page,
     limit,
     totalPages,
