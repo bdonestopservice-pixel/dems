@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronLeft, Loader2, Save, X, AlertCircle, Check, Calendar } from 'lucide-react'
-import { cn, getInitials, validateThaiCitizenId, parseDobInput } from '@/lib/utils'
+import { cn, getInitials, validateThaiCitizenId, parseDobInput, formatDobInput } from '@/lib/utils'
 import { broadcastRealtime } from '@/lib/realtime'
 import { useRealtimeListener, useRealtimeSession } from '@/components/providers/RealtimeProvider'
 import { useWarehouses } from '@/components/providers/WarehouseProvider'
@@ -323,6 +323,33 @@ export function EmployeeForm({ initialData, mode, session: propSession }: Employ
 
   function handleChange(field: string, val: string) {
     setFormData((prev) => ({ ...prev, [field]: val }))
+  }
+
+  // จัดการการพิมพ์วันเดือนปีเกิดแบบ Pattern Masking (DD/MM/YYYY)
+  function handleDobChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const rawVal = e.target.value
+    const formatted = formatDobInput(rawVal, formData.dob)
+    handleChange('dob', formatted)
+  }
+
+  // รองรับการกดปุ่ม Backspace เมื่ออยู่หลังเครื่องหมาย / ให้ลบตัวเลขก่อนหน้าได้อย่างเป็นธรรมชาติ
+  function handleDobKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Backspace') {
+      const input = e.currentTarget
+      const val = input.value
+      const selStart = input.selectionStart
+      const selEnd = input.selectionEnd
+
+      if (selStart === selEnd && selStart !== null && selStart > 0 && val[selStart - 1] === '/') {
+        e.preventDefault()
+        const newVal = val.slice(0, selStart - 2) + val.slice(selStart)
+        handleChange('dob', newVal)
+        setTimeout(() => {
+          const nextPos = Math.max(0, selStart - 2)
+          input.setSelectionRange(nextPos, nextPos)
+        }, 0)
+      }
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -826,7 +853,9 @@ export function EmployeeForm({ initialData, mode, session: propSession }: Employ
               <input
                 type="text"
                 value={formData.dob}
-                onChange={(e) => handleChange('dob', e.target.value)}
+                onChange={handleDobChange}
+                onKeyDown={handleDobKeyDown}
+                maxLength={10}
                 placeholder="วว/ดด/ปปปป (พ.ศ.) เช่น 20/11/2540"
                 className={cn(
                   'input text-sm transition-all',

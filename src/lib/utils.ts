@@ -178,3 +178,89 @@ export function parseDobInput(text?: string | null): DobParseResult {
   }
 }
 
+/**
+ * ฟังก์ชันจัดรูปแบบและควบคุมแพทเทิร์นวันเดือนปีเกิด (DD/MM/YYYY) ขณะกำลังพิมพ์
+ * - วันที่: 1 - 31 (ใส่อัตโนมัติและเติม /)
+ * - เดือน: 1 - 12 (ใส่อัตโนมัติและเติม /)
+ * - ปี: 4 หลัก และไม่สามารถใส่เกินปีปัจจุบัน (เช่น 2569 ใน พ.ศ. หรือ 2026 ใน ค.ศ.)
+ */
+export function formatDobInput(inputVal: string, prevVal: string = ''): string {
+  if (!inputVal) return ''
+
+  // หากผู้ใช้กำลังกดลบ (ความยาวลดลง) ให้คงค่าตามที่ลบเพื่อไม่ให้ติด Loop /
+  if (inputVal.length < prevVal.length) {
+    return inputVal
+  }
+
+  const now = new Date()
+  const currentYearCE = now.getFullYear() // 2026
+  const currentYearBE = currentYearCE + 543 // 2569
+
+  const endedWithSlash = inputVal.endsWith('/')
+
+  // กรองเฉพาะตัวเลขเท่านั้น
+  const rawDigits = inputVal.replace(/[^0-9]/g, '')
+  if (!rawDigits) return ''
+
+  // จำกัดไม่เกิน 8 หลัก (DD 2 หลัก + MM 2 หลัก + YYYY 4 หลัก)
+  const digits = rawDigits.slice(0, 8)
+
+  let formatted = ''
+
+  // 1. ตรวจสอบและจัดรูปแบบวัน (1 - 31)
+  if (digits.length === 1) {
+    const d1 = parseInt(digits[0], 10)
+    // วันที่ขึ้นต้นด้วย 4-9 ไม่มีอยู่จริง (วันมีแค่ 01-31) หรือผู้ใช้พิมพ์ / ต่อท้าย -> เติม 0X/ ให้ทันที
+    if (d1 >= 4 || endedWithSlash) {
+      formatted = '0' + (d1 === 0 ? 1 : d1) + '/'
+    } else {
+      formatted = digits[0]
+    }
+  } else {
+    // มีตั้งแต่ 2 หลักขึ้นไป
+    let day = parseInt(digits.slice(0, 2), 10)
+    if (day === 0) day = 1
+    if (day > 31) day = 31 // จำกัดไม่เกิน 31
+    const dayStr = String(day).padStart(2, '0')
+    formatted = dayStr + '/'
+
+    // 2. ตรวจสอบและจัดรูปแบบเดือน (1 - 12)
+    if (digits.length === 3) {
+      const m1 = parseInt(digits[2], 10)
+      // เดือนขึ้นต้นด้วย 2-9 ไม่มีอยู่จริง (เดือนมีแค่ 01-12) หรือผู้ใช้พิมพ์ / ต่อท้าย -> เติม 0X/ ให้ทันที
+      if (m1 >= 2 || (endedWithSlash && inputVal.lastIndexOf('/') > 2)) {
+        formatted += '0' + (m1 === 0 ? 1 : m1) + '/'
+      } else {
+        formatted += digits[2]
+      }
+    } else if (digits.length >= 4) {
+      // มีตั้งแต่ 4 หลักขึ้นไป (เดือนครบ 2 หลัก)
+      let month = parseInt(digits.slice(2, 4), 10)
+      if (month === 0) month = 1
+      if (month > 12) month = 12 // จำกัดไม่เกิน 12
+      const monthStr = String(month).padStart(2, '0')
+      formatted += monthStr + '/'
+
+      // 3. ตรวจสอบและจัดรูปแบบปี (4 หลัก ไม่เกินปีปัจจุบัน เช่น 2569 พ.ศ.)
+      if (digits.length > 4) {
+        let yearStr = digits.slice(4, 8)
+        if (yearStr.length === 4) {
+          let year = parseInt(yearStr, 10)
+          // กรณีปี พ.ศ. (ปี > 2400) ไม่ให้เกินปีปัจจุบัน เช่น 2569
+          if (year > 2400) {
+            if (year > currentYearBE) year = currentYearBE
+          } else if (year > 1000) {
+            // กรณีปี ค.ศ. ไม่ให้เกินปีปัจจุบัน เช่น 2026
+            if (year > currentYearCE) year = currentYearCE
+          }
+          yearStr = String(year).padStart(4, '0')
+        }
+        formatted += yearStr
+      }
+    }
+  }
+
+  return formatted
+}
+
+
