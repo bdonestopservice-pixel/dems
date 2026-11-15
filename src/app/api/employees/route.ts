@@ -114,8 +114,8 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // Order by po_id ascending or created_at descending
-  query = query.order('po_id', { ascending: true, nullsFirst: false })
+  // Order by created_at descending (newest employees always shown first)
+  query = query.order('created_at', { ascending: false })
 
   // Pagination (unless fetchAll is requested)
   if (!fetchAll && !idsParam) {
@@ -134,13 +134,41 @@ export async function GET(request: NextRequest) {
   const total = count ?? (data?.length || 0)
   const totalPages = Math.ceil(total / limit) || 1
 
-  // Format joined fields for convenience
-  const formatted = (data || []).map((emp: any) => ({
-    ...emp,
-    warehouse_name: emp.warehouses?.name || emp.warehouse,
-    bank_name: emp.banks?.name || undefined,
-    bank_code: emp.banks?.code || undefined,
-  }))
+  // Format joined fields and blacklist attributes for convenience
+  const formatted = (data || []).map((emp: any) => {
+    let is_blacklisted = emp.is_blacklisted ?? false
+    let blacklist_reason = emp.blacklist_reason ?? null
+    let blacklisted_at = emp.blacklisted_at ?? null
+    let blacklisted_by = emp.blacklisted_by ?? null
+
+    // Graceful fallback if stored in note metadata before SQL migration
+    if (!is_blacklisted && emp.note && emp.note.includes('__BLACKLIST__:')) {
+      try {
+        const match = emp.note.match(/__BLACKLIST__:(.*?)__/)
+        if (match) {
+          const parsed = JSON.parse(match[1])
+          is_blacklisted = true
+          blacklist_reason = parsed.reason || null
+          blacklisted_at = parsed.at || null
+          blacklisted_by = parsed.by || null
+        }
+      } catch {}
+    }
+
+    const displayNote = emp.note ? emp.note.replace(/__BLACKLIST__:.*?__/g, '').trim() : emp.note
+
+    return {
+      ...emp,
+      note: displayNote,
+      is_blacklisted,
+      blacklist_reason,
+      blacklisted_at,
+      blacklisted_by,
+      warehouse_name: emp.warehouses?.name || emp.warehouse,
+      bank_name: emp.banks?.name || undefined,
+      bank_code: emp.banks?.code || undefined,
+    }
+  })
 
   return NextResponse.json({
     employees: formatted,

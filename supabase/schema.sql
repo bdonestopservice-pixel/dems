@@ -647,6 +647,10 @@ CREATE TABLE IF NOT EXISTS employees (
   -- อื่นๆ
   note             TEXT,
   is_active        BOOLEAN DEFAULT true,
+  is_blacklisted   BOOLEAN DEFAULT false,  -- สถานะติดแบล็กลิสต์
+  blacklist_reason TEXT,                   -- เหตุผลที่ติดแบล็กลิสต์
+  blacklisted_at   TIMESTAMPTZ,            -- วันเวลาที่บันทึกติดแบล็กลิสต์
+  blacklisted_by   TEXT,                   -- ผู้ดำเนินการติดแบล็กลิสต์
   created_at       TIMESTAMPTZ DEFAULT now(),
   updated_at       TIMESTAMPTZ DEFAULT now()
 );
@@ -661,6 +665,10 @@ ALTER TABLE employees ADD COLUMN IF NOT EXISTS address_trok     TEXT;
 ALTER TABLE employees ADD COLUMN IF NOT EXISTS address_soi      TEXT;
 ALTER TABLE employees ADD COLUMN IF NOT EXISTS address_full     TEXT;
 ALTER TABLE employees ADD COLUMN IF NOT EXISTS promptpay_status TEXT;
+ALTER TABLE employees ADD COLUMN IF NOT EXISTS is_blacklisted   BOOLEAN DEFAULT false;
+ALTER TABLE employees ADD COLUMN IF NOT EXISTS blacklist_reason TEXT;
+ALTER TABLE employees ADD COLUMN IF NOT EXISTS blacklisted_at   TIMESTAMPTZ;
+ALTER TABLE employees ADD COLUMN IF NOT EXISTS blacklisted_by   TEXT;
 
 
 -- ============================================================

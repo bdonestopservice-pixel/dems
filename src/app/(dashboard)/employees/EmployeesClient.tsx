@@ -17,10 +17,12 @@ import {
   Bell,
   CheckCircle2,
   AlertCircle,
+  Ban,
 } from 'lucide-react'
 import { cn, getInitials, formatThaiDate, todayLocal } from '@/lib/utils'
 import { DateInput } from '@/components/ui/DateInput'
 import { WarehouseSelect } from '@/components/ui/WarehouseSelect'
+import { BlacklistModal } from '@/components/employees/BlacklistModal'
 import { useRealtimeListener } from '@/components/providers/RealtimeProvider'
 import { useWarehouses } from '@/components/providers/WarehouseProvider'
 import type { Employee, Warehouse, AuthSession } from '@/types'
@@ -39,10 +41,24 @@ export function EmployeesClient({ session }: EmployeesClientProps) {
   const [toast, setToast] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Blacklist Modal State
+  const [blacklistTarget, setBlacklistTarget] = useState<Employee | null>(null)
+  const [isBlacklistModalOpen, setIsBlacklistModalOpen] = useState(false)
+
   const showToast = (t: { type: 'success' | 'error'; text: string }) => {
     setToast(t)
     if (toastTimer.current) clearTimeout(toastTimer.current)
     toastTimer.current = setTimeout(() => setToast(null), 3500)
+  }
+
+  const handleBlacklistSuccess = (updatedEmp: Employee, action: 'blacklist' | 'unblacklist') => {
+    setEmployees((prev) =>
+      prev.map((emp) => (emp.id === updatedEmp.id ? { ...emp, ...updatedEmp } : emp))
+    )
+    showToast({
+      type: 'success',
+      text: action === 'blacklist' ? 'ติดแบล็กลิสต์พนักงานเรียบร้อยแล้ว' : 'ปลดแบล็กลิสต์เรียบร้อยแล้ว',
+    })
   }
 
   // Search & Filters
@@ -485,19 +501,24 @@ export function EmployeesClient({ session }: EmployeesClientProps) {
                   <th className="px-4 py-3 font-semibold text-[#5B6B85]">วันที่เริ่มงาน</th>
                   <th className="px-4 py-3 font-semibold text-[#5B6B85]">เลขบัตรประชาชน</th>
                   <th className="px-4 py-3 font-semibold text-[#5B6B85]">เบอร์โทร</th>
-                  <th className="w-14 px-4 py-3 text-center" />
+                  <th className="w-20 px-3 py-3 text-center" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E1E6EF]">
                 {employees.map((emp) => {
                   const isChecked = selectedIds.has(emp.id)
                   const fullName = `${emp.first_name} ${emp.last_name}`
+                  const isBlacklisted = !!emp.is_blacklisted
                   return (
                     <tr
                       key={emp.id}
                       className={cn(
-                        'transition-colors hover:bg-[#F4F6FA]/70',
-                        isChecked && 'bg-[#EEF3FC]/40'
+                        'transition-colors',
+                        isBlacklisted
+                          ? 'bg-[#FEF2F2] hover:bg-[#FEE2E2] text-[#991B1B] border-l-4 border-l-[#E5484D]'
+                          : isChecked
+                          ? 'bg-[#EEF3FC]/40 hover:bg-[#F4F6FA]/70'
+                          : 'hover:bg-[#F4F6FA]/70'
                       )}
                     >
                       {/* Checkbox */}
@@ -511,13 +532,38 @@ export function EmployeesClient({ session }: EmployeesClientProps) {
                       </td>
 
                       {/* PO-ID */}
-                      <td className="px-4 py-3.5 font-medium text-[#16233D] whitespace-nowrap">
+                      <td
+                        className={cn(
+                          'px-4 py-3.5 font-medium whitespace-nowrap',
+                          isBlacklisted ? 'text-[#E5484D] font-bold' : 'text-[#16233D]'
+                        )}
+                      >
                         {emp.po_id || '-'}
                       </td>
 
                       {/* ชื่อ-นามสกุล */}
                       <td className="px-4 py-3.5 font-semibold text-[#16233D] whitespace-nowrap">
-                        {fullName}
+                        <div className="flex items-center gap-2">
+                          <span className={cn(isBlacklisted && 'text-[#B91C1C]')}>{fullName}</span>
+                          {isBlacklisted && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setBlacklistTarget(emp)
+                                setIsBlacklistModalOpen(true)
+                              }}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#FCE8E8] text-[#E5484D] border border-[#F8D3D4] hover:bg-[#F8D3D4] transition-colors cursor-pointer"
+                              title={
+                                emp.blacklist_reason
+                                  ? `เหตุผล: ${emp.blacklist_reason}`
+                                  : 'ติดแบล็กลิสต์'
+                              }
+                            >
+                              <Ban size={10} className="stroke-[2.5]" />
+                              ติดแบล็กลิสต์
+                            </button>
+                          )}
+                        </div>
                       </td>
 
                       {/* คลัง/สาขา */}
@@ -540,15 +586,37 @@ export function EmployeesClient({ session }: EmployeesClientProps) {
                         {emp.phone || '-'}
                       </td>
 
-                      {/* Edit Button */}
-                      <td className="w-14 px-4 py-3.5 text-center">
-                        <Link
-                          href={`/employees/${emp.id}`}
-                          className="inline-flex items-center justify-center p-1.5 rounded-lg text-[#5B6B85] hover:text-[#2558B8] hover:bg-[#EEF3FC] border border-transparent hover:border-[#E1E6EF] transition-colors"
-                          title="แก้ไขข้อมูลพนักงาน"
-                        >
-                          <Pencil size={14} />
-                        </Link>
+                      {/* Action Buttons: Edit + Blacklist */}
+                      <td className="w-20 px-3 py-3.5 text-center">
+                        <div className="inline-flex items-center justify-center gap-1">
+                          <Link
+                            href={`/employees/${emp.id}`}
+                            className="inline-flex items-center justify-center p-1.5 rounded-lg text-[#5B6B85] hover:text-[#2558B8] hover:bg-[#EEF3FC] border border-transparent hover:border-[#E1E6EF] transition-colors"
+                            title="แก้ไขข้อมูลพนักงาน"
+                          >
+                            <Pencil size={14} />
+                          </Link>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setBlacklistTarget(emp)
+                              setIsBlacklistModalOpen(true)
+                            }}
+                            className={cn(
+                              'inline-flex items-center justify-center p-1.5 rounded-lg border transition-colors cursor-pointer',
+                              isBlacklisted
+                                ? 'text-[#E5484D] bg-[#FCE8E8] border-[#F8D3D4] hover:bg-[#F8D3D4] shadow-xs'
+                                : 'text-[#5B6B85] hover:text-[#E5484D] hover:bg-[#FCE8E8] border-transparent hover:border-[#F8D3D4]'
+                            )}
+                            title={
+                              isBlacklisted
+                                ? 'ดูเหตุผลที่ติดแบล็กลิสต์ / ปลดแบล็กลิสต์'
+                                : 'ติดแบล็กลิสต์พนักงาน'
+                            }
+                          >
+                            <Ban size={14} className={isBlacklisted ? 'stroke-[2.5]' : ''} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   )
@@ -615,6 +683,17 @@ export function EmployeesClient({ session }: EmployeesClientProps) {
           </div>
         </div>
       </div>
+
+      {/* Blacklist Modal */}
+      <BlacklistModal
+        employee={blacklistTarget}
+        isOpen={isBlacklistModalOpen}
+        onClose={() => {
+          setIsBlacklistModalOpen(false)
+          setBlacklistTarget(null)
+        }}
+        onSuccess={handleBlacklistSuccess}
+      />
     </div>
   )
 }

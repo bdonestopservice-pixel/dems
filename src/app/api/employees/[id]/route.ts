@@ -29,8 +29,33 @@ export async function GET(
     return NextResponse.json({ error: 'ไม่พบข้อมูลพนักงาน' }, { status: 404 })
   }
 
+  let is_blacklisted = data.is_blacklisted ?? false
+  let blacklist_reason = data.blacklist_reason ?? null
+  let blacklisted_at = data.blacklisted_at ?? null
+  let blacklisted_by = data.blacklisted_by ?? null
+
+  if (!is_blacklisted && data.note && data.note.includes('__BLACKLIST__:')) {
+    try {
+      const match = data.note.match(/__BLACKLIST__:(.*?)__/)
+      if (match) {
+        const parsed = JSON.parse(match[1])
+        is_blacklisted = true
+        blacklist_reason = parsed.reason || null
+        blacklisted_at = parsed.at || null
+        blacklisted_by = parsed.by || null
+      }
+    } catch {}
+  }
+
+  const displayNote = data.note ? data.note.replace(/__BLACKLIST__:.*?__/g, '').trim() : data.note
+
   const formatted = {
     ...data,
+    note: displayNote,
+    is_blacklisted,
+    blacklist_reason,
+    blacklisted_at,
+    blacklisted_by,
     warehouse_name: data.warehouses?.name || data.warehouse,
     bank_name: data.banks?.name || undefined,
     bank_code: data.banks?.code || undefined,
@@ -167,8 +192,33 @@ export async function PUT(
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
+    let is_blacklisted = updated.is_blacklisted ?? false
+    let blacklist_reason = updated.blacklist_reason ?? null
+    let blacklisted_at = updated.blacklisted_at ?? null
+    let blacklisted_by = updated.blacklisted_by ?? null
+
+    if (!is_blacklisted && updated.note && updated.note.includes('__BLACKLIST__:')) {
+      try {
+        const match = updated.note.match(/__BLACKLIST__:(.*?)__/)
+        if (match) {
+          const parsed = JSON.parse(match[1])
+          is_blacklisted = true
+          blacklist_reason = parsed.reason || null
+          blacklisted_at = parsed.at || null
+          blacklisted_by = parsed.by || null
+        }
+      } catch {}
+    }
+
+    const displayNote = updated.note ? updated.note.replace(/__BLACKLIST__:.*?__/g, '').trim() : updated.note
+
     const formatted = {
       ...updated,
+      note: displayNote,
+      is_blacklisted,
+      blacklist_reason,
+      blacklisted_at,
+      blacklisted_by,
       warehouse_name: updated.warehouses?.name || updated.warehouse,
       bank_name: updated.banks?.name || undefined,
       bank_code: updated.banks?.code || undefined,

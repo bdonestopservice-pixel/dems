@@ -54,6 +54,22 @@ export function formatThaiDate(dateStr: string | Date | null | undefined): strin
   }
 }
 
+export function formatThaiDateTime(dateStr: string | Date | null | undefined): string {
+  if (!dateStr) return '-'
+  try {
+    const d = new Date(dateStr)
+    return d.toLocaleDateString('th-TH', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  } catch {
+    return String(dateStr)
+  }
+}
+
 /** วันที่วันนี้ตามเวลาเครื่อง (YYYY-MM-DD) — ไม่ใช้ toISOString เพราะเป็น UTC ทำให้ช่วงเช้าได้วันเมื่อวาน */
 export function todayLocal(): string {
   const d = new Date()

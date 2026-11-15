@@ -97,6 +97,10 @@ export interface Employee {
   promptpay_status?: string // 'ยืนยันแล้ว' | 'ยังไม่ยืนยัน'
   note?: string
   is_active: boolean
+  is_blacklisted?: boolean
+  blacklist_reason?: string | null
+  blacklisted_at?: string | null
+  blacklisted_by?: string | null
   created_at: string
   updated_at: string
   // joined
