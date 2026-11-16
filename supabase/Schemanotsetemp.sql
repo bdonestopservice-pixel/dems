@@ -580,6 +580,21 @@ CREATE TABLE IF NOT EXISTS oa_options (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- ข้อมูลค่าต่างพื้นที่เริ่มต้น
+INSERT INTO oa_options (warehouse, name)
+SELECT v.warehouse, v.name
+FROM (VALUES
+  ('FSOCW', 'OA2'),
+  ('SOCE',  'OA'),
+  ('SOCE',  'วังน้อย'),
+  ('SOCE',  'บางนา'),
+  ('SOCE',  'สมุทรสาคร')
+) AS v(warehouse, name)
+WHERE NOT EXISTS (
+  SELECT 1 FROM oa_options o
+  WHERE o.warehouse = v.warehouse AND o.name = v.name
+);
+
 
 -- ============================================================
 -- 7. Status การทำงาน (Work Statuses) — ข้อมูลกลาง
@@ -746,9 +761,10 @@ CREATE UNIQUE INDEX IF NOT EXISTS namelist_date_employee_shift_key
 -- ============================================================
 
 -- 13.1 ดัชนีเดี่ยวพื้นฐาน (Single-column Indexes)
-CREATE INDEX IF NOT EXISTS idx_employees_warehouse   ON employees(warehouse);
-CREATE INDEX IF NOT EXISTS idx_employees_is_active   ON employees(is_active);
-CREATE INDEX IF NOT EXISTS idx_employees_po_id       ON employees(po_id);
+CREATE INDEX IF NOT EXISTS idx_employees_warehouse      ON employees(warehouse);
+CREATE INDEX IF NOT EXISTS idx_employees_is_active      ON employees(is_active);
+CREATE INDEX IF NOT EXISTS idx_employees_is_blacklisted ON employees(is_blacklisted);
+CREATE INDEX IF NOT EXISTS idx_employees_po_id          ON employees(po_id);
 CREATE INDEX IF NOT EXISTS idx_employees_bank_id     ON employees(bank_id);
 CREATE INDEX IF NOT EXISTS idx_plans_date_warehouse  ON plans(date, warehouse);
 CREATE INDEX IF NOT EXISTS idx_plans_dept_id         ON plans(department_id);
