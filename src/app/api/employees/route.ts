@@ -115,11 +115,11 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // Order by start_date descending (คนล่าสุดที่เริ่มงานขึ้นก่อนเสมอ), then created_at descending, then po_id descending
+  // Order by po_id descending (รหัสพนักงานล่าสุดขึ้นก่อนเสมอ เช่น PO110024, PO112025 โดยกลุ่ม PO จะอยู่บนสุดเสมอ)
   query = query
-    .order('start_date', { ascending: false, nullsFirst: false })
+    .order('po_id', { ascending: false, nullsFirst: false })
     .order('created_at', { ascending: false })
-    .order('po_id', { ascending: false })
+    .order('start_date', { ascending: false, nullsFirst: false })
 
   // Pagination (unless fetchAll is requested)
   if (!fetchAll && !idsParam) {
