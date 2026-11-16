@@ -103,7 +103,10 @@ INSERT INTO banks (id, name, code, warehouses) VALUES
   ('5ac9412a-6ecd-4511-b2ff-ace48ca325fb', 'ยูโอบี',                                '024',   ARRAY['SOCE', 'SOCW', 'FSOCW', 'SOCN', 'SCOM SC1', 'SCOM WN1', 'SCOM WN2', 'SCOM SORCA', 'SCOM BN1', 'SCOM-SS', 'SCOM-WN']),
   ('f0fc4d4d-1f81-4eca-98c9-a1405f484150', 'ธนาคารอิสลามแห่งประเทศไทย',           '066',   ARRAY['SOCE', 'SOCW', 'FSOCW', 'SOCN', 'SCOM SC1', 'SCOM WN1', 'SCOM WN2', 'SCOM SORCA', 'SCOM BN1', 'SCOM-SS', 'SCOM-WN']),
   ('e993630b-86ed-4014-b059-2d3b63c813d1', 'ธนาคารไอซีบีซี (ไทย)',                  '070',   ARRAY['SOCE', 'SOCW', 'FSOCW', 'SOCN', 'SCOM SC1', 'SCOM WN1', 'SCOM WN2', 'SCOM SORCA', 'SCOM BN1', 'SCOM-SS', 'SCOM-WN'])
-ON CONFLICT (code) DO UPDATE SET warehouses = EXCLUDED.warehouses;
+ON CONFLICT (id) DO UPDATE SET
+  name = EXCLUDED.name,
+  code = EXCLUDED.code,
+  warehouses = EXCLUDED.warehouses;
 
 
 -- ============================================================
@@ -939,9 +942,15 @@ END $$;
 -- ============================================================
 -- 9. Storage Bucket สำหรับเก็บภาพและโลโก้ (Images & Logos)
 -- ============================================================
-INSERT INTO storage.buckets (id, name, public)
-VALUES ('images_logo', 'images_logo', true)
-ON CONFLICT (id) DO NOTHING;
+DO $$
+BEGIN
+  INSERT INTO storage.buckets (id, name, public)
+  VALUES ('images_logo', 'images_logo', true)
+  ON CONFLICT (id) DO NOTHING;
+EXCEPTION
+  WHEN undefined_table THEN
+    NULL;
+END $$;
 
 DO $$
 BEGIN
