@@ -28,7 +28,11 @@ function isoToThaiDisplayDate(isoStr?: string, isBuddhistYear = false): string {
   if (!isoStr) return ''
   const parts = isoStr.split('-')
   if (parts.length === 3) {
-    const year = parseInt(parts[0], 10) + (isBuddhistYear ? 543 : 0)
+    let year = parseInt(parts[0], 10)
+    // หากต้องการแสดงเป็น พ.ศ. ให้บวก 543 เฉพาะเมื่อปีเป็น ค.ศ. (<= 2400)
+    if (isBuddhistYear && year <= 2400) {
+      year += 543
+    }
     return `${parts[2]}/${parts[1]}/${year}`
   }
   return isoStr
@@ -39,7 +43,12 @@ function thaiDisplayToIsoDate(displayStr?: string, isBuddhistYear = false): stri
   if (!displayStr) return ''
   // Allow DD/MM/YYYY or DD-MM-YYYY or YYYY-MM-DD
   if (displayStr.includes('-') && displayStr.split('-')[0].length === 4) {
-    return displayStr
+    const [y, m, d] = displayStr.split('-')
+    let year = parseInt(y, 10)
+    if (isBuddhistYear && year > 2400) {
+      year -= 543
+    }
+    return `${year}-${m}-${d}`
   }
   const clean = displayStr.replace(/[^0-9/]/g, '')
   const parts = clean.split('/')
@@ -48,7 +57,7 @@ function thaiDisplayToIsoDate(displayStr?: string, isBuddhistYear = false): stri
     const m = parts[1].padStart(2, '0')
     let y = parseInt(parts[2], 10)
     if (isBuddhistYear && y > 2400) {
-      y = y - 543
+      year = y - 543
     }
     return `${y}-${m}-${d}`
   }
