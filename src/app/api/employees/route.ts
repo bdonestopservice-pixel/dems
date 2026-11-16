@@ -341,8 +341,8 @@ export async function POST(request: NextRequest) {
         if (maxEmp?.po_id) {
           const numPart = parseInt(maxEmp.po_id.replace(/^PO/i, ''), 10)
           if (!isNaN(numPart)) {
-            // Keep at least 112840 (the reserved range boundary)
-            const nextNum = Math.max(112840, numPart + 1)
+            // Keep at least 112025 (the reserved range boundary PO110025 - PO112024)
+            const nextNum = Math.max(112025, numPart + 1)
             assignedPoId = `PO${nextNum}`
           }
         }

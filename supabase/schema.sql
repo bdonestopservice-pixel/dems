@@ -22,15 +22,17 @@ CREATE TABLE IF NOT EXISTS warehouses (
 
 -- ข้อมูลคลังเริ่มต้น
 INSERT INTO warehouses (id, name) VALUES
-  ('SOCE',    'SOCE'),
-  ('SOCW',    'SOCW'),
-  ('SOCN',    'SOCN'),
-  ('FSOCW',   'FSOCW'),
-  ('SCOM SC1', 'SCOM SC1'),
-  ('SCOM WN1', 'SCOM WN1'),
-  ('SCOM WN2', 'SCOM WN2'),
-  ('SCOM-SS', 'SCOM-SS'),
-  ('SCOM-WN', 'SCOM-WN')
+  ('SOCE',       'SOCE'),
+  ('SOCW',       'SOCW'),
+  ('SOCN',       'SOCN'),
+  ('FSOCW',      'FSOCW'),
+  ('SCOM SC1',   'SCOM SC1'),
+  ('SCOM WN1',   'SCOM WN1'),
+  ('SCOM WN2',   'SCOM WN2'),
+  ('SCOM SORCA', 'SCOM SORCA'),
+  ('SCOM BN1',   'SCOM BN1'),
+  ('SCOM-SS',    'SCOM-SS'),
+  ('SCOM-WN',    'SCOM-WN')
 ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name;
 
 
@@ -62,7 +64,7 @@ VALUES (
   '$2a$10$.2IBc6tYAwrgnKLhOjzDjOsiuL0PqNhLcbm.eeMk2gWLNuFtYV7Hu',
   'PPODEMSsuperadmin@!#$%2026',
   'super_admin',
-  ARRAY['SOCE', 'SOCW', 'SOCN', 'FSOCW', 'SCOM SC1', 'SCOM WN1', 'SCOM WN2', 'SCOM-SS', 'SCOM-WN']
+  ARRAY['SOCE', 'SOCW', 'SOCN', 'FSOCW', 'SCOM SC1', 'SCOM WN1', 'SCOM WN2', 'SCOM SORCA', 'SCOM BN1', 'SCOM-SS', 'SCOM-WN']
 )
 ON CONFLICT (email) DO UPDATE SET
   password = EXCLUDED.password,
@@ -86,21 +88,21 @@ CREATE TABLE IF NOT EXISTS banks (
 -- เพิ่มคอลัมน์ warehouses กรณีที่มีตารางเดิมอยู่แล้ว
 ALTER TABLE banks ADD COLUMN IF NOT EXISTS warehouses TEXT[] DEFAULT '{}';
 
-INSERT INTO banks (name, code, warehouses) VALUES
-  ('กสิกรไทย',                              '004',   ARRAY['SOCE', 'SOCW', 'FSOCW', 'SOCN', 'SCOM-SS', 'SCOM-WN']),
-  ('ไทยพาณิชย์',                            '014',   ARRAY['SOCE', 'SOCW', 'SOCN']),
-  ('กรุงเทพ',                               '002',   ARRAY['SOCE', 'SOCW']),
-  ('กรุงไทย',                               '006',   ARRAY['SOCE', 'SCOM-SS', 'SCOM-WN']),
-  ('กรุงศรีอยุธยา',                         '025',   ARRAY['SOCE', 'FSOCW']),
-  ('ทหารไทยธนชาต',                         '011',   ARRAY['SOCW', 'SOCN']),
-  ('ออมสิน',                                '030',   ARRAY['SOCE', 'SOCW', 'FSOCW', 'SOCN', 'SCOM-SS', 'SCOM-WN']),
-  ('ธนาคารทิสโก้',                          '067',   ARRAY['SOCE', 'SOCW', 'FSOCW', 'SOCN', 'SCOM-SS', 'SCOM-WN']),
-  ('ธนาคารเพื่อการเกษตรและสหกรณ์การเกษตร', '034',   ARRAY['SOCE', 'SOCW', 'FSOCW', 'SOCN', 'SCOM-SS', 'SCOM-WN']),
-  ('ธนาคารเกียรตินาคินภัทร',                 '069',   ARRAY['SOCE', 'SOCW', 'FSOCW', 'SOCN', 'SCOM-SS', 'SCOM-WN']),
-  ('ธนาคารซีไอเอ็มบีไทย',                   '022',   ARRAY['SOCE', 'SOCW', 'FSOCW', 'SOCN', 'SCOM-SS', 'SCOM-WN']),
-  ('ยูโอบี',                                '024',   ARRAY['SOCE', 'SOCW', 'FSOCW', 'SOCN', 'SCOM-SS', 'SCOM-WN']),
-  ('ธนาคารอิสลามแห่งประเทศไทย',           '066',   ARRAY['SOCE', 'SOCW', 'FSOCW', 'SOCN', 'SCOM-SS', 'SCOM-WN']),
-  ('ธนาคารไอซีบีซี (ไทย)',                  '070',   ARRAY['SOCE', 'SOCW', 'FSOCW', 'SOCN', 'SCOM-SS', 'SCOM-WN'])
+INSERT INTO banks (id, name, code, warehouses) VALUES
+  ('4da89ded-1f26-48f7-a905-4d13aad95c24', 'กสิกรไทย',                              '004',   ARRAY['SOCE', 'SOCW', 'FSOCW', 'SOCN', 'SCOM SC1', 'SCOM WN1', 'SCOM WN2', 'SCOM SORCA', 'SCOM BN1', 'SCOM-SS', 'SCOM-WN']),
+  ('65e0ffb9-a5cd-45c9-96d5-9c9a8623ebd5', 'ไทยพาณิชย์',                            '014',   ARRAY['SOCE', 'SOCW', 'SOCN', 'SCOM SC1', 'SCOM WN1', 'SCOM WN2', 'SCOM SORCA', 'SCOM BN1']),
+  ('b38139ba-3cdd-418c-b1b9-a5fb40027d1b', 'กรุงเทพ',                               '002',   ARRAY['SOCE', 'SOCW', 'SCOM SC1', 'SCOM WN1', 'SCOM WN2', 'SCOM SORCA', 'SCOM BN1']),
+  ('00e2d28d-ae2b-47f0-b2da-1306a5917632', 'กรุงไทย',                               '006',   ARRAY['SOCE', 'SCOM SC1', 'SCOM WN1', 'SCOM WN2', 'SCOM SORCA', 'SCOM BN1', 'SCOM-SS', 'SCOM-WN']),
+  ('93bb1921-53d7-4c16-bd45-9064eab04e28', 'กรุงศรีอยุธยา',                         '025',   ARRAY['SOCE', 'FSOCW', 'SCOM SC1', 'SCOM WN1', 'SCOM WN2', 'SCOM SORCA', 'SCOM BN1']),
+  ('a671afa7-3534-4afc-ade5-8336172ec544', 'ทหารไทยธนชาต',                         '011',   ARRAY['SOCW', 'SOCN', 'SCOM SC1', 'SCOM WN1', 'SCOM WN2', 'SCOM SORCA', 'SCOM BN1']),
+  ('3db9a2f4-01ae-4eeb-9799-5b68dff5a4f8', 'ออมสิน',                                '030',   ARRAY['SOCE', 'SOCW', 'FSOCW', 'SOCN', 'SCOM SC1', 'SCOM WN1', 'SCOM WN2', 'SCOM SORCA', 'SCOM BN1', 'SCOM-SS', 'SCOM-WN']),
+  ('c1234567-89ab-cdef-0123-456789abcdef', 'ธนาคารทิสโก้',                          '067',   ARRAY['SOCE', 'SOCW', 'FSOCW', 'SOCN', 'SCOM SC1', 'SCOM WN1', 'SCOM WN2', 'SCOM SORCA', 'SCOM BN1', 'SCOM-SS', 'SCOM-WN']),
+  ('a55520d3-35b6-405a-b0b2-3a3d1f56942f', 'ธนาคารเพื่อการเกษตรและสหกรณ์การเกษตร', '034',   ARRAY['SOCE', 'SOCW', 'FSOCW', 'SOCN', 'SCOM SC1', 'SCOM WN1', 'SCOM WN2', 'SCOM SORCA', 'SCOM BN1', 'SCOM-SS', 'SCOM-WN']),
+  ('259b4118-cf85-4284-987d-8507678c53e4', 'ธนาคารเกียรตินาคินภัทร',                 '069',   ARRAY['SOCE', 'SOCW', 'FSOCW', 'SOCN', 'SCOM SC1', 'SCOM WN1', 'SCOM WN2', 'SCOM SORCA', 'SCOM BN1', 'SCOM-SS', 'SCOM-WN']),
+  ('9b1be15e-02ba-43e3-ac38-3f70f028b966', 'ธนาคารซีไอเอ็มบีไทย',                   '022',   ARRAY['SOCE', 'SOCW', 'FSOCW', 'SOCN', 'SCOM SC1', 'SCOM WN1', 'SCOM WN2', 'SCOM SORCA', 'SCOM BN1', 'SCOM-SS', 'SCOM-WN']),
+  ('5ac9412a-6ecd-4511-b2ff-ace48ca325fb', 'ยูโอบี',                                '024',   ARRAY['SOCE', 'SOCW', 'FSOCW', 'SOCN', 'SCOM SC1', 'SCOM WN1', 'SCOM WN2', 'SCOM SORCA', 'SCOM BN1', 'SCOM-SS', 'SCOM-WN']),
+  ('f0fc4d4d-1f81-4eca-98c9-a1405f484150', 'ธนาคารอิสลามแห่งประเทศไทย',           '066',   ARRAY['SOCE', 'SOCW', 'FSOCW', 'SOCN', 'SCOM SC1', 'SCOM WN1', 'SCOM WN2', 'SCOM SORCA', 'SCOM BN1', 'SCOM-SS', 'SCOM-WN']),
+  ('e993630b-86ed-4014-b059-2d3b63c813d1', 'ธนาคารไอซีบีซี (ไทย)',                  '070',   ARRAY['SOCE', 'SOCW', 'FSOCW', 'SOCN', 'SCOM SC1', 'SCOM WN1', 'SCOM WN2', 'SCOM SORCA', 'SCOM BN1', 'SCOM-SS', 'SCOM-WN'])
 ON CONFLICT (code) DO UPDATE SET warehouses = EXCLUDED.warehouses;
 
 
@@ -620,7 +622,7 @@ ON CONFLICT (name) DO NOTHING;
 -- ============================================================
 -- 8. พนักงาน (Employees) — Master Database ร่วมทุกคลัง
 -- ============================================================
-CREATE SEQUENCE IF NOT EXISTS employees_po_id_seq START WITH 112840;
+CREATE SEQUENCE IF NOT EXISTS employees_po_id_seq START WITH 112025;
 
 CREATE TABLE IF NOT EXISTS employees (
   id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -699,7 +701,7 @@ CREATE TABLE IF NOT EXISTS po_id_reservations (
 );
 
 INSERT INTO po_id_reservations (start_po_id, end_po_id, total_count, note)
-VALUES ('PO108840', 'PO112839', 4000, 'จอง 4,000 เลข สำหรับข้อมูลนำเข้าภายนอก/Google Sheet')
+VALUES ('PO110025', 'PO112024', 2000, 'จอง 2,000 เลข (PO110025 - PO112024) สำหรับข้อมูลนำเข้าภายนอก/Google Sheet')
 ON CONFLICT (start_po_id) DO NOTHING;
 
 

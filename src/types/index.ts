@@ -65,7 +65,7 @@ export interface OaOption {
 
 export interface Employee {
   id: string
-  po_id?: string        // TEXT (เช่น PO100001, PO112840)
+  po_id?: string        // TEXT (เช่น PO100001, PO112025)
   ops_id?: string       // TEXT (เช่น OPS-10234)
   ops_hub?: string      // ฮับ (Station) เช่น SOCE
   ops_contract_type?: string // ประเภทสัญญา เช่น Agency Full-time
@@ -190,3 +190,13 @@ export interface NamelistEntry {
   address_province?: string
   address_zipcode?: string
 }
+
+export interface PoIdReservation {
+  id: string
+  start_po_id: string
+  end_po_id: string
+  total_count: number
+  note?: string | null
+  created_at: string
+}
+
