@@ -769,6 +769,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS namelist_date_employee_shift_key
 CREATE INDEX IF NOT EXISTS idx_employees_warehouse      ON employees(warehouse);
 CREATE INDEX IF NOT EXISTS idx_employees_is_active      ON employees(is_active);
 CREATE INDEX IF NOT EXISTS idx_employees_is_blacklisted ON employees(is_blacklisted);
+CREATE INDEX IF NOT EXISTS idx_employees_start_date     ON employees(start_date DESC NULLS LAST);
 CREATE INDEX IF NOT EXISTS idx_employees_po_id          ON employees(po_id);
 CREATE INDEX IF NOT EXISTS idx_employees_bank_id     ON employees(bank_id);
 CREATE INDEX IF NOT EXISTS idx_plans_date_warehouse  ON plans(date, warehouse);
