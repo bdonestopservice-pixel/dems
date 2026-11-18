@@ -147,7 +147,6 @@ export function NamelistClient({ session: initialSession, initialDate, initialWa
   const [search, setSearch] = useState('')
   const [selectedDept, setSelectedDept] = useState<string | null>(null)
   const [selectedShift, setSelectedShift] = useState<string>('all')
-  const userSelectedShiftRef = useRef<boolean>(false)
   const [page, setPage] = useState(1)
 
   const [warehouses, setWarehouses] = useState<Warehouse[]>([])
@@ -289,22 +288,12 @@ export function NamelistClient({ session: initialSession, initialDate, initialWa
     ]
   }, [entries, date])
 
-  // จัดการการเลือกกะอัตโนมัติ: ถ้าเป็นวันนี้ให้เลือกกะที่ใกล้กับเวลา realtime มากที่สุดเป็นค่าเริ่มต้น
+  // รีเซ็ต selectedShift เป็น 'all' หากกะที่เลือกไว้เดิมไม่มีอยู่ในตัวเลือกของวันนั้นๆ
   useEffect(() => {
-    const isToday = date === todayLocal()
-    if (isToday && !userSelectedShiftRef.current) {
-      // shiftOptions[0] คือ 'all', shiftOptions[1] คือกะที่ใกล้เวลาปัจจุบันมากที่สุด
-      if (shiftOptions.length > 1) {
-        setSelectedShift(shiftOptions[1].id)
-      } else {
-        setSelectedShift('all')
-      }
-    } else if (!isToday && !userSelectedShiftRef.current) {
-      setSelectedShift('all')
-    } else if (selectedShift !== 'all' && !shiftOptions.some((o) => o.id === selectedShift)) {
+    if (selectedShift !== 'all' && !shiftOptions.some((o) => o.id === selectedShift)) {
       setSelectedShift('all')
     }
-  }, [shiftOptions, date, selectedShift])
+  }, [shiftOptions, selectedShift])
 
   // กรองตามกะที่เลือกแบบ Real-time (0ms Instant Filtering)
   const shiftFilteredEntries = useMemo(() => {
@@ -442,7 +431,7 @@ export function NamelistClient({ session: initialSession, initialDate, initialWa
             onChange={(val) => {
               if (val) {
                 setDate(val)
-                userSelectedShiftRef.current = false
+                setSelectedShift('all')
                 setSelectedDept(null)
                 setPage(1)
                 updateUrlParams(val, warehouse)
@@ -455,7 +444,7 @@ export function NamelistClient({ session: initialSession, initialDate, initialWa
             value={warehouse}
             onChange={(val) => {
               setWarehouse(val)
-              userSelectedShiftRef.current = false
+              setSelectedShift('all')
               setSelectedDept(null)
               setPage(1)
               updateUrlParams(date, val)
@@ -468,7 +457,6 @@ export function NamelistClient({ session: initialSession, initialDate, initialWa
           <ShiftSelect
             value={selectedShift}
             onChange={(val) => {
-              userSelectedShiftRef.current = true
               setSelectedShift(val)
               setSelectedDept(null)
               setPage(1)
