@@ -57,7 +57,7 @@ function thaiDisplayToIsoDate(displayStr?: string, isBuddhistYear = false): stri
     const m = parts[1].padStart(2, '0')
     let y = parseInt(parts[2], 10)
     if (isBuddhistYear && y > 2400) {
-      year = y - 543
+      y = y - 543
     }
     return `${y}-${m}-${d}`
   }
@@ -157,6 +157,23 @@ export function EmployeeForm({ initialData, mode, session: propSession }: Employ
     const permitted = session.warehouses || []
     return warehouses.filter((w) => permitted.includes(w.id))
   }, [warehouses, session])
+
+  // ตรวจสอบว่าผู้ใช้เป็น Admin ที่ได้รับสิทธิ์เฉพาะคลัง SCOM หรือไม่ (หากดูแลเฉพาะ SCOM จะไม่แสดงส่วน OPS ID และข้อมูลสังกัด)
+  const isScomOnlyAdmin = useMemo(() => {
+    if (!session || session.role === 'super_admin') {
+      return false
+    }
+    const permitted = session.warehouses || []
+    if (permitted.length > 0) {
+      return permitted.every((w) => w.toUpperCase().includes('SCOM'))
+    }
+    if (availableWarehouses.length > 0) {
+      return availableWarehouses.every(
+        (w) => w.id.toUpperCase().includes('SCOM') || (w.name && w.name.toUpperCase().includes('SCOM'))
+      )
+    }
+    return false
+  }, [session, availableWarehouses])
 
   // ซิงค์ formData.warehouse ให้ตรงกับคลังที่ตนเองมีสิทธิ์
   useEffect(() => {
@@ -572,13 +589,14 @@ export function EmployeeForm({ initialData, mode, session: propSession }: Employ
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* ============================================================ */}
-        {/* CARD 1: OPS ID และข้อมูลสังกัด */}
+        {/* CARD 1: OPS ID และข้อมูลสังกัด (ซ่อนสำหรับ Admin ที่ได้รับสิทธิ์เฉพาะ SCOM) */}
         {/* ============================================================ */}
-        <div className="bg-white rounded-2xl border border-[#C6DCFD]/70 p-5 sm:p-6 shadow-sm">
-          <div className="flex items-center gap-2 mb-4">
-            <span className="font-bold text-sm text-[#16233D]">1</span>
-            <span className="font-bold text-sm text-[#16233D]">OPS ID และข้อมูลสังกัด</span>
-          </div>
+        {!isScomOnlyAdmin && (
+          <div className="bg-white rounded-2xl border border-[#C6DCFD]/70 p-5 sm:p-6 shadow-sm">
+            <div className="flex items-center gap-2 mb-4">
+              <span className="font-bold text-sm text-[#16233D]">1</span>
+              <span className="font-bold text-sm text-[#16233D]">OPS ID และข้อมูลสังกัด</span>
+            </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
             {/* กล่องซ้าย: OPS ID */}
@@ -678,14 +696,15 @@ export function EmployeeForm({ initialData, mode, session: propSession }: Employ
               </div>
             </div>
           </div>
-        </div>
+          </div>
+        )}
 
         {/* ============================================================ */}
         {/* CARD 2: ข้อมูลส่วนตัว */}
         {/* ============================================================ */}
         <div className="bg-white rounded-2xl border border-[#E1E6EF] p-6 shadow-sm">
           <div className="flex items-center gap-2 mb-5">
-            <span className="font-bold text-sm text-[#16233D]">2</span>
+            <span className="font-bold text-sm text-[#16233D]">{isScomOnlyAdmin ? 1 : 2}</span>
             <span className="font-bold text-sm text-[#16233D]">ข้อมูลส่วนตัว</span>
           </div>
 
@@ -893,12 +912,12 @@ export function EmployeeForm({ initialData, mode, session: propSession }: Employ
         </div>
 
         {/* ============================================================ */}
-        {/* CARD 3: ที่อยู่ตามทะเบียนบ้าน (ไม่บังคับ) */}
+        {/* CARD 3: ที่อยู่ตามบัตรประชาชน (ไม่บังคับ) */}
         {/* ============================================================ */}
         <div className="bg-white rounded-2xl border border-[#E1E6EF] p-6 shadow-sm">
           <div className="flex items-center gap-2 mb-5">
-            <span className="font-bold text-sm text-[#16233D]">3</span>
-            <span className="font-bold text-sm text-[#16233D]">ที่อยู่ตามทะเบียนบ้าน (ไม่บังคับ)</span>
+            <span className="font-bold text-sm text-[#16233D]">{isScomOnlyAdmin ? 2 : 3}</span>
+            <span className="font-bold text-sm text-[#16233D]">ที่อยู่ตามบัตรประชาชน (ไม่บังคับ)</span>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-4">
@@ -1010,7 +1029,7 @@ export function EmployeeForm({ initialData, mode, session: propSession }: Employ
         {/* ============================================================ */}
         <div className="bg-white rounded-2xl border border-[#E1E6EF] p-6 shadow-sm">
           <div className="flex items-center gap-2 mb-5">
-            <span className="font-bold text-sm text-[#16233D]">4</span>
+            <span className="font-bold text-sm text-[#16233D]">{isScomOnlyAdmin ? 3 : 4}</span>
             <span className="font-bold text-sm text-[#16233D]">ข้อมูลการทำงาน</span>
           </div>
 
@@ -1118,7 +1137,7 @@ export function EmployeeForm({ initialData, mode, session: propSession }: Employ
         {/* ============================================================ */}
         <div className="bg-white rounded-2xl border border-[#E1E6EF] p-6 shadow-sm">
           <div className="flex items-center gap-2 mb-5">
-            <span className="font-bold text-sm text-[#16233D]">5</span>
+            <span className="font-bold text-sm text-[#16233D]">{isScomOnlyAdmin ? 4 : 5}</span>
             <span className="font-bold text-sm text-[#16233D]">ข้อมูลธนาคาร</span>
           </div>
 
@@ -1197,7 +1216,7 @@ export function EmployeeForm({ initialData, mode, session: propSession }: Employ
         {/* ============================================================ */}
         <div className="bg-white rounded-2xl border border-[#E1E6EF] p-6 shadow-sm">
           <div className="flex items-center gap-2 mb-5">
-            <span className="font-bold text-sm text-[#16233D]">6</span>
+            <span className="font-bold text-sm text-[#16233D]">{isScomOnlyAdmin ? 5 : 6}</span>
             <span className="font-bold text-sm text-[#16233D]">หมายเหตุ (ถ้ามี)</span>
           </div>
 

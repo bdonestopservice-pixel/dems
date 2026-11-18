@@ -55,7 +55,7 @@ export function exportCustomerRegistryCSV(employees: Employee[]) {
     'ธนาคาร',
     'เลขที่บัญชี',
     'ยืนยันพร้อมเพย์',
-    'ที่อยู่ตามทะเบียนบ้าน',
+    'ที่อยู่ตามบัตรประชาชน',
     'หมายเหตุ',
   ]
 
