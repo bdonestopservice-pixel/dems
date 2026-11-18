@@ -16,13 +16,14 @@ import {
   Download,
 } from 'lucide-react'
 import { Topbar } from '@/components/layout/Topbar'
-import { employeeFullName, formatShiftRange } from '@/lib/namelist'
+import { employeeFullName, formatShiftRange, hhmm } from '@/lib/namelist'
 import { broadcastRealtime } from '@/lib/realtime'
 import { useRealtimeListener, useRealtimeSession } from '@/components/providers/RealtimeProvider'
 import { useWarehouses } from '@/components/providers/WarehouseProvider'
-import { cn } from '@/lib/utils'
+import { cn, todayLocal } from '@/lib/utils'
 import { DateInput } from '@/components/ui/DateInput'
 import { WarehouseSelect } from '@/components/ui/WarehouseSelect'
+import { ShiftSelect } from '@/components/ui/ShiftSelect'
 import { ExportCustomerNamelistModal } from '@/components/namelist/ExportCustomerNamelistModal'
 import type { AuthSession, NamelistEntry, Warehouse } from '@/types'
 
@@ -73,6 +74,33 @@ function NoteInput({
   )
 }
 
+function getShiftProximityScore(
+  startTime?: string | null,
+  currentMinutes: number = 0,
+  isToday: boolean = false
+): number {
+  if (!startTime) return 99999
+  const parts = startTime.trim().split(':')
+  const h = parseInt(parts[0], 10)
+  const m = parseInt(parts[1] || '0', 10)
+  if (isNaN(h)) return 99999
+  const shiftMinutes = h * 60 + m
+
+  if (isToday) {
+    // ถ้าเป็นวันนี้: กะที่กำลังจะมาถึง หรือเพิ่งเริ่มไปไม่เกิน 60 นาที (ongoing) จะมีคะแนนน้อย (ขึ้นก่อน)
+    const diff = shiftMinutes - currentMinutes
+    if (diff >= -60) {
+      return diff >= 0 ? diff : Math.abs(diff) + 0.1
+    } else {
+      // กะที่จบไปนานแล้ว (เช่น กะเช้าเมื่อเทียบกับเวลาเย็น) ให้อยู่ท้าย
+      return 2000 + Math.abs(diff)
+    }
+  }
+
+  // ถ้าเป็นวันอื่น (อนาคต หรือ อดีต): เรียงตามลำดับเวลาเริ่มจากเช้าไปดึก (06:00 -> 23:00)
+  return shiftMinutes
+}
+
 const PAGE_SIZE = 10
 
 export function NamelistClient({ session: initialSession, initialDate, initialWarehouse }: NamelistClientProps) {
@@ -118,6 +146,8 @@ export function NamelistClient({ session: initialSession, initialDate, initialWa
   }, [])
   const [search, setSearch] = useState('')
   const [selectedDept, setSelectedDept] = useState<string | null>(null)
+  const [selectedShift, setSelectedShift] = useState<string>('all')
+  const userSelectedShiftRef = useRef<boolean>(false)
   const [page, setPage] = useState(1)
 
   const [warehouses, setWarehouses] = useState<Warehouse[]>([])
@@ -217,21 +247,89 @@ export function NamelistClient({ session: initialSession, initialDate, initialWa
     fetchEntries(true)
   })
 
-  // นับจำนวนคนแยกตามแผนกสำหรับแดชบอร์ด
+  // ตัวเลือกกะสำหรับ Filter: ดึงจากข้อมูลกะที่มีอยู่จริงใน namelist ของวันนั้นๆ โดยเรียงตามเวลาที่ใกล้ที่สุดในตอนนั้นขึ้นมาก่อน
+  const shiftOptions = useMemo(() => {
+    const today = todayLocal()
+    const isToday = date === today
+    const now = new Date()
+    const currentMinutes = now.getHours() * 60 + now.getMinutes()
+
+    const map = new Map<string, { id: string; label: string; shift_start?: string }>()
+    for (const e of entries) {
+      if (e.shift_start && e.shift_end) {
+        const key = `${hhmm(e.shift_start)}–${hhmm(e.shift_end)}`
+        if (!map.has(key)) {
+          const typeLabel = e.shift_type === 'N' ? 'Night' : e.shift_type === 'H' ? 'Half' : 'Day'
+          map.set(key, {
+            id: key,
+            label: `${key} (${typeLabel})`,
+            shift_start: e.shift_start,
+          })
+        }
+      } else if (e.shift_id && !map.has(e.shift_id)) {
+        map.set(e.shift_id, {
+          id: e.shift_id,
+          label: 'กะไม่ระบุเวลา',
+        })
+      }
+    }
+
+    const rawList = Array.from(map.values())
+
+    // เรียงกะที่มีอยู่จริงโดยเรียงจากเวลาที่ใกล้เคียงที่สุดในตอนนั้นขึ้นมาก่อน
+    const sortedShifts = [...rawList].sort((a, b) => {
+      const scoreA = getShiftProximityScore(a.shift_start, currentMinutes, isToday)
+      const scoreB = getShiftProximityScore(b.shift_start, currentMinutes, isToday)
+      return scoreA - scoreB
+    })
+
+    return [
+      { id: 'all', label: 'ทุกกะ' },
+      ...sortedShifts.map((s) => ({ id: s.id, label: s.label })),
+    ]
+  }, [entries, date])
+
+  // จัดการการเลือกกะอัตโนมัติ: ถ้าเป็นวันนี้ให้เลือกกะที่ใกล้กับเวลา realtime มากที่สุดเป็นค่าเริ่มต้น
+  useEffect(() => {
+    const isToday = date === todayLocal()
+    if (isToday && !userSelectedShiftRef.current) {
+      // shiftOptions[0] คือ 'all', shiftOptions[1] คือกะที่ใกล้เวลาปัจจุบันมากที่สุด
+      if (shiftOptions.length > 1) {
+        setSelectedShift(shiftOptions[1].id)
+      } else {
+        setSelectedShift('all')
+      }
+    } else if (!isToday && !userSelectedShiftRef.current) {
+      setSelectedShift('all')
+    } else if (selectedShift !== 'all' && !shiftOptions.some((o) => o.id === selectedShift)) {
+      setSelectedShift('all')
+    }
+  }, [shiftOptions, date, selectedShift])
+
+  // กรองตามกะที่เลือกแบบ Real-time (0ms Instant Filtering)
+  const shiftFilteredEntries = useMemo(() => {
+    if (!selectedShift || selectedShift === 'all') return entries
+    return entries.filter((e) => {
+      const key = `${hhmm(e.shift_start)}–${hhmm(e.shift_end)}`
+      return key === selectedShift || e.shift_id === selectedShift
+    })
+  }, [entries, selectedShift])
+
+  // นับจำนวนคนแยกตามแผนกสำหรับแดชบอร์ด (อ้างอิงจากรายการที่ผ่านการกรองกะแล้ว)
   const departmentStats = useMemo(() => {
     const map = new Map<string, number>()
-    for (const e of entries) {
+    for (const e of shiftFilteredEntries) {
       const dept = e.department_name?.trim() || 'ไม่ระบุแผนก'
       map.set(dept, (map.get(dept) || 0) + 1)
     }
     return Array.from(map.entries())
       .map(([name, count]) => ({ name, count }))
       .sort((a, b) => b.count - a.count)
-  }, [entries])
+  }, [shiftFilteredEntries])
 
-  // ค้นหาแบบ real-time ในรายชื่อวันนั้น (รหัส/ชื่อ) และกรองตามแผนกที่กดเลือก
+  // ค้นหาแบบ real-time ในรายชื่อวันนั้น (รหัส/ชื่อ) และกรองตามแผนกที่กดเลือก พร้อมจัดเรียงตามเวลาใกล้ที่สุด
   const filteredEntries = useMemo(() => {
-    let list = entries
+    let list = shiftFilteredEntries
 
     if (selectedDept) {
       list = list.filter((e) => (e.department_name?.trim() || 'ไม่ระบุแผนก') === selectedDept)
@@ -245,8 +343,23 @@ export function NamelistClient({ session: initialSession, initialDate, initialWa
       })
     }
 
-    return list
-  }, [entries, selectedDept, search])
+    // เรียงลำดับตามเวลาที่ใกล้ที่สุด (เมื่อดูทุกกะ) แล้วตามแผนก และตาม po_id
+    const isToday = date === todayLocal()
+    const now = new Date()
+    const currentMinutes = now.getHours() * 60 + now.getMinutes()
+
+    return [...list].sort((a, b) => {
+      if (a.shift_start !== b.shift_start) {
+        const scoreA = getShiftProximityScore(a.shift_start, currentMinutes, isToday)
+        const scoreB = getShiftProximityScore(b.shift_start, currentMinutes, isToday)
+        if (scoreA !== scoreB) return scoreA - scoreB
+      }
+      const deptA = a.department_name || ''
+      const deptB = b.department_name || ''
+      if (deptA !== deptB) return deptA.localeCompare(deptB)
+      return (a.po_id || '').localeCompare(b.po_id || '')
+    })
+  }, [shiftFilteredEntries, selectedDept, search, date])
 
   // คำนวณ Pagination
   const totalFiltered = filteredEntries.length
@@ -329,6 +442,7 @@ export function NamelistClient({ session: initialSession, initialDate, initialWa
             onChange={(val) => {
               if (val) {
                 setDate(val)
+                userSelectedShiftRef.current = false
                 setSelectedDept(null)
                 setPage(1)
                 updateUrlParams(val, warehouse)
@@ -341,6 +455,7 @@ export function NamelistClient({ session: initialSession, initialDate, initialWa
             value={warehouse}
             onChange={(val) => {
               setWarehouse(val)
+              userSelectedShiftRef.current = false
               setSelectedDept(null)
               setPage(1)
               updateUrlParams(date, val)
@@ -348,6 +463,20 @@ export function NamelistClient({ session: initialSession, initialDate, initialWa
             warehouses={warehouses}
             showAllOption={isSuperAdmin || warehouses.length > 1}
             allLabel="ทุกคลัง"
+          />
+
+          <ShiftSelect
+            value={selectedShift}
+            onChange={(val) => {
+              userSelectedShiftRef.current = true
+              setSelectedShift(val)
+              setSelectedDept(null)
+              setPage(1)
+            }}
+            options={shiftOptions}
+            allLabel="ทุกกะ"
+            placeholder="เลือกกะ"
+            title="กรองตามกะการทำงาน (เรียงตามเวลาใกล้ที่สุด)"
           />
 
           <div className="relative flex-1">
@@ -420,7 +549,7 @@ export function NamelistClient({ session: initialSession, initialDate, initialWa
                   : 'bg-[#EEF3FC] text-[#2E6FE0]'
               )}
             >
-              {entries.length} คน
+              {shiftFilteredEntries.length} คน
             </span>
           </button>
 
