@@ -1005,9 +1005,23 @@ export const OPS_DESIGNATIONS_MAP: Record<string, string[]> = {
 }
 
 /**
- * รายการตัวเลือกฮับ (Station) อ้างอิงจากชีทหน่วยงานของ dropdown_lists.xlsx
+ * รายการตัวเลือกฮับ (Station) อ้างอิงจากคลังและสถานีหลักในระบบ
  */
-export const OPS_HUBS: string[] = OPS_DEPARTMENTS
+export const OPS_HUBS: string[] = [
+  "SOCE",
+  "SOCW",
+  "SOCN",
+  "FSOCW",
+  "FSOCE",
+  "SCOM SC1",
+  "SCOM WN1",
+  "SCOM WN2",
+  "SCOM SORCA",
+  "SCOM BN1",
+  "SCOM-SS",
+  "SCOM-WN",
+  "SPX",
+]
 
 /**
  * ดึงรายการแผนก (Designations) ที่ผูกกับหน่วยงาน (Department) ที่เลือก

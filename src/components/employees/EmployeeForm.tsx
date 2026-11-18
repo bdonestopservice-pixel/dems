@@ -90,9 +90,14 @@ export function EmployeeForm({ initialData, mode, session: propSession }: Employ
   const [banks, setBanks] = useState<Bank[]>([])
 
   // Form state
+  const initialWarehouse =
+    initialData?.warehouse ||
+    (session && session.role !== 'super_admin' && session.warehouses?.[0]) ||
+    'SOCE'
+
   const [formData, setFormData] = useState({
     ops_id: initialData?.ops_id || '',
-    ops_hub: initialData?.ops_hub || '',
+    ops_hub: initialData?.ops_hub || (mode === 'create' ? initialWarehouse : ''),
     ops_contract_type: initialData?.ops_contract_type || '',
     ops_department: initialData?.ops_department || '',
     ops_designation: initialData?.ops_designation || '',
@@ -113,10 +118,7 @@ export function EmployeeForm({ initialData, mode, session: propSession }: Employ
     address_amphoe: initialData?.address_amphoe || '',
     address_province: initialData?.address_province || '',
     address_zipcode: initialData?.address_zipcode || '',
-    warehouse:
-      initialData?.warehouse ||
-      (session && session.role !== 'super_admin' && session.warehouses?.[0]) ||
-      'SOCE',
+    warehouse: initialWarehouse,
     start_date: initialData?.start_date
       ? isoToThaiDisplayDate(initialData.start_date, false)
       : getTodayDisplayDate(false), // ค่าเริ่มต้นเป็นวันปัจจุบัน (ค.ศ.)
@@ -311,14 +313,23 @@ export function EmployeeForm({ initialData, mode, session: propSession }: Employ
   // คำนวณอายุและตรวจสอบเกณฑ์อายุต่ำกว่า 18 ปี แบบ Real-time
   const dobInfo = useMemo(() => parseDobInput(formData.dob), [formData.dob])
 
-  // ดึงรายการฮับ (Station) อ้างอิงจากชีทหน่วยงาน (dropdown_lists.xlsx)
+  // ดึงรายการฮับ (Station) โดยดึงจากคลังในระบบเรามาเป็นตัวเลือกอันดับแรก
   const hubOptions = useMemo(() => {
-    const list = [...OPS_HUBS]
-    if (formData.ops_hub && !list.includes(formData.ops_hub)) {
+    // 1. ดึงรายการคลังทั้งหมดในระบบมาเป็นตัวเลือกฮับอันดับแรก
+    const systemWarehouses = warehouses.map((w) => w.id || w.name).filter(Boolean)
+    const set = new Set(systemWarehouses)
+
+    const list = [...systemWarehouses]
+    // 2. ถ้ามีค่าเดิมที่เลือกไว้ใน formData.ops_hub แต่ไม่อยู่ในคลัง ให้เพิ่มเข้ามาด้านบน
+    if (formData.ops_hub && !set.has(formData.ops_hub)) {
       list.unshift(formData.ops_hub)
+      set.add(formData.ops_hub)
     }
-    return list
-  }, [formData.ops_hub])
+
+    // 3. รวมตัวเลือก Master OPS_HUBS อื่นๆ (เช่น SPX, FSOCE ฯลฯ) ต่อท้ายโดยไม่ซ้ำ
+    const otherHubs = OPS_HUBS.filter((h) => !set.has(h))
+    return [...list, ...otherHubs]
+  }, [warehouses, formData.ops_hub])
 
   // ดึงรายการแผนก (Designation) ตามหน่วยงาน (Department) ที่เลือก
   const availableDesignations = useMemo(() => {
@@ -348,7 +359,14 @@ export function EmployeeForm({ initialData, mode, session: propSession }: Employ
   }
 
   function handleChange(field: string, val: string) {
-    setFormData((prev) => ({ ...prev, [field]: val }))
+    setFormData((prev) => {
+      const next = { ...prev, [field]: val }
+      // หากเปลี่ยนคลัง (warehouse) และ ops_hub ยังไม่ได้กรอก หรือ ops_hub ตรงกับคลังเดิม ให้ปรับตามคลังใหม่โดยอัตโนมัติ
+      if (field === 'warehouse' && (!prev.ops_hub || prev.ops_hub === prev.warehouse)) {
+        next.ops_hub = val
+      }
+      return next
+    })
   }
 
   // จัดการการพิมพ์วันเดือนปีเกิดแบบ Pattern Masking (DD/MM/YYYY)
@@ -485,9 +503,10 @@ export function EmployeeForm({ initialData, mode, session: propSession }: Employ
   }
 
   function handleAddNewAnother() {
+    const resetWarehouse = warehouses[0]?.id || 'SOCE'
     setFormData({
       ops_id: '',
-      ops_hub: '',
+      ops_hub: resetWarehouse,
       ops_contract_type: '',
       ops_department: '',
       ops_designation: '',
@@ -508,7 +527,7 @@ export function EmployeeForm({ initialData, mode, session: propSession }: Employ
       address_amphoe: '',
       address_province: '',
       address_zipcode: '',
-      warehouse: warehouses[0]?.id || 'SOCE',
+      warehouse: resetWarehouse,
       start_date: getTodayDisplayDate(false),
       phone: '',
       promptpay_status: 'ยืนยันแล้ว',
@@ -629,15 +648,15 @@ export function EmployeeForm({ initialData, mode, session: propSession }: Employ
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                {/* ฮับ (Station) - อ้างอิงจากชีทหน่วยงาน พิมพ์ค้นหาได้ */}
+                {/* ฮับ (Station) - แมพกับคลังในระบบ พิมพ์ค้นหาได้ */}
                 <div>
                   <label className="label text-xs mb-1">ฮับ</label>
                   <SearchableSelect
                     value={formData.ops_hub}
                     onChange={(val) => handleChange('ops_hub', val)}
                     options={hubOptions}
-                    placeholder="เลือกฮับ"
-                    searchPlaceholder="ค้นหาฮับ... เช่น SPX, FSOCE"
+                    placeholder="เลือกฮับ / คลัง"
+                    searchPlaceholder="ค้นหาฮับหรือคลัง... เช่น SOCE, SCOM SC1, SPX"
                   />
                 </div>
 
