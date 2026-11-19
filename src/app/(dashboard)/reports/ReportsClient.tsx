@@ -105,6 +105,36 @@ function renderWorkStatus(status?: string | null) {
   return <span className="text-xs text-[#16233D] font-normal">{status}</span>
 }
 
+/**
+ * คำนวณคะแนนความใกล้เคียงของเวลาเริ่มกะกับเวลาปัจจุบัน (แบบเดียวกับ Namelist)
+ */
+function getShiftProximityScore(
+  startTime?: string | null,
+  currentMinutes: number = 0,
+  isToday: boolean = false
+): number {
+  if (!startTime) return 99999
+  const parts = startTime.trim().split(':')
+  const h = parseInt(parts[0], 10)
+  const m = parseInt(parts[1] || '0', 10)
+  if (isNaN(h)) return 99999
+  const shiftMinutes = h * 60 + m
+
+  if (isToday) {
+    // ถ้าเป็นวันนี้: กะที่กำลังจะมาถึง หรือเพิ่งเริ่มไปไม่เกิน 60 นาที (ongoing) จะมีคะแนนน้อย (ขึ้นก่อน)
+    const diff = shiftMinutes - currentMinutes
+    if (diff >= -60) {
+      return diff >= 0 ? diff : Math.abs(diff) + 0.1
+    } else {
+      // กะที่จบไปนานแล้ว (เช่น กะเช้าเมื่อเทียบกับเวลาเย็น) ให้อยู่ท้าย
+      return 2000 + Math.abs(diff)
+    }
+  }
+
+  // ถ้าเป็นวันอื่น (อนาคต หรือ อดีต): เรียงตามลำดับเวลาเริ่มจากเช้าไปดึก (06:00 -> 23:00)
+  return shiftMinutes
+}
+
 export function ReportsClient({
   session,
   initialDate,
@@ -202,7 +232,7 @@ export function ReportsClient({
     }
   }, [warehouse, date])
 
-  // แยก Namelist เป็นใบตาม (แผนก + กะ + คลัง)
+  // แยก Namelist เป็นใบตาม (กะ + แผนก + คลัง) และเรียงลำดับเวลาตามกะแบบ Namelist
   const sheets = useMemo<PpoSheet[]>(() => {
     const map = new Map<string, PpoSheet>()
 
@@ -241,18 +271,36 @@ export function ReportsClient({
       }
     }
 
+    // เรียงพนักงานในแต่ละใบตามรหัสพนักงาน
+    for (const sheet of map.values()) {
+      sheet.entries.sort((a, b) => (a.po_id || '').localeCompare(b.po_id || ''))
+    }
+
+    const isToday = date === todayLocal()
+    const now = new Date()
+    const currentMinutes = now.getHours() * 60 + now.getMinutes()
+
     return Array.from(map.values()).sort((a, b) => {
-      // เรียงตามชื่อแผนกก่อน
+      // 1. เรียงตามเวลากะแบบ Namelist (กะใกล้เคียงที่สุดใน Realtime ถ้าเป็นวันนี้ หรือเรียงเวลาเริ่มกะถ้าเป็นวันอื่น)
+      if (a.shift_start !== b.shift_start) {
+        const scoreA = getShiftProximityScore(a.shift_start, currentMinutes, isToday)
+        const scoreB = getShiftProximityScore(b.shift_start, currentMinutes, isToday)
+        if (scoreA !== scoreB) return scoreA - scoreB
+      }
+
+      // 2. ถ้าเวลาเริ่มกะเท่ากัน เรียงตามเวลาเลิกกะ
+      if (a.shift_end !== b.shift_end) {
+        return (a.shift_end || '').localeCompare(b.shift_end || '')
+      }
+
+      // 3. ถ้ากะเวลาเดียวกัน ให้เรียงตามชื่อแผนก
       const deptCmp = a.department.localeCompare(b.department, 'th')
       if (deptCmp !== 0) return deptCmp
-      // เรียงประเภทกะ (D มาก่อน N มาก่อน H)
-      const rank = { D: 1, N: 2, H: 3 }
-      const diff = (rank[a.shift_type] || 4) - (rank[b.shift_type] || 4)
-      if (diff !== 0) return diff
-      // เรียงตามเวลาเริ่มต้นกะ
-      return (a.shift_start || '').localeCompare(b.shift_start || '')
+
+      // 4. ถ้าคลังต่างกัน ให้เรียงตามคลัง
+      return a.warehouse.localeCompare(b.warehouse)
     })
-  }, [entries, warehouse])
+  }, [entries, warehouse, date])
 
   // ซิงค์ activeSheetId และ selectedSheetIds เมื่อ sheets เปลี่ยนแปลง
   useEffect(() => {
