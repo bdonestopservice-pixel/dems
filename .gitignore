@@ -38,3 +38,7 @@ yarn-error.log*
 # sidecar qa & monitoring dashboard (local only)
 /sidecar/
 sidecar/
+
+# database & supabase scripts (local only)
+/supabase/
+supabase/
