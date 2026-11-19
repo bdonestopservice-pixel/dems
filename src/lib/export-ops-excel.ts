@@ -87,6 +87,38 @@ function formatOpsJoinedDate(dateStr?: string | null): string {
 }
 
 /**
+ * จัดรูปแบบเบอร์โทรศัพท์สำหรับ Template OPS Portal
+ * - ตัดอักขระที่ไม่ใช่ตัวเลขออก
+ * - ตัดรหัสประเทศ 66 นำหน้าออก (ถ้ามี)
+ * - ตัดเลข 0 นำหน้าออก (เช่น 0812345678 -> 812345678) ตามข้อกำหนดระบบ Import
+ */
+function formatOpsPhoneNumber(phone?: string | null): string | null {
+  if (!phone) return null
+  let clean = phone.replace(/[^0-9]/g, '')
+  if (!clean) return null
+  if (clean.startsWith('66') && clean.length === 11) {
+    clean = clean.slice(2)
+  }
+  clean = clean.replace(/^0+/, '')
+  return clean || null
+}
+
+/**
+ * จัดรูปแบบ Ops ID
+ * - ตัดช่องว่าง
+ * - ตัดเลข 0 นำหน้าออกหากเป็นตัวเลขล้วน (เช่น 01234 -> 1234)
+ */
+function formatOpsId(opsId?: string | null): string | null {
+  if (!opsId) return null
+  const trimmed = opsId.trim()
+  if (!trimmed) return null
+  if (/^0+\d+$/.test(trimmed)) {
+    return trimmed.replace(/^0+/, '')
+  }
+  return trimmed
+}
+
+/**
  * Helper สั่งดาวน์โหลด Workbook เป็นไฟล์ .xlsx
  */
 async function downloadWorkbook(workbook: any, filename: string) {
@@ -136,11 +168,12 @@ export async function exportOpsExcel(employees: Employee[], customFilename?: str
 
   // 3. Employee Rows (Row 13+)
   for (const emp of employees) {
-    const cleanPhone = emp.phone ? emp.phone.replace(/[^0-9]/g, '') : ''
+    const formattedPhone = formatOpsPhoneNumber(emp.phone)
     const cleanIdCard = emp.id_card ? emp.id_card.replace(/[^0-9]/g, '') : ''
+    const opsId = formatOpsId(emp.ops_id)
 
     const row = [
-      emp.ops_id?.trim() || null,                             // Ops ID
+      opsId,                                                  // Ops ID (ตัด 0 นำหน้าถ้ามี)
       emp.first_name?.trim() || '',                           // First Name *
       emp.last_name?.trim() || '',                            // Last Name *
       null,                                                   // Middle Name
@@ -151,7 +184,7 @@ export async function exportOpsExcel(employees: Employee[], customFilename?: str
       emp.ops_contract_type?.trim() || '',                    // Contract Type * (ประเภทสัญญา)
       emp.ops_department?.trim() || '',                       // Department * (หน่วยงาน)
       emp.ops_designation?.trim() || '',                      // Designation * (แผนก)
-      cleanPhone || null,                                     // Phone Number *
+      formattedPhone,                                         // Phone Number * (ตัดเลข 0 นำหน้าออก เช่น 0812345678 -> 812345678)
       null,                                                   // Email
       formatOpsJoinedDate(emp.start_date),                    // Joined Date (YYYY-MM-DD) *
     ]

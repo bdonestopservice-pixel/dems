@@ -119,10 +119,11 @@ export function exportOpsCSV(employees: Employee[]) {
 
   const rows = employees.map((emp) => {
     const fullName = `${emp.prefix || ''} ${emp.first_name || ''} ${emp.last_name || ''}`.trim()
+    const cleanOpsId = emp.ops_id ? emp.ops_id.trim().replace(/^0+/, '') : ''
     return [
       escapeCSV(emp.po_id || ''),
       escapeCSV(fullName),
-      escapeCSV(emp.ops_id || ''), // หากไม่มีให้เว้นว่างไว้
+      escapeCSV(cleanOpsId), // หากไม่มีให้เว้นว่างไว้ (ตัด 0 นำหน้าถ้ามี)
       escapeCSV(emp.warehouse_name || emp.warehouse || ''),
       escapeCSV(formatDisplayDate(emp.start_date)),
     ].join(',')
