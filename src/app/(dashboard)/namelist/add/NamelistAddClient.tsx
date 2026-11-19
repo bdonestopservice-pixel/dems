@@ -158,10 +158,13 @@ export function NamelistAddClient({ session, initialDate, initialWarehouse }: Na
     async function load() {
       setLoadingEmployees(true)
       try {
-        const params = new URLSearchParams({ status: 'active', limit: '100' })
+        const params = new URLSearchParams({ status: 'active', limit: '100', _t: String(Date.now()) })
         if (debouncedSearch) params.set('search', debouncedSearch)
         if (empWarehouse && empWarehouse !== 'all') params.set('warehouse', empWarehouse)
-        const res = await fetch(`/api/employees?${params.toString()}`)
+        const res = await fetch(`/api/employees?${params.toString()}`, {
+          cache: 'no-store',
+          headers: { 'Cache-Control': 'no-cache' },
+        })
         const data = await res.json()
         if (seq !== empSeq.current) return
         if (!res.ok) throw new Error(data.error || 'โหลดรายชื่อพนักงานไม่สำเร็จ')

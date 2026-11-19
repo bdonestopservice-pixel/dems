@@ -3,6 +3,9 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { verifySession } from '@/lib/auth/session'
 import { validateThaiCitizenId, parseDobInput } from '@/lib/utils'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 // GET /api/employees
 // Query params:
 // - search: text search across first_name, last_name, po_id, id_card
@@ -178,13 +181,22 @@ export async function GET(request: NextRequest) {
     ? formatted.filter((emp: any) => !emp.is_blacklisted)
     : formatted
 
-  return NextResponse.json({
-    employees: finalEmployees,
-    total: excludeBlacklisted ? finalEmployees.length : total,
-    page,
-    limit,
-    totalPages,
-  })
+  return NextResponse.json(
+    {
+      employees: finalEmployees,
+      total: excludeBlacklisted ? finalEmployees.length : total,
+      page,
+      limit,
+      totalPages,
+    },
+    {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        Pragma: 'no-cache',
+        Expires: '0',
+      },
+    }
+  )
 }
 
 // POST /api/employees

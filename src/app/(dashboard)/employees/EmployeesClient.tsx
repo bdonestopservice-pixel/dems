@@ -80,6 +80,7 @@ export function EmployeesClient({ session }: EmployeesClientProps) {
 
   // Keep a cache of selected employee full objects so we can export without re-fetching
   const selectedEmployeesCache = useRef<Map<string, Employee>>(new Map())
+  const requestSeq = useRef(0)
 
   // Debounce search input
   useEffect(() => {
@@ -90,47 +91,61 @@ export function EmployeesClient({ session }: EmployeesClientProps) {
     return () => clearTimeout(timer)
   }, [search])
 
-  // Fetch employees data
-  const fetchEmployees = useCallback(async () => {
-    setLoading(true)
-    try {
-      const params = new URLSearchParams({
-        page: String(page),
-        limit: String(limit),
-        search: debouncedSearch,
-        warehouse: selectedWarehouse,
-        status: selectedStatus,
-      })
-      if (startDate) {
-        params.set('start_date', startDate)
+  // Fetch employees data (รองรับ silent update เบื้องหลังสำหรับ realtime โดยไม่กระพริบหน้าจอ)
+  const fetchEmployees = useCallback(
+    async (silent = false) => {
+      const seq = ++requestSeq.current
+      if (!silent) {
+        setLoading(true)
       }
-
-      const res = await fetch(`/api/employees?${params.toString()}`)
-      if (res.ok) {
-        const data = await res.json()
-        setEmployees(data.employees || [])
-        setTotal(data.total || 0)
-        setTotalPages(data.totalPages || 1)
-
-        // Cache visible employees
-        ;(data.employees || []).forEach((emp: Employee) => {
-          selectedEmployeesCache.current.set(emp.id, emp)
+      try {
+        const params = new URLSearchParams({
+          page: String(page),
+          limit: String(limit),
+          search: debouncedSearch,
+          warehouse: selectedWarehouse,
+          status: selectedStatus,
+          _t: String(Date.now()),
         })
+        if (startDate) {
+          params.set('start_date', startDate)
+        }
+
+        const res = await fetch(`/api/employees?${params.toString()}`, {
+          cache: 'no-store',
+          headers: { 'Cache-Control': 'no-cache' },
+        })
+        if (seq !== requestSeq.current) return
+        if (res.ok) {
+          const data = await res.json()
+          setEmployees(data.employees || [])
+          setTotal(data.total || 0)
+          setTotalPages(data.totalPages || 1)
+
+          // Cache visible employees
+          ;(data.employees || []).forEach((emp: Employee) => {
+            selectedEmployeesCache.current.set(emp.id, emp)
+          })
+        }
+      } catch (err) {
+        if (seq !== requestSeq.current) return
+        console.error('Fetch employees error:', err)
+      } finally {
+        if (seq === requestSeq.current) {
+          setLoading(false)
+        }
       }
-    } catch (err) {
-      console.error('Fetch employees error:', err)
-    } finally {
-      setLoading(false)
-    }
-  }, [page, limit, debouncedSearch, selectedWarehouse, selectedStatus, startDate])
+    },
+    [page, limit, debouncedSearch, selectedWarehouse, selectedStatus, startDate]
+  )
 
   useEffect(() => {
     fetchEmployees()
   }, [fetchEmployees])
 
-  // ซิงค์ข้อมูลพนักงานใหม่ทันทีแบบ Realtime
+  // ซิงค์ข้อมูลพนักงานใหม่ทันทีแบบ Realtime (silent ไม่กระพริบจอ)
   useRealtimeListener('employee-updated', () => {
-    fetchEmployees()
+    fetchEmployees(true)
   })
 
   // Select all / Deselect all in current view
