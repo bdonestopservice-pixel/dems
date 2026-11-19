@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { verifySession } from '@/lib/auth/session'
-import { parseDobInput } from '@/lib/utils'
+import { parseDobInput, validateThaiCitizenId } from '@/lib/utils'
+
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
 
 // GET /api/employees/[id]
 export async function GET(
@@ -65,7 +68,7 @@ export async function GET(
 }
 
 // PUT /api/employees/[id]
-// Updates employee details. Note: id_card cannot be modified!
+// Updates employee details (including id_card with 13-digit format and duplicate validation)
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -81,6 +84,7 @@ export async function PUT(
 
     // Required fields validation
     if (
+      !body.id_card ||
       !body.prefix ||
       !body.first_name ||
       !body.last_name ||
@@ -106,6 +110,22 @@ export async function PUT(
       return NextResponse.json(
         { error: `คุณไม่มีสิทธิ์แก้ไขหรือย้ายพนักงานไปยังคลัง ${body.warehouse}` },
         { status: 403 }
+      )
+    }
+
+    // Clean and validate id_card (13 digits + Thai Checksum)
+    const cleanIdCard = body.id_card ? body.id_card.replace(/[^0-9]/g, '') : ''
+    if (cleanIdCard.length !== 13) {
+      return NextResponse.json(
+        { error: 'เลขบัตรประชาชนต้องเป็นตัวเลข 13 หลัก' },
+        { status: 400 }
+      )
+    }
+
+    if (!validateThaiCitizenId(cleanIdCard)) {
+      return NextResponse.json(
+        { error: 'เลขบัตรประชาชนไม่ถูกต้องตามหลักการคำนวณ 13 หลักของกรมการปกครอง (Checksum ไม่ผ่าน)' },
+        { status: 400 }
       )
     }
 
@@ -141,8 +161,29 @@ export async function PUT(
 
     const supabase = createServerSupabaseClient()
 
-    // Security check: Never allow changing id_card or id
+    // ตรวจสอบความซ้ำซ้อนของเลขบัตรประชาชนกับพนักงานคนอื่น (ยกเว้นพนักงานคนนี้เอง)
+    const { data: duplicateEmp, error: checkErr } = await supabase
+      .from('employees')
+      .select('id, po_id, first_name, last_name')
+      .eq('id_card', cleanIdCard)
+      .neq('id', id)
+      .maybeSingle()
+
+    if (checkErr && checkErr.code !== 'PGRST116') {
+      console.error('Check duplicate ID card error:', checkErr)
+    }
+
+    if (duplicateEmp) {
+      return NextResponse.json(
+        {
+          error: `เลขบัตรประชาชนนี้มีอยู่ในระบบแล้ว (${duplicateEmp.first_name} ${duplicateEmp.last_name} รหัส ${duplicateEmp.po_id || '-'})`,
+        },
+        { status: 400 }
+      )
+    }
+
     const updatePayload: any = {
+      id_card: cleanIdCard,
       prefix: body.prefix,
       first_name: body.first_name.trim(),
       last_name: body.last_name.trim(),

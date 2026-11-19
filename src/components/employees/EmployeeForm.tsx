@@ -252,11 +252,23 @@ export function EmployeeForm({ initialData, mode, session: propSession }: Employ
   const [idCardFormatError, setIdCardFormatError] = useState('')
   const [idCardValid, setIdCardValid] = useState(false)
 
-  // ตรวจสอบความถูกต้องและซ้ำซ้อนของเลขบัตรประชาชนทันทีเมื่อกรอกครบ 13 หลัก
+  // ตรวจสอบความถูกต้องและซ้ำซ้อนของเลขบัตรประชาชนทันทีเมื่อกรอกครบ 13 หลัก (ทั้งโหมดสร้างและแก้ไข)
   useEffect(() => {
-    if (mode !== 'create') return
-
     const clean = formData.id_card.replace(/[^0-9]/g, '')
+    const initialClean = initialData?.id_card ? initialData.id_card.replace(/[^0-9]/g, '') : ''
+
+    // ถ้าในโหมดแก้ไข และเลขบัตรยังคงเป็นเลขเดิมของพนักงานคนนี้
+    if (mode === 'edit' && clean === initialClean && clean.length === 13) {
+      if (validateThaiCitizenId(clean)) {
+        setIdCardFormatError('')
+        setIdCardDuplicate(false)
+        setIdCardDuplicateMsg('')
+        setIdCardValid(true)
+        setIdCardChecking(false)
+        return
+      }
+    }
+
     if (clean.length === 13) {
       // 1. ตรวจสอบ Checksum ตามมาตรฐานกรมการปกครอง (ประเทศไทย)
       if (!validateThaiCitizenId(clean)) {
@@ -268,12 +280,13 @@ export function EmployeeForm({ initialData, mode, session: propSession }: Employ
         return
       }
 
-      // Checksum ถูกต้อง -> เคลียร์ Format Error แล้วตรวจเช็คความซ้ำซ้อนในฐานข้อมูล
+      // Checksum ถูกต้อง -> เคลียร์ Format Error แล้วตรวจเช็คความซ้ำซ้อนในฐานข้อมูล (ส่ง exclude_id เพื่อยกเว้นพนักงานคนนี้)
       setIdCardFormatError('')
       let isMounted = true
       setIdCardChecking(true)
 
-      fetch(`/api/employees/check-id-card?id_card=${clean}`)
+      const excludeQuery = mode === 'edit' && initialData?.id ? `&exclude_id=${initialData.id}` : ''
+      fetch(`/api/employees/check-id-card?id_card=${clean}${excludeQuery}`)
         .then((r) => r.json())
         .then((data) => {
           if (!isMounted) return
@@ -308,7 +321,7 @@ export function EmployeeForm({ initialData, mode, session: propSession }: Employ
       setIdCardValid(false)
       setIdCardFormatError('')
     }
-  }, [formData.id_card, mode])
+  }, [formData.id_card, mode, initialData?.id, initialData?.id_card])
 
   // คำนวณอายุและตรวจสอบเกณฑ์อายุต่ำกว่า 18 ปี แบบ Real-time
   const dobInfo = useMemo(() => parseDobInput(formData.dob), [formData.dob])
@@ -400,9 +413,13 @@ export function EmployeeForm({ initialData, mode, session: propSession }: Employ
     e.preventDefault()
     setError('')
 
-    // ป้องกันการบันทึกถ้าเลขบัตรซ้ำ
-    if (mode === 'create' && idCardDuplicate) {
+    // ป้องกันการบันทึกถ้าเลขบัตรซ้ำ หรือ Checksum ไม่ผ่าน
+    if (idCardDuplicate) {
       setError(idCardDuplicateMsg || 'เลขบัตรประชาชนนี้มีอยู่ในระบบแล้ว กรุณาตรวจสอบ')
+      return
+    }
+    if (idCardFormatError) {
+      setError(idCardFormatError)
       return
     }
 
@@ -422,24 +439,22 @@ export function EmployeeForm({ initialData, mode, session: propSession }: Employ
     setSaving(true)
 
     try {
-      // Validate id_card (13 digits + Checksum + Duplicate)
+      // Validate id_card (13 digits + Checksum + Duplicate ทั้งสร้างและแก้ไข)
       const cleanIdCard = formData.id_card.replace(/[^0-9]/g, '')
-      if (mode === 'create') {
-        if (cleanIdCard.length !== 13) {
-          setError('เลขบัตรประชาชนต้องเป็นตัวเลข 13 หลัก')
-          setSaving(false)
-          return
-        }
-        if (!validateThaiCitizenId(cleanIdCard)) {
-          setError('เลขบัตรประชาชนไม่ถูกต้องตามหลักการคำนวณ 13 หลักของกรมการปกครอง (Checksum ไม่ผ่าน)')
-          setSaving(false)
-          return
-        }
-        if (idCardDuplicate) {
-          setError(idCardDuplicateMsg || 'เลขบัตรประชาชนนี้มีอยู่ในระบบแล้ว')
-          setSaving(false)
-          return
-        }
+      if (cleanIdCard.length !== 13) {
+        setError('เลขบัตรประชาชนต้องเป็นตัวเลข 13 หลัก')
+        setSaving(false)
+        return
+      }
+      if (!validateThaiCitizenId(cleanIdCard)) {
+        setError('เลขบัตรประชาชนไม่ถูกต้องตามหลักการคำนวณ 13 หลักของกรมการปกครอง (Checksum ไม่ผ่าน)')
+        setSaving(false)
+        return
+      }
+      if (idCardDuplicate) {
+        setError(idCardDuplicateMsg || 'เลขบัตรประชาชนนี้มีอยู่ในระบบแล้ว')
+        setSaving(false)
+        return
       }
 
       // Validate age (ต้องมีอายุไม่ต่ำกว่า 18 ปีบริบูรณ์)
@@ -583,7 +598,7 @@ export function EmployeeForm({ initialData, mode, session: propSession }: Employ
                 ? 'บันทึกข้อมูลเรียบร้อย'
                 : mode === 'create'
                 ? 'กรอกข้อมูลให้ครบตามฟิลด์ที่มีเครื่องหมาย * ก่อนบันทึก'
-                : 'แก้ไขข้อมูลพนักงานได้ทุกฟิลด์ ยกเว้น เลขบัตรประชาชน ซึ่งแก้ไขไม่ได้'}
+                : 'แก้ไขข้อมูลพนักงานและเลขบัตรประชาชนได้ตามต้องการ กรอกข้อมูลให้ครบถ้วนก่อนบันทึก'}
             </p>
           </div>
 
@@ -738,10 +753,8 @@ export function EmployeeForm({ initialData, mode, session: propSession }: Employ
                   value={formData.id_card}
                   onChange={(e) => handleChange('id_card', e.target.value.replace(/[^0-9]/g, ''))}
                   placeholder="กรอกตัวเลข 13 หลัก"
-                  disabled={mode === 'edit'}
                   className={cn(
                     'input text-sm transition-all',
-                    mode === 'edit' && 'bg-[#F4F6FA] cursor-not-allowed text-[#5B6B85]',
                     (idCardDuplicate || idCardFormatError) &&
                       'border-[#E5484D] ring-2 ring-[#E5484D]/20 focus:border-[#E5484D] focus:ring-[#E5484D]/30 bg-[#FCE8E8]/10 text-[#E5484D]',
                     idCardValid && !idCardChecking && !idCardFormatError && 'border-[#2E9E5B] focus:border-[#2E9E5B] focus:ring-[#2E9E5B]/20 pr-8'
@@ -790,12 +803,6 @@ export function EmployeeForm({ initialData, mode, session: propSession }: Employ
                   <Check size={13} className="flex-shrink-0" />
                   <span>เลขบัตรประชาชนนี้ถูกต้องและสามารถใช้งานได้</span>
                 </div>
-              )}
-
-              {mode === 'edit' && (
-                <span className="text-[10px] text-[#9AA5B8] mt-1 block">
-                  * เลขบัตรประชาชนไม่อนุญาตให้แก้ไข
-                </span>
               )}
             </div>
 
@@ -1262,7 +1269,7 @@ export function EmployeeForm({ initialData, mode, session: propSession }: Employ
           </Link>
           <button
             type="submit"
-            disabled={saving || (mode === 'create' && idCardDuplicate)}
+            disabled={saving || idCardDuplicate || !!idCardFormatError || idCardChecking}
             className="btn-primary px-6 py-2.5 text-sm shadow-sm"
           >
             {saving ? (

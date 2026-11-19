@@ -3,14 +3,18 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { verifySession } from '@/lib/auth/session'
 import { validateThaiCitizenId } from '@/lib/utils'
 
-// GET /api/employees/check-id-card?id_card=1103700123456
-// Checks whether an ID card already exists in the system in real time
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
+// GET /api/employees/check-id-card?id_card=1103700123456&exclude_id=uuid
+// Checks whether an ID card already exists in the system in real time (excluding current employee in edit mode)
 export async function GET(request: NextRequest) {
   const token = request.cookies.get('dems_session')?.value
   const session = token ? await verifySession(token) : null
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const rawIdCard = request.nextUrl.searchParams.get('id_card') || ''
+  const excludeId = request.nextUrl.searchParams.get('exclude_id')?.trim() || ''
   const cleanIdCard = rawIdCard.replace(/[^0-9]/g, '')
 
   if (cleanIdCard.length !== 13) {
@@ -33,11 +37,16 @@ export async function GET(request: NextRequest) {
 
   const supabase = createServerSupabaseClient()
 
-  const { data: existing, error } = await supabase
+  let query = supabase
     .from('employees')
     .select('id, po_id, first_name, last_name, warehouse')
     .eq('id_card', cleanIdCard)
-    .maybeSingle()
+
+  if (excludeId) {
+    query = query.neq('id', excludeId)
+  }
+
+  const { data: existing, error } = await query.maybeSingle()
 
   if (error && error.code !== 'PGRST116') {
     console.error('Check ID card error:', error)
@@ -56,5 +65,5 @@ export async function GET(request: NextRequest) {
     })
   }
 
-  return NextResponse.json({ exists: false })
+  return NextResponse.json({ exists: false, valid: true })
 }
