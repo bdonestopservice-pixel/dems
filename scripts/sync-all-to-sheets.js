@@ -117,7 +117,17 @@ async function main() {
   });
 
   const sheets = google.sheets({ version: 'v4', auth });
-  const sheetTitle = 'Test api master';
+  
+  // ตรวจจับชื่อแท็บ: ใช้ GOOGLE_SHEET_TAB_NAME หรือดึงแท็บแรกของ Sheet
+  let sheetTitle = env.GOOGLE_SHEET_TAB_NAME;
+  if (!sheetTitle) {
+    try {
+      const meta = await sheets.spreadsheets.get({ spreadsheetId });
+      sheetTitle = meta.data.sheets?.[0]?.properties?.title || 'Test api master';
+    } catch {
+      sheetTitle = 'Test api master';
+    }
+  }
 
   // 2. ดึงข้อมูลพนักงานทั้งหมดจาก Supabase
   console.log('🔄 กำลังดึงข้อมูลพนักงานทั้งหมดจาก Supabase Database...');
