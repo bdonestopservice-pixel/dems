@@ -96,9 +96,10 @@ export async function resolveSheetTitle(
       return matched.properties.title
     }
 
-    if (allSheets[0]?.properties?.title) {
-      cachedSheetTitle = allSheets[0].properties.title
-      return cachedSheetTitle
+    const firstTitle = allSheets[0]?.properties?.title
+    if (firstTitle) {
+      cachedSheetTitle = firstTitle
+      return firstTitle
     }
   } catch (err) {
     console.warn('Could not query spreadsheet sheet title, using fallback:', err)
