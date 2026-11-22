@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { verifySession } from '@/lib/auth/session'
 import { parseDobInput, validateThaiCitizenId } from '@/lib/utils'
+import { updateEmployeeInSheet } from '@/lib/google-sheets'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -264,6 +265,11 @@ export async function PUT(
       bank_name: updated.banks?.name || undefined,
       bank_code: updated.banks?.code || undefined,
     }
+
+    // Trigger non-blocking Google Sheets sync in the background
+    updateEmployeeInSheet(formatted).catch((sheetErr) => {
+      console.error('Google Sheets background sync failed (update):', sheetErr)
+    })
 
     return NextResponse.json({ employee: formatted })
   } catch (err: unknown) {

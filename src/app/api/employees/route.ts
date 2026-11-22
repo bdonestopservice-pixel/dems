@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { verifySession } from '@/lib/auth/session'
 import { validateThaiCitizenId, parseDobInput } from '@/lib/utils'
+import { appendEmployeeToSheet } from '@/lib/google-sheets'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -406,7 +407,11 @@ export async function POST(request: NextRequest) {
     const { data: newEmp, error: insertErr } = await supabase
       .from('employees')
       .insert(insertPayload)
-      .select()
+      .select(`
+        *,
+        warehouses:warehouse (id, name),
+        banks:bank_id (id, name, code)
+      `)
       .single()
 
     if (insertErr) {
@@ -414,7 +419,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: insertErr.message }, { status: 500 })
     }
 
-    return NextResponse.json({ employee: newEmp }, { status: 201 })
+    const formattedEmployee = {
+      ...newEmp,
+      warehouse_name: newEmp?.warehouses?.name || newEmp?.warehouse,
+      bank_name: newEmp?.banks?.name || undefined,
+      bank_code: newEmp?.banks?.code || undefined,
+    }
+
+    // Trigger non-blocking Google Sheets sync in the background
+    appendEmployeeToSheet(formattedEmployee).catch((sheetErr) => {
+      console.error('Google Sheets background sync failed (create):', sheetErr)
+    })
+
+    return NextResponse.json({ employee: formattedEmployee }, { status: 201 })
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err)
     return NextResponse.json({ error: message }, { status: 500 })

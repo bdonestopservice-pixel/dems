@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { verifySession } from '@/lib/auth/session'
+import { updateEmployeeInSheet } from '@/lib/google-sheets'
 
 // POST /api/employees/[id]/blacklist
 // Body: { is_blacklisted: boolean, blacklist_reason?: string }
@@ -142,6 +143,11 @@ export async function POST(
       bank_name: updated.banks?.name || undefined,
       bank_code: updated.banks?.code || undefined,
     }
+
+    // Trigger non-blocking Google Sheets sync in the background
+    updateEmployeeInSheet(formatted).catch((sheetErr) => {
+      console.error('Google Sheets background sync failed (blacklist):', sheetErr)
+    })
 
     return NextResponse.json({
       success: true,
