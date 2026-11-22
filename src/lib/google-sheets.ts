@@ -33,11 +33,11 @@ export const GOOGLE_SHEET_EMPLOYEE_HEADERS = [
   'อัปเดตล่าสุด',                // Z
 ]
 
-export const DEFAULT_SHEET_TITLE = 'Test api master'
+export const DEFAULT_SHEET_TITLE = 'TEST API DEMS'
 let cachedSheetTitle: string | null = null
 
 /**
- * ครอบชื่อแท็บด้วยเครื่องหมายคำพูดเดี่ยวเพื่อรองรับชื่อแท็บที่มีช่องว่าง เช่น 'Test api master'
+ * ครอบชื่อแท็บด้วยเครื่องหมายคำพูดเดี่ยวเพื่อรองรับชื่อแท็บที่มีช่องว่าง เช่น 'TEST API DEMS'
  */
 function escapeSheetTitle(title: string): string {
   const cleanTitle = title.replace(/^'+|'+$/g, '')
@@ -73,30 +73,39 @@ export function getSheetsClient() {
 }
 
 /**
- * ค้นหาชื่อแท็บ (Tab Title) โดยอัตโนมัติ พร้อม In-Memory Cache
+ * ค้นหาชื่อแท็บ (Tab Title) โดยอัตโนมัติ พร้อม Smart Match และ In-Memory Cache
  */
 export async function resolveSheetTitle(
   sheets: any,
   spreadsheetId: string,
   requestedTitle?: string
 ): Promise<string> {
-  if (requestedTitle && requestedTitle.trim()) return requestedTitle.trim()
-  if (process.env.GOOGLE_SHEET_TAB_NAME) return process.env.GOOGLE_SHEET_TAB_NAME
+  const target = (requestedTitle || process.env.GOOGLE_SHEET_TAB_NAME || DEFAULT_SHEET_TITLE).trim()
   if (cachedSheetTitle) return cachedSheetTitle
 
   try {
     const meta = await sheets.spreadsheets.get({ spreadsheetId })
-    const firstTitle = meta.data.sheets?.[0]?.properties?.title
-    if (firstTitle) {
-      cachedSheetTitle = firstTitle
-      return firstTitle
+    const allSheets: any[] = meta.data.sheets || []
+
+    // ตรวจหาแท็บที่ตรงกับ target (แบบไม่สนเว้นวรรคหน้าหลังและพิมพ์เล็กใหญ่)
+    const matched = allSheets.find(
+      (s: any) => s.properties?.title?.trim().toLowerCase() === target.toLowerCase()
+    )
+    if (matched?.properties?.title) {
+      cachedSheetTitle = matched.properties.title
+      return matched.properties.title
+    }
+
+    if (allSheets[0]?.properties?.title) {
+      cachedSheetTitle = allSheets[0].properties.title
+      return cachedSheetTitle
     }
   } catch (err) {
     console.warn('Could not query spreadsheet sheet title, using fallback:', err)
   }
 
-  cachedSheetTitle = DEFAULT_SHEET_TITLE
-  return DEFAULT_SHEET_TITLE
+  cachedSheetTitle = target
+  return target
 }
 
 /**

@@ -118,16 +118,27 @@ async function main() {
 
   const sheets = google.sheets({ version: 'v4', auth });
   
-  // ตรวจจับชื่อแท็บ: ใช้ GOOGLE_SHEET_TAB_NAME หรือดึงแท็บแรกของ Sheet
-  let sheetTitle = env.GOOGLE_SHEET_TAB_NAME;
-  if (!sheetTitle) {
-    try {
-      const meta = await sheets.spreadsheets.get({ spreadsheetId });
-      sheetTitle = meta.data.sheets?.[0]?.properties?.title || 'Test api master';
-    } catch {
-      sheetTitle = 'Test api master';
+  // ตรวจจับชื่อแท็บ: ใช้ GOOGLE_SHEET_TAB_NAME หรือ Smart Match กับแท็บจริงในเอกสาร
+  const targetName = (env.GOOGLE_SHEET_TAB_NAME || 'TEST API DEMS').trim().toLowerCase();
+  let sheetTitle = env.GOOGLE_SHEET_TAB_NAME || 'TEST API DEMS';
+  let targetSheetIdNum = null;
+
+  try {
+    const meta = await sheets.spreadsheets.get({ spreadsheetId });
+    const allSheets = meta.data.sheets || [];
+    const matched = allSheets.find(s => s.properties?.title?.trim().toLowerCase() === targetName);
+    if (matched) {
+      sheetTitle = matched.properties.title;
+      targetSheetIdNum = matched.properties.sheetId;
+    } else if (allSheets[0]?.properties?.title) {
+      sheetTitle = allSheets[0].properties.title;
+      targetSheetIdNum = allSheets[0].properties.sheetId;
     }
+  } catch (err) {
+    console.warn('Could not query sheet metadata:', err.message);
   }
+
+  console.log(`📌 กำลังใช้งานแท็บ: "${sheetTitle}" (sheetId: ${targetSheetIdNum})`);
 
   // 2. ดึงข้อมูลพนักงานทั้งหมดจาก Supabase
   console.log('🔄 กำลังดึงข้อมูลพนักงานทั้งหมดจาก Supabase Database...');
@@ -195,10 +206,40 @@ async function main() {
   // ล้างข้อมูลเดิมในแท็บ 'Test api master' และเขียนข้อมูลใหม่ทั้งหมด
   const safeRange = `'${sheetTitle}'!A1:Z${allRows.length}`;
 
+  // ขยายขนาด Grid ของ Sheet ให้เพียงพอก่อนเขียน (เนื่องจาก Google Sheet เริ่มต้นมีเพียง 1,000 แถว)
+  if (targetSheetIdNum !== null && targetSheetIdNum !== undefined) {
+    const requiredRows = Math.max(20000, allRows.length + 500);
+    console.log(`📐 กำลังปรับขนาดตาราง Sheet ให้รองรับ ${requiredRows} แถว...`);
+    try {
+      await sheets.spreadsheets.batchUpdate({
+        spreadsheetId,
+        requestBody: {
+          requests: [
+            {
+              updateSheetProperties: {
+                properties: {
+                  sheetId: targetSheetIdNum,
+                  gridProperties: {
+                    rowCount: requiredRows,
+                    columnCount: 26,
+                  },
+                },
+                fields: 'gridProperties(rowCount,columnCount)',
+              },
+            },
+          ],
+        },
+      });
+      console.log(`✅ ขยายตารางเป็น ${requiredRows} แถวเรียบร้อย`);
+    } catch (e) {
+      console.warn('Grid resize warning:', e.message);
+    }
+  }
+
   // ล้างเนื้อหาเดิมใน A1:Z ก่อน เพื่อลบ Importrange หรือสูตรเดิมที่ค้าง
   await sheets.spreadsheets.values.clear({
     spreadsheetId,
-    range: `'${sheetTitle}'!A1:Z10000`,
+    range: `'${sheetTitle}'!A1:Z`,
   });
   console.log(`🧹 เคลียร์แถวเดิมใน '${sheetTitle}' เรียบร้อย`);
 
