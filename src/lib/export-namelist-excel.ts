@@ -44,17 +44,68 @@ export function getShiftTypeThaiLabel(
   return 'กะทั่วไป'
 }
 
+const MONTH_ABBR = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+]
+
 /**
- * จัดรูปแบบวันที่ YYYY-MM-DD เป็น DD/MM/YYYY สำหรับแสดงผลใน Excel
+ * จัดรูปแบบวันที่สำหรับ Export Namelist ลูกค้า
+ * เปลี่ยนจาก DD/MM/YYYY (เช่น 23/11/2026) เป็น DD Mon YY (เช่น 23 Nov 26)
+ * ใช้อักษรภาษาอังกฤษย่อ 3 ตัวสำหรับทุกเดือน และปี ค.ศ. 2 หลัก
  */
-function formatDisplayDate(dateStr?: string | null): string {
+export function formatCustomerNamelistDate(dateStr?: string | null): string {
   if (!dateStr) return ''
-  const parts = dateStr.split('-')
+
+  const clean = dateStr.includes('T') ? dateStr.split('T')[0] : dateStr.trim()
+  const parts = clean.split(/[-/]/)
+
   if (parts.length === 3) {
-    return `${parts[2]}/${parts[1]}/${parts[0]}`
+    let yearStr = parts[0]
+    let monthStr = parts[1]
+    let dayStr = parts[2]
+
+    // กรณีส่งมาเป็น DD/MM/YYYY หรือ DD-MM-YYYY
+    if (parts[2].length === 4 || parseInt(parts[2], 10) > 1900) {
+      dayStr = parts[0]
+      monthStr = parts[1]
+      yearStr = parts[2]
+    }
+
+    const monthNum = parseInt(monthStr, 10)
+    if (monthNum >= 1 && monthNum <= 12) {
+      const monthAbbr = MONTH_ABBR[monthNum - 1]
+      let yearNum = parseInt(yearStr, 10)
+      if (yearNum > 2400) yearNum -= 543 // แปลง พ.ศ. เป็น ค.ศ.
+      const yearShort = String(yearNum).slice(-2)
+      return `${dayStr} ${monthAbbr} ${yearShort}`
+    }
   }
+
+  // Fallback กรณีรูปแบบอื่น ใช้ Date object
+  const d = new Date(dateStr)
+  if (!isNaN(d.getTime())) {
+    const day = String(d.getDate()).padStart(2, '0')
+    const monthAbbr = MONTH_ABBR[d.getMonth()]
+    const yearShort = String(d.getFullYear()).slice(-2)
+    return `${day} ${monthAbbr} ${yearShort}`
+  }
+
   return dateStr
 }
+
+// Alias เพื่อความเข้ากันได้
+const formatDisplayDate = formatCustomerNamelistDate
 
 /**
  * ฟังก์ชันสร้างและดาวน์โหลดไฟล์ Excel สำหรับ Namelist ลูกค้า
@@ -71,8 +122,8 @@ export async function exportNamelistToExcel(
 
   // แถวข้อมูลพนักงาน
   const rows = entries.map((entry) => {
-    // 1. วันที่ทำงาน (DD/MM/YYYY)
-    const dateFormatted = formatDisplayDate(entry.date || options.date)
+    // 1. วันที่ทำงาน (รูปแบบ เช่น 23 Nov 26)
+    const dateFormatted = formatCustomerNamelistDate(entry.date || options.date)
     // 2. ค้นหา = ชื่อ นามสกุล (ไม่รวมคำนำหน้า)
     const fullName = employeeFullName(entry)
     // 3. เข้างาน = เวลาเริ่มต้นของกะ เช่น 09:00 หรือ 06:00

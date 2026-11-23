@@ -1,5 +1,6 @@
 import type { Employee, NamelistEntry } from '@/types'
 import { employeeFullName, formatShiftRange, hhmm } from '@/lib/namelist'
+import { formatCustomerNamelistDate } from '@/lib/export-namelist-excel'
 
 export type RegistryExportable = NamelistEntry | Employee
 
@@ -78,8 +79,8 @@ export async function exportCustomerNamelistReport(
   const headers = ['วันที่', 'ค้นหา', 'เข้างาน', 'Shift Name']
 
   const rows = entries.map((entry) => {
-    // วันที่ทำงาน
-    const dateFormatted = formatDisplayDate(entry.date || options.date)
+    // วันที่ทำงาน (รูปแบบ เช่น 23 Nov 26)
+    const dateFormatted = formatCustomerNamelistDate(entry.date || options.date)
     // ค้นหา = ชื่อ นามสกุล
     const fullName = employeeFullName(entry)
     // เข้างาน = เวลาเริ่มต้นของกะ เช่น 09:00
