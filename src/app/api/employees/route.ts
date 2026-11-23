@@ -426,10 +426,15 @@ export async function POST(request: NextRequest) {
       bank_code: newEmp?.banks?.code || undefined,
     }
 
-    // Trigger non-blocking Google Sheets sync in the background
-    appendEmployeeToSheet(formattedEmployee).catch((sheetErr) => {
-      console.error('Google Sheets background sync failed (create):', sheetErr)
-    })
+    // Sync to Google Sheets with timeout protection (ensures Vercel completes before freezing)
+    try {
+      await Promise.race([
+        appendEmployeeToSheet(formattedEmployee),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Sheet sync timeout')), 4000)),
+      ])
+    } catch (sheetErr) {
+      console.warn('Google Sheets sync warning (create):', sheetErr)
+    }
 
     return NextResponse.json({ employee: formattedEmployee }, { status: 201 })
   } catch (err: unknown) {

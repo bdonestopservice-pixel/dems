@@ -35,6 +35,7 @@ export const GOOGLE_SHEET_EMPLOYEE_HEADERS = [
 
 export const DEFAULT_SHEET_TITLE = 'TEST API DEMS'
 let cachedSheetTitle: string | null = null
+let headersEnsured = false
 
 /**
  * ครอบชื่อแท็บด้วยเครื่องหมายคำพูดเดี่ยวเพื่อรองรับชื่อแท็บที่มีช่องว่าง เช่น 'TEST API DEMS'
@@ -167,6 +168,7 @@ export function employeeToRow(emp: Employee): (string | number | null)[] {
  * ตรวจสอบและสร้างหัวตาราง (Header) หาก Sheet ยังว่างเปล่า
  */
 async function ensureHeaders(sheets: any, spreadsheetId: string, sheetTitle: string) {
+  if (headersEnsured) return
   try {
     const safeTitle = escapeSheetTitle(sheetTitle)
     const res = await sheets.spreadsheets.values.get({
@@ -185,6 +187,7 @@ async function ensureHeaders(sheets: any, spreadsheetId: string, sheetTitle: str
         },
       })
     }
+    headersEnsured = true
   } catch (err) {
     console.warn('Google Sheets ensureHeaders warning:', err)
   }
@@ -241,29 +244,38 @@ export async function updateEmployeeInSheet(emp: Employee, requestedTitle?: stri
 
     const safeTitle = escapeSheetTitle(sheetTitle)
 
-    // ดึง Column A (po_id) และ Column H (id_card) ทั้งหมดเพื่อค้นหาตำแหน่งแถว
-    const res = await sheets.spreadsheets.values.get({
-      spreadsheetId,
-      range: `${safeTitle}!A:H`,
-    })
-
-    const rows: string[][] = res.data.values || []
     let targetRowIndex = -1 // 1-based index
-
-    const cleanIdCard = emp.id_card?.replace(/[^0-9]/g, '')
     const targetPoId = emp.po_id?.trim()
+    const cleanIdCard = emp.id_card?.replace(/[^0-9]/g, '')
 
-    for (let i = 1; i < rows.length; i++) {
-      const row = rows[i]
-      const rowPoId = row[0]?.trim()
-      const rowIdCard = row[7]?.replace(/[^0-9]/g, '')
+    // 1. ค้นหาแถวด้วย Column A (po_id) ก่อน (ดึงเฉพาะ 1 Column เร็วกว่า A:H หลายเท่า)
+    if (targetPoId) {
+      const resA = await sheets.spreadsheets.values.get({
+        spreadsheetId,
+        range: `${safeTitle}!A:A`,
+      })
+      const rowsA: string[][] = resA.data.values || []
+      for (let i = 1; i < rowsA.length; i++) {
+        if (rowsA[i][0] && rowsA[i][0].trim() === targetPoId) {
+          targetRowIndex = i + 1
+          break
+        }
+      }
+    }
 
-      if (
-        (targetPoId && rowPoId && targetPoId === rowPoId) ||
-        (cleanIdCard && rowIdCard && cleanIdCard === rowIdCard)
-      ) {
-        targetRowIndex = i + 1 // +1 เพราะ Google Sheet แถวแรกคือ 1
-        break
+    // 2. หากยังไม่พบด้วย po_id ให้ค้นหาด้วย Column H (id_card)
+    if (targetRowIndex === -1 && cleanIdCard) {
+      const resH = await sheets.spreadsheets.values.get({
+        spreadsheetId,
+        range: `${safeTitle}!H:H`,
+      })
+      const rowsH: string[][] = resH.data.values || []
+      for (let i = 1; i < rowsH.length; i++) {
+        const rowIdCard = rowsH[i][0]?.replace(/[^0-9]/g, '')
+        if (rowIdCard && rowIdCard === cleanIdCard) {
+          targetRowIndex = i + 1
+          break
+        }
       }
     }
 

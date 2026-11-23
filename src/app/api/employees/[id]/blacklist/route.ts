@@ -144,10 +144,15 @@ export async function POST(
       bank_code: updated.banks?.code || undefined,
     }
 
-    // Trigger non-blocking Google Sheets sync in the background
-    updateEmployeeInSheet(formatted).catch((sheetErr) => {
-      console.error('Google Sheets background sync failed (blacklist):', sheetErr)
-    })
+    // Sync to Google Sheets with timeout protection (ensures Vercel completes before freezing)
+    try {
+      await Promise.race([
+        updateEmployeeInSheet(formatted),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Sheet sync timeout')), 4000)),
+      ])
+    } catch (sheetErr) {
+      console.warn('Google Sheets sync warning (blacklist):', sheetErr)
+    }
 
     return NextResponse.json({
       success: true,

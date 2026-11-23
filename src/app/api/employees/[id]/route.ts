@@ -266,10 +266,15 @@ export async function PUT(
       bank_code: updated.banks?.code || undefined,
     }
 
-    // Trigger non-blocking Google Sheets sync in the background
-    updateEmployeeInSheet(formatted).catch((sheetErr) => {
-      console.error('Google Sheets background sync failed (update):', sheetErr)
-    })
+    // Sync to Google Sheets with timeout protection (ensures Vercel completes before freezing)
+    try {
+      await Promise.race([
+        updateEmployeeInSheet(formatted),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Sheet sync timeout')), 4000)),
+      ])
+    } catch (sheetErr) {
+      console.warn('Google Sheets sync warning (update):', sheetErr)
+    }
 
     return NextResponse.json({ employee: formatted })
   } catch (err: unknown) {
