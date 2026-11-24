@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Eye, EyeOff, CheckSquare, Loader2, Check } from 'lucide-react'
+import { Eye, EyeOff, Loader2, Check, Mail, Lock, ArrowRight } from 'lucide-react'
 import { LOGO_URL } from '@/lib/brand'
 import { cn } from '@/lib/utils'
+import styles from './login.module.css'
 
 const REMEMBER_EMAIL_KEY = 'dems_remembered_email'
 
@@ -41,7 +42,9 @@ export default function LoginPage() {
       const data = await res.json()
 
       if (!res.ok) {
-        const errorText = data.message ? `${data.error} (${data.message})` : (data.error || 'เข้าสู่ระบบไม่สำเร็จ กรุณาตรวจสอบอีเมลและรหัสผ่าน')
+        const errorText = data.message
+          ? `${data.error} (${data.message})`
+          : data.error || 'เข้าสู่ระบบไม่สำเร็จ กรุณาตรวจสอบอีเมลและรหัสผ่าน'
         setError(errorText)
         return
       }
@@ -66,176 +69,166 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex">
-      {/* Left panel */}
-      <div className="hidden lg:flex lg:w-2/5 xl:w-1/2 bg-gradient-to-br from-blue-600 via-blue-700 to-blue-800 flex-col justify-between p-10 relative overflow-hidden">
-        {/* Background circles */}
-        <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500 rounded-full opacity-30 -translate-y-32 translate-x-32" />
-        <div className="absolute bottom-0 left-0 w-72 h-72 bg-blue-500 rounded-full opacity-20 translate-y-24 -translate-x-24" />
+    <div className={styles.page}>
+      {/* Left Brand Panel */}
+      <aside className={styles.leftPanel}>
+        {/* Decorative Background Shapes */}
+        <div className={styles.shapesLayer} aria-hidden="true">
+          <div className={cn(styles.rectCard, styles.rectCard1)} />
+          <div className={cn(styles.rectCard, styles.rectCard2)} />
+          <div className={cn(styles.rectCard, styles.rectCard3)} />
+          <div className={styles.circleOuter} />
+          <div className={styles.circleInner} />
+        </div>
 
-        {/* Logo */}
-        <div className="relative z-10">
-          <div className="flex items-center gap-3 mb-10">
-            <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-md p-1.5">
+        {/* Top-left Glass Logo Badge */}
+        <div className={styles.logoBadgeWrap}>
+          <div className={styles.logoBadge}>
+            <div className={styles.logoTile}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={LOGO_URL} alt="DEMS logo" className="w-full h-full object-contain" />
+              <img src={LOGO_URL} alt="DEMS logo" className={styles.logoImg} />
             </div>
-            <span className="text-white font-bold text-2xl tracking-wide">DEMS</span>
+            <span className={styles.logoText}>DEMS</span>
+          </div>
+        </div>
+
+        {/* Center Hero Copy */}
+        <div className={styles.heroBlock}>
+          <div className={styles.eyebrow}>
+            <span className={styles.eyebrowLine} />
+            <span>DAILY EMPLOYEE MANAGEMENT</span>
           </div>
 
-          <h1 className="text-white text-3xl font-bold leading-tight mb-3">
-            ระบบพนักงานรายวัน
+          <h1 className={styles.heroTitle}>
+            ระบบพนักงาน<span className={styles.heroTitleHighlight}>รายวัน</span>
           </h1>
-          <p className="text-blue-100 text-base leading-relaxed max-w-xs">
-            จัดการข้อมูลพนักงาน กะการทำงาน และ Namelist รายวันได้ในที่เดียว ครบทุกคลัง
+
+          <p className={styles.heroSubtitle}>
+            จัดการพนักงาน กะการทำงาน และ Namelist ได้ในที่เดียว
           </p>
         </div>
 
-        {/* Features */}
-        <div className="relative z-10 space-y-3">
-          {[
-            'รองรับ 6 คลังทั่วประเทศ',
-            'ติดตาม Namelist และค่าจ้างแบบเรียลไทม์',
-            'ควบคุมสิทธิ์การเข้าถึงตาม Role',
-          ].map((feat) => (
-            <div key={feat} className="flex items-center gap-3">
-              <div className="w-5 h-5 rounded-full bg-blue-400 bg-opacity-40 flex items-center justify-center flex-shrink-0">
-                <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                  <path
-                    fillRule="evenodd"
-                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-              </div>
-              <span className="text-blue-50 text-sm">{feat}</span>
-            </div>
-          ))}
-          <p className="text-blue-300 text-xs mt-4">© 2026 People One Co., Ltd.</p>
-        </div>
-      </div>
+        {/* Bottom-left Brand Footer */}
+        <div className={styles.leftFooter}>People One Co., Ltd.</div>
+      </aside>
 
-      {/* Right panel */}
-      <div className="flex-1 flex items-center justify-center p-8 bg-gray-50">
-        <div className="w-full max-w-md">
-          {/* Mobile logo */}
-          <div className="flex items-center gap-2 mb-8 lg:hidden">
+      {/* Right Form Panel */}
+      <main className={styles.rightPanel}>
+        {/* Mobile Logo Header */}
+        <div className={styles.mobileBrand}>
+          <div className={styles.mobileLogoTile}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={LOGO_URL} alt="DEMS logo" className="w-9 h-9 object-contain" />
-            <span className="font-bold text-xl text-blue-600">DEMS</span>
+            <img src={LOGO_URL} alt="DEMS logo" className={styles.logoImg} />
           </div>
+          <span className={styles.mobileBrandText}>DEMS</span>
+        </div>
 
-          {/* Login card */}
-          <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-8">
-            <div className="mb-7">
-              <h2 className="text-2xl font-bold text-gray-900">เข้าสู่ระบบ</h2>
-              <p className="text-gray-500 text-sm mt-1">
-                กรอกอีเมลและรหัสผ่านของคุณเพื่อเข้าใช้งาน
-              </p>
+        {/* Login Card */}
+        <div className={styles.card}>
+          <div className={styles.cardTopBar} />
+
+          <div className={styles.cardBody}>
+            <div className={styles.cardHeader}>
+              <h2 className={styles.cardTitle}>ยินดีต้อนรับกลับมา</h2>
+              <p className={styles.cardSubtitle}>เข้าสู่ระบบเพื่อเริ่มใช้งาน</p>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-5">
+            <form onSubmit={handleSubmit} className={styles.form}>
               {/* Email */}
-              <div>
-                <label htmlFor="email" className="label">
+              <div className={styles.fieldGroup}>
+                <label htmlFor="email" className={styles.fieldLabel}>
                   อีเมล
                 </label>
-                <input
-                  id="email"
-                  name="username"
-                  type="text"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="name@peopleone.co.th"
-                  className="input"
-                  required
-                  autoComplete="username"
-                />
+                <div className={styles.inputWrap}>
+                  <span className={styles.inputIconLeft} aria-hidden="true">
+                    <Mail size={16} strokeWidth={1.85} />
+                  </span>
+                  <input
+                    id="email"
+                    name="username"
+                    type="text"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="name@peopleone.co.th"
+                    className={styles.inputField}
+                    required
+                    autoComplete="username"
+                  />
+                </div>
               </div>
 
               {/* Password */}
-              <div>
-                <label htmlFor="password" className="label">
+              <div className={styles.fieldGroup}>
+                <label htmlFor="password" className={styles.fieldLabel}>
                   รหัสผ่าน
                 </label>
-                <div className="relative">
+                <div className={styles.inputWrap}>
+                  <span className={styles.inputIconLeft} aria-hidden="true">
+                    <Lock size={16} strokeWidth={1.85} />
+                  </span>
                   <input
                     id="password"
                     name="password"
                     type={showPassword ? 'text' : 'password'}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="input pr-10"
+                    placeholder="กรอกรหัสผ่าน"
+                    className={cn(styles.inputField, styles.inputFieldPassword)}
                     required
                     autoComplete="current-password"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    className={styles.eyeBtn}
+                    aria-label={showPassword ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'}
                     tabIndex={-1}
                   >
-                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    {showPassword ? <EyeOff size={16} strokeWidth={1.85} /> : <Eye size={16} strokeWidth={1.85} />}
                   </button>
                 </div>
               </div>
 
               {/* Remember me */}
-              <label className="flex items-center gap-2.5 cursor-pointer group select-none">
+              <label className={styles.rememberRow}>
                 <input
                   type="checkbox"
                   checked={rememberMe}
                   onChange={(e) => setRememberMe(e.target.checked)}
                   className="sr-only"
                 />
-                <div
+                <span
                   className={cn(
-                    'w-4 h-4 rounded border flex items-center justify-center transition-colors flex-shrink-0',
-                    rememberMe
-                      ? 'bg-[#7C3AED] border-[#7C3AED]'
-                      : 'border-gray-300 group-hover:border-[#7C3AED] bg-white'
+                    styles.checkboxBox,
+                    rememberMe && styles.checkboxBoxChecked
                   )}
                 >
-                  {rememberMe && (
-                    <Check size={11} strokeWidth={3.5} className="text-white" />
-                  )}
-                </div>
-                <span className="text-sm text-gray-600 group-hover:text-gray-900 transition-colors">
-                  จดจำฉันไว้ในระบบ
+                  {rememberMe && <Check size={11} strokeWidth={3.5} className="text-white" />}
                 </span>
+                <span className={styles.rememberText}>จดจำฉันไว้ในระบบ</span>
               </label>
 
               {/* Error */}
-              {error && (
-                <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-600">
-                  {error}
-                </div>
-              )}
+              {error && <div className={styles.errorBox}>{error}</div>}
 
-              {/* Submit */}
-              <button
-                type="submit"
-                disabled={loading}
-                className="btn-primary w-full justify-center py-3 text-base font-semibold rounded-xl"
-              >
+              {/* Submit Button */}
+              <button type="submit" disabled={loading} className={styles.submitBtn}>
                 {loading ? (
                   <>
-                    <Loader2 size={18} className="animate-spin" />
-                    กำลังเข้าสู่ระบบ...
+                    <Loader2 size={17} className="animate-spin" />
+                    <span>กำลังเข้าสู่ระบบ...</span>
                   </>
                 ) : (
-                  'เข้าสู่ระบบ'
+                  <>
+                    <span>เข้าสู่ระบบ</span>
+                    <ArrowRight size={16} strokeWidth={2.2} className={styles.submitArrow} />
+                  </>
                 )}
               </button>
             </form>
-
-            <p className="text-center text-gray-400 text-xs mt-6">
-              © 2026 People One Co., Ltd.
-            </p>
           </div>
         </div>
-      </div>
+      </main>
     </div>
   )
 }
