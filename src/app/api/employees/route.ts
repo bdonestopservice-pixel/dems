@@ -82,21 +82,24 @@ export async function GET(request: NextRequest) {
     for (const word of words) {
       const s = `%${word}%`
       const isDigitsOnly = /^\d+$/.test(word)
-      const isPoIdPattern = /^(po|ops)/i.test(word)
+      const isPoIdPattern = /^(po|os|ops)/i.test(word)
       const isThai = /[\u0E00-\u0E7F]/.test(word)
+      const isThaiPrefix = /^(นาย|นาง|น\.ส|ด\.ช|ด\.ญ|คุณ)/.test(word)
       const isEnglish = /^[a-zA-Z\s]+$/.test(word)
 
       let targetFields: string[]
 
       if (isPoIdPattern) {
-        // Explicit PO or OPS ID pattern e.g. "PO100001", "ops123"
+        // Explicit PO, OS, or OPS ID pattern e.g. "PO100001", "OS10002", "OPS123"
         targetFields = [`po_id.ilike.${s}`, `ops_id.ilike.${s}`]
       } else if (isDigitsOnly) {
         // Pure digits e.g. "1103700123456" (ID card), "0812345678" (phone), or "10001" (PO numeric part)
         targetFields = [`id_card.ilike.${s}`, `phone.ilike.${s}`, `po_id.ilike.${s}`]
       } else if (isThai) {
-        // Thai text e.g. "สมชาย", "ใจดี" (can never match phone, id_card or po_id)
-        targetFields = [`first_name.ilike.${s}`, `last_name.ilike.${s}`, `prefix.ilike.${s}`]
+        // Thai text e.g. "สมชาย", "ใจดี" — ตรวจ prefix เฉพาะคำนำหน้าชื่อเพื่อลดการสแกนคอลัมน์ที่ไม่จำเป็น
+        targetFields = isThaiPrefix
+          ? [`first_name.ilike.${s}`, `last_name.ilike.${s}`, `prefix.ilike.${s}`]
+          : [`first_name.ilike.${s}`, `last_name.ilike.${s}`]
       } else if (isEnglish) {
         // English text e.g. "John", "Smith"
         targetFields = [
