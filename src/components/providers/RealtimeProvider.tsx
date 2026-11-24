@@ -170,47 +170,9 @@ export function RealtimeProvider({ initialSession, children }: RealtimeProviderP
               )
             }
           })
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, async (payload) => {
-            const newRecord = payload.new as any
-            const curUser = sessionRef.current
-            if (newRecord && newRecord.id === curUser.userId) {
-              await refreshSession()
-              router.refresh()
-            }
-            window.dispatchEvent(
-              new CustomEvent('dems:realtime', {
-                detail: { event: 'user-updated', payload: { userId: newRecord?.id } },
-              })
-            )
-          })
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'plans' }, () => {
-            window.dispatchEvent(
-              new CustomEvent('dems:realtime', {
-                detail: { event: 'plan-updated', payload: {} },
-              })
-            )
-          })
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'plan_employees' }, () => {
-            window.dispatchEvent(
-              new CustomEvent('dems:realtime', {
-                detail: { event: 'plan-roster-updated', payload: {} },
-              })
-            )
-          })
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'employees' }, () => {
-            window.dispatchEvent(
-              new CustomEvent('dems:realtime', {
-                detail: { event: 'employee-updated', payload: {} },
-              })
-            )
-          })
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'namelist' }, () => {
-            window.dispatchEvent(
-              new CustomEvent('dems:realtime', {
-                detail: { event: 'namelist-updated', payload: {} },
-              })
-            )
-          })
+        // หมายเหตุ: ใช้เฉพาะ Supabase Realtime Broadcast (WebSocket in-memory, 0 DB queries)
+        // ไม่ใช้ postgres_changes เพราะระบบใช้ Custom JWT + RLS (service_role เท่านั้น)
+        // การตัด postgres_changes ช่วยลดภาระการยิง realtime.list_changes (WAL polling) ลง 100%
 
         channel.subscribe((status, err) => {
           if (err) {
