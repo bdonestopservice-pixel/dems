@@ -166,6 +166,9 @@ export async function PATCH(
     if (isNaN(countNum) || countNum <= 0) {
       return NextResponse.json({ error: 'จำนวนคนที่ต้องการต้องมากกว่า 0' }, { status: 400 })
     }
+    if (countNum > 500) {
+      return NextResponse.json({ error: 'จำนวนคนที่ต้องการต่อหนึ่งแพลนต้องไม่เกิน 500 คน' }, { status: 400 })
+    }
     updateFields.required_count = countNum
   }
 

@@ -251,11 +251,13 @@ export function PlanRosterClient({ session, planId }: PlanRosterClientProps) {
     )
   }
 
+  const MAX_PLAN_EMPLOYEES = 500
   const currentCount = roster.length
   const requiredCount = plan.required_count || 0
-  const isFull = currentCount >= requiredCount && requiredCount > 0
-  const missingCount = Math.max(0, requiredCount - currentCount)
-  const percent = requiredCount > 0 ? Math.min(100, Math.round((currentCount / requiredCount) * 100)) : 0
+  const effectiveLimit = requiredCount > 0 ? Math.min(requiredCount, MAX_PLAN_EMPLOYEES) : MAX_PLAN_EMPLOYEES
+  const isFull = (currentCount >= requiredCount && requiredCount > 0) || currentCount >= MAX_PLAN_EMPLOYEES
+  const missingCount = Math.max(0, effectiveLimit - currentCount)
+  const percent = effectiveLimit > 0 ? Math.min(100, Math.round((currentCount / effectiveLimit) * 100)) : 0
 
   const eligibleToSendCount = roster.filter((r) => !r.sent_to_namelist).length
   const isAllEligibleSelected =
@@ -284,11 +286,13 @@ export function PlanRosterClient({ session, planId }: PlanRosterClientProps) {
 
           {isFull ? (
             <span
-              title="แพลนนี้มีพนักงานครบตามจำนวนที่กำหนดแล้ว"
+              title="แพลนนี้มีพนักงานครบตามจำนวนที่กำหนดแล้ว (สูงสุดไม่เกิน 500 คน)"
               className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#2E9E5B] bg-[#E7F6ED] border border-[#A3E5BA] px-3.5 py-2 rounded-xl shadow-sm select-none"
             >
               <Check className="w-3.5 h-3.5" />
-              ครบตามแพลนแล้ว ({currentCount}/{requiredCount})
+              {currentCount >= MAX_PLAN_EMPLOYEES
+                ? `ครบขีดจำกัดสูงสุดแล้ว (${currentCount}/500 คน)`
+                : `ครบตามแพลนแล้ว (${currentCount}/${effectiveLimit})`}
             </span>
           ) : (
             <Link

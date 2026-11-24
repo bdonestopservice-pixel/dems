@@ -71,10 +71,32 @@ export async function POST(
     )
   }
 
-  // 2. ตรวจสอบโควตาพนักงาน ห้ามใส่เกินจำนวนที่แพลนระบุไว้ (required_count)
+  // 2. ตรวจสอบโควตาพนักงาน ห้ามใส่เกิน 500 คนต่อแพลน และห้ามเกินจำนวนที่แพลนระบุไว้ (required_count)
+  const MAX_PLAN_EMPLOYEES = 500
   const requiredCount = typeof plan.required_count === 'number' ? plan.required_count : 0
+  const effectiveLimit = requiredCount > 0 ? Math.min(requiredCount, MAX_PLAN_EMPLOYEES) : MAX_PLAN_EMPLOYEES
   const currentCount = existingSet.size
-  const availableSlots = Math.max(0, requiredCount - currentCount)
+  const availableSlots = Math.max(0, effectiveLimit - currentCount)
+
+  // ตรวจสอบเพดานสูงสุด 500 คนต่อหนึ่งแพลน
+  if (currentCount >= MAX_PLAN_EMPLOYEES) {
+    return NextResponse.json(
+      {
+        error: `แพลนนี้มีพนักงานครบตามขีดจำกัดสูงสุดแล้ว (${currentCount}/${MAX_PLAN_EMPLOYEES} คน) ไม่สามารถเพิ่มพนักงานได้อีก`,
+      },
+      { status: 400 }
+    )
+  }
+
+  if (currentCount + toAdd.length > MAX_PLAN_EMPLOYEES) {
+    const slotsLeftTo500 = Math.max(0, MAX_PLAN_EMPLOYEES - currentCount)
+    return NextResponse.json(
+      {
+        error: `ไม่สามารถเพิ่มพนักงานเกิน ${MAX_PLAN_EMPLOYEES} คนต่อหนึ่งแพลนได้ (ปัจจุบันมี ${currentCount} คน สามารถเพิ่มได้อีกไม่เกิน ${slotsLeftTo500} คน แต่เลือกมา ${toAdd.length} คน)`,
+      },
+      { status: 400 }
+    )
+  }
 
   if (requiredCount > 0) {
     if (currentCount >= requiredCount) {

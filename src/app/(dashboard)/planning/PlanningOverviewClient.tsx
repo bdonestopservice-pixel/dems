@@ -417,7 +417,7 @@ export function PlanningOverviewClient({
             {plans.map((p) => {
               const current = p.current_count || 0
               const required = p.required_count || 0
-              const isFull = current >= required && required > 0
+              const isFull = (current >= required && required > 0) || current >= 500
               const isZero = current === 0
               const missing = Math.max(0, required - current)
               const percent = required > 0 ? Math.min(100, Math.round((current / required) * 100)) : 0

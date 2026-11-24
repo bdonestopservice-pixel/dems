@@ -179,6 +179,19 @@ export function CreatePlanClient({ session }: CreatePlanClientProps) {
       return
     }
 
+    const overLimitRows: number[] = []
+    rows.forEach((r, idx) => {
+      if (Number(r.required_count) > 500) {
+        overLimitRows.push(idx + 1)
+        newInvalidRows.add(r.id)
+      }
+    })
+    if (overLimitRows.length > 0) {
+      setInvalidRowIds(newInvalidRows)
+      setErrorMsg(`จำนวนคนที่ต้องการในแต่ละแพลนต้องไม่เกิน 500 คน (พบในแถวที่ ${overLimitRows.join(', ')})`)
+      return
+    }
+
     setSubmitting(true)
     try {
       const payload = rows.map((r) => ({
@@ -344,14 +357,16 @@ export function CreatePlanClient({ session }: CreatePlanClientProps) {
                         <input
                           type="number"
                           min="1"
-                          placeholder="จำนวน"
+                          max="500"
+                          placeholder="สูงสุด 500"
                           value={r.required_count}
                           onChange={(e) => {
-                            const val = e.target.value === '' ? '' : Math.max(1, parseInt(e.target.value, 10) || 1)
+                            const parsed = parseInt(e.target.value, 10)
+                            const val = e.target.value === '' ? '' : Math.min(500, Math.max(1, isNaN(parsed) ? 1 : parsed))
                             updateRow(r.id, 'required_count', val)
                           }}
                           className={`w-full bg-white border ${
-                            isInvalid && (!r.required_count || Number(r.required_count) <= 0)
+                            isInvalid && (!r.required_count || Number(r.required_count) <= 0 || Number(r.required_count) > 500)
                               ? 'border-[#E5484D]'
                               : 'border-[#E1E6EF]'
                           } text-[#16233D] text-xs font-semibold rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#2E6FE0] shadow-sm`}

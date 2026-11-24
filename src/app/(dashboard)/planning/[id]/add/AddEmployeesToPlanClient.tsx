@@ -112,14 +112,19 @@ export function AddEmployeesToPlanClient({ session, planId }: AddEmployeesToPlan
         if (e.recently_used) recentlyUsedMap.current.set(e.id, true)
       })
 
-      // เลือกพนักงาน Recently used ให้อัตโนมัติเมื่อพบ (คนไหนไม่เอาให้เลือกออกเอง)
+      // เลือกพนักงาน Recently used ให้อัตโนมัติเมื่อพบ โดยจำกัดไม่ให้เกินจำนวนที่แพลนต้องการ และไม่เกิน 500 คน
       if (!initialAutoSelectedRef.current) {
         const recentIds = emps.filter((e) => e.recently_used).map((e) => e.id)
         if (recentIds.length > 0) {
           initialAutoSelectedRef.current = true
           setSelectedIds((prev) => {
             const next = new Set(prev)
-            recentIds.forEach((id) => next.add(id))
+            const currentTotal = plan?.current_count || 0
+            const req = plan?.required_count || 0
+            const maxAllowed = req > 0 ? Math.min(req, 500) : 500
+            const availableSlots = Math.max(0, maxAllowed - currentTotal)
+            const toAdd = recentIds.slice(0, availableSlots)
+            toAdd.forEach((id) => next.add(id))
             return next
           })
         }
@@ -129,7 +134,7 @@ export function AddEmployeesToPlanClient({ session, planId }: AddEmployeesToPlan
     } finally {
       setLoadingEmployees(false)
     }
-  }, [planId, debouncedSearch, selectedWarehouse])
+  }, [planId, debouncedSearch, selectedWarehouse, plan?.current_count, plan?.required_count])
 
   useEffect(() => {
     fetchEligible()
@@ -144,21 +149,27 @@ export function AddEmployeesToPlanClient({ session, planId }: AddEmployeesToPlan
     return count
   }, [selectedIds])
 
-  // Calculations for live progress bar and counts
+  // Calculations for live progress bar and counts (จำกัดไม่เกิน 500 คนต่อแพลน)
+  const MAX_PLAN_EMPLOYEES = 500
   const currentCount = plan?.current_count || 0
   const requiredCount = plan?.required_count || 0
-  const currentlyMissing = Math.max(0, requiredCount - currentCount)
-  const isPlanAlreadyFull = requiredCount > 0 && currentCount >= requiredCount
-  const isSelectionLimitReached = requiredCount > 0 && selectedIds.size >= currentlyMissing
+  const effectiveLimit = requiredCount > 0 ? Math.min(requiredCount, MAX_PLAN_EMPLOYEES) : MAX_PLAN_EMPLOYEES
+  const currentlyMissing = Math.max(0, effectiveLimit - currentCount)
+  const isPlanAlreadyFull = currentCount >= effectiveLimit || currentCount >= MAX_PLAN_EMPLOYEES
+  const isSelectionLimitReached = selectedIds.size >= currentlyMissing
   const countAfterAdding = currentCount + selectedIds.size
-  const remainingMissing = Math.max(0, requiredCount - countAfterAdding)
+  const remainingMissing = Math.max(0, effectiveLimit - countAfterAdding)
   const progressPercent =
-    requiredCount > 0 ? Math.min(100, Math.round((countAfterAdding / requiredCount) * 100)) : 0
+    effectiveLimit > 0 ? Math.min(100, Math.round((countAfterAdding / effectiveLimit) * 100)) : 0
 
-  // Toggle selection (ป้องกันไม่ให้เลือกเกินจำนวนที่แพลนต้องการ)
+  // Toggle selection (ป้องกันไม่ให้เลือกเกิน 500 คน และไม่เกินจำนวนที่แพลนต้องการ)
   const toggleSelect = (id: string) => {
     if (isPlanAlreadyFull) {
-      setErrorMsg(`แพลนนี้มีพนักงานครบตามที่กำหนดแล้ว (${requiredCount} คน) ไม่สามารถเพิ่มได้อีก`)
+      setErrorMsg(
+        currentCount >= MAX_PLAN_EMPLOYEES
+          ? `แพลนนี้มีพนักงานครบตามขีดจำกัดสูงสุดแล้ว (${MAX_PLAN_EMPLOYEES} คน) ไม่สามารถเพิ่มได้อีก`
+          : `แพลนนี้มีพนักงานครบตามที่กำหนดแล้ว (${effectiveLimit} คน) ไม่สามารถเพิ่มได้อีก`
+      )
       return
     }
 
@@ -168,9 +179,9 @@ export function AddEmployeesToPlanClient({ session, planId }: AddEmployeesToPlan
         next.delete(id)
         setErrorMsg(null)
       } else {
-        if (requiredCount > 0 && prev.size >= currentlyMissing) {
+        if (prev.size >= currentlyMissing) {
           setErrorMsg(
-            `สามารถเลือกพนักงานได้สูงสุดอีกเพียง ${currentlyMissing} คน ตามจำนวนที่แพลนต้องการ (${requiredCount} คน)`
+            `สามารถเลือกพนักงานได้สูงสุดอีกเพียง ${currentlyMissing} คน (ขีดจำกัดไม่เกิน ${effectiveLimit} คนต่อแพลน)`
           )
           return prev
         }
@@ -181,10 +192,14 @@ export function AddEmployeesToPlanClient({ session, planId }: AddEmployeesToPlan
     })
   }
 
-  // Toggle select all currently visible (เติมคนให้พอดีกับโควตาที่เหลือ ไม่เกินแพลน)
+  // Toggle select all currently visible (เติมคนให้พอดีกับโควตาที่เหลือ ไม่เกิน 500 คน)
   const handleSelectAllVisible = () => {
     if (isPlanAlreadyFull) {
-      setErrorMsg(`แพลนนี้มีพนักงานครบตามที่กำหนดแล้ว (${requiredCount} คน)`)
+      setErrorMsg(
+        currentCount >= MAX_PLAN_EMPLOYEES
+          ? `แพลนนี้มีพนักงานครบตามขีดจำกัดสูงสุดแล้ว (${MAX_PLAN_EMPLOYEES} คน)`
+          : `แพลนนี้มีพนักงานครบตามที่กำหนดแล้ว (${effectiveLimit} คน)`
+      )
       return
     }
 
@@ -202,10 +217,10 @@ export function AddEmployeesToPlanClient({ session, planId }: AddEmployeesToPlan
       setSelectedIds((prev) => {
         const next = new Set(prev)
         const unselectedVisible = visibleIds.filter((id) => !next.has(id))
-        const slotsLeft = requiredCount > 0 ? Math.max(0, currentlyMissing - next.size) : unselectedVisible.length
+        const slotsLeft = Math.max(0, currentlyMissing - next.size)
 
         if (slotsLeft === 0) {
-          setErrorMsg(`เลือกพนักงานครบตามโควตาที่แพลนต้องการแล้ว (${currentlyMissing} คน)`)
+          setErrorMsg(`เลือกพนักงานครบตามโควตาที่แพลนต้องการแล้ว (${currentlyMissing} คน, สูงสุดไม่เกิน ${effectiveLimit} คน)`)
           return prev
         }
 
@@ -214,7 +229,7 @@ export function AddEmployeesToPlanClient({ session, planId }: AddEmployeesToPlan
 
         if (unselectedVisible.length > slotsLeft) {
           setErrorMsg(
-            `เลือกเพิ่ม ${toAdd.length} คน เพื่อเติมแพลนให้ครบ ${requiredCount} คนพอดี (ไม่เกินตามที่กำหนด)`
+            `เลือกเพิ่ม ${toAdd.length} คน เพื่อเติมแพลนให้ครบ ${effectiveLimit} คนพอดี (ไม่เกิน 500 คนตามที่กำหนด)`
           )
         } else {
           setErrorMsg(null)
@@ -228,6 +243,10 @@ export function AddEmployeesToPlanClient({ session, planId }: AddEmployeesToPlan
   // Submit addition to roster
   const handleAddSubmit = async () => {
     if (selectedIds.size === 0) return
+    if (countAfterAdding > MAX_PLAN_EMPLOYEES) {
+      setErrorMsg(`ไม่สามารถเพิ่มพนักงานเกิน ${MAX_PLAN_EMPLOYEES} คนต่อหนึ่งแพลนได้`)
+      return
+    }
     setSubmitting(true)
     setErrorMsg(null)
 
@@ -334,7 +353,7 @@ export function AddEmployeesToPlanClient({ session, planId }: AddEmployeesToPlan
               </div>
 
               <span className="text-xs font-bold text-[#16233D] whitespace-nowrap">
-                {countAfterAdding} / {requiredCount} คน
+                {countAfterAdding} / {effectiveLimit} คน
               </span>
 
               <span
@@ -346,7 +365,7 @@ export function AddEmployeesToPlanClient({ session, planId }: AddEmployeesToPlan
               >
                 {remainingMissing === 0
                   ? 'ครบตามจำนวนแล้ว'
-                  : `เหลือที่ว่างอีก ${remainingMissing} คน`}
+                  : `เหลือที่ว่างอีก ${remainingMissing} คน (สูงสุด 500)`}
               </span>
             </div>
           </div>
@@ -357,7 +376,9 @@ export function AddEmployeesToPlanClient({ session, planId }: AddEmployeesToPlan
           <div className="mb-5 p-4 rounded-xl bg-[#E7F6ED] border border-[#A3E5BA] flex items-center gap-2.5 text-[#2E9E5B] text-xs font-semibold">
             <Check className="w-4 h-4 flex-shrink-0" />
             <span>
-              แพลนนี้มีพนักงานครบตามจำนวนที่กำหนดแล้ว ({currentCount}/{requiredCount} คน) ไม่สามารถเพิ่มพนักงานได้อีก
+              {currentCount >= MAX_PLAN_EMPLOYEES
+                ? `แพลนนี้มีพนักงานครบตามขีดจำกัดสูงสุดแล้ว (${currentCount}/500 คน) ไม่สามารถเพิ่มพนักงานได้อีก`
+                : `แพลนนี้มีพนักงานครบตามจำนวนที่กำหนดแล้ว (${currentCount}/${effectiveLimit} คน) ไม่สามารถเพิ่มพนักงานได้อีก`}
             </span>
           </div>
         )}
@@ -401,12 +422,17 @@ export function AddEmployeesToPlanClient({ session, planId }: AddEmployeesToPlan
         {/* Employee Checkbox List Card */}
         <div className="bg-white rounded-2xl border border-[#E1E6EF] overflow-hidden shadow-sm">
           {/* Recently Used Notice Header matching Mockup */}
-          <div className="px-6 py-3 bg-[#FAF5FF] border-b border-[#F3E8FF] flex items-center gap-2.5 select-none">
-            <div className="w-1 h-4 bg-[#7C3AED] rounded-full flex-shrink-0" />
-            <p className="text-xs text-[#5B21B6]">
-              <span className="font-bold text-[#6D28D9]">สีม่วง = Recently used</span>{' '}
-              เพิ่มเข้าแพลนให้อัตโนมัติ โดยเลือกไว้ให้ทุกคน คนไหนที่ไม่เอาให้เลือกออกเอง
-            </p>
+          <div className="px-6 py-3 bg-[#FAF5FF] border-b border-[#F3E8FF] flex items-center justify-between select-none">
+            <div className="flex items-center gap-2.5">
+              <div className="w-1 h-4 bg-[#7C3AED] rounded-full flex-shrink-0" />
+              <p className="text-xs text-[#5B21B6]">
+                <span className="font-bold text-[#6D28D9]">สีม่วง = Recently used</span>{' '}
+                เพิ่มเข้าแพลนให้อัตโนมัติตามโควตา (ไม่เกิน 500 คนต่อแพลน) คนไหนที่ไม่เอาให้เลือกออกเอง
+              </p>
+            </div>
+            <span className="text-[11px] font-semibold text-[#7C3AED] bg-[#EDE9FE] px-2.5 py-0.5 rounded-full whitespace-nowrap">
+              จำกัดสูงสุด 500 คน/แพลน
+            </span>
           </div>
 
           {loadingEmployees ? (
@@ -528,9 +554,9 @@ export function AddEmployeesToPlanClient({ session, planId }: AddEmployeesToPlan
           ·{' '}
           {isPlanAlreadyFull ? (
             <span className="font-bold text-[#2E9E5B]">แพลนนี้มีคนครบแล้ว</span>
-          ) : countAfterAdding > requiredCount && requiredCount > 0 ? (
+          ) : countAfterAdding > effectiveLimit ? (
             <span className="font-bold text-[#E5484D]">
-              เลือกเกินโควตา {countAfterAdding - requiredCount} คน (เหลือที่ว่างอีก {currentlyMissing} คน — กรุณาเลือกออก)
+              เลือกเกินโควตา {countAfterAdding - effectiveLimit} คน (เหลือที่ว่างอีก {currentlyMissing} คน — กรุณาเลือกออก)
             </span>
           ) : remainingMissing === 0 ? (
             <span className="font-bold text-[#2E9E5B]">ครบตามจำนวนที่แพลนต้องการแล้ว</span>
@@ -548,7 +574,8 @@ export function AddEmployeesToPlanClient({ session, planId }: AddEmployeesToPlan
           disabled={
             selectedIds.size === 0 ||
             isPlanAlreadyFull ||
-            (requiredCount > 0 && countAfterAdding > requiredCount) ||
+            countAfterAdding > effectiveLimit ||
+            countAfterAdding > MAX_PLAN_EMPLOYEES ||
             submitting
           }
           className="inline-flex items-center gap-2 bg-[#2E6FE0] hover:bg-[#2558B8] text-white text-xs font-bold px-6 py-2.5 rounded-xl shadow-sm hover:shadow transition-all disabled:opacity-40 disabled:cursor-not-allowed"
@@ -560,8 +587,8 @@ export function AddEmployeesToPlanClient({ session, planId }: AddEmployeesToPlan
           )}
           {isPlanAlreadyFull
             ? 'แพลนเต็มแล้ว'
-            : countAfterAdding > requiredCount && requiredCount > 0
-            ? `เลือกเกิน ${countAfterAdding - requiredCount} คน`
+            : countAfterAdding > effectiveLimit
+            ? `เลือกเกิน ${countAfterAdding - effectiveLimit} คน`
             : `เพิ่มเข้าแพลนนี้ (${selectedIds.size} คน)`}
         </button>
       </div>

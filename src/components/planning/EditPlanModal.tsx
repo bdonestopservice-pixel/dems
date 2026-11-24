@@ -80,6 +80,10 @@ export function EditPlanModal({ isOpen, onClose, plan, onUpdated }: EditPlanModa
       setErrorMsg('จำนวนคนที่ต้องการต้องมากกว่า 0')
       return
     }
+    if (Number(requiredCount) > 500) {
+      setErrorMsg('จำนวนคนที่ต้องการต่อหนึ่งแพลนต้องไม่เกิน 500 คน')
+      return
+    }
 
     setSaving(true)
     try {
@@ -214,9 +218,12 @@ export function EditPlanModal({ isOpen, onClose, plan, onUpdated }: EditPlanModa
             <input
               type="number"
               min="1"
+              max="500"
+              placeholder="สูงสุด 500"
               value={requiredCount}
               onChange={(e) => {
-                const val = e.target.value === '' ? '' : Math.max(1, parseInt(e.target.value, 10) || 1)
+                const parsed = parseInt(e.target.value, 10)
+                const val = e.target.value === '' ? '' : Math.min(500, Math.max(1, isNaN(parsed) ? 1 : parsed))
                 setRequiredCount(val)
               }}
               required

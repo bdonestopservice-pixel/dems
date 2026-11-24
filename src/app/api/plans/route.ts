@@ -269,6 +269,13 @@ export async function POST(request: NextRequest) {
         continue
       }
 
+      if (Number(p.required_count) > 500) {
+        return NextResponse.json(
+          { error: `จำนวนคนที่ต้องการต่อหนึ่งแพลนต้องไม่เกิน 500 คน (แถวที่ ${i + 1} ระบุ ${p.required_count} คน)` },
+          { status: 400 }
+        )
+      }
+
       // Check warehouse permissions
       if (!isSuperAdmin && !permittedWarehouses.includes(p.warehouse)) {
         return NextResponse.json(
