@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { verifySession } from '@/lib/auth/session'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 // GET /api/namelist/existing?date=YYYY-MM-DD[&shift_id=...]
 // คืนรายการ { employee_id, shift_id } ที่มีใน Namelist ของวันนั้น (ทุกคลัง) ใช้ทำเครื่องหมายกันเพิ่มซ้ำในหน้า Add
 // กฎ: วันที่ + กะ เดียวกัน ห้ามซ้ำ / ต่างกะ เพิ่มซ้ำได้ → ฝั่งหน้าเว็บกรองตามกะที่เลือก
@@ -41,5 +44,14 @@ export async function GET(request: NextRequest) {
 
   const employee_ids = entries.map((e) => e.employee_id)
 
-  return NextResponse.json({ entries, employee_ids })
+  return NextResponse.json(
+    { entries, employee_ids },
+    {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        Pragma: 'no-cache',
+        Expires: '0',
+      },
+    }
+  )
 }

@@ -4,6 +4,9 @@ import { verifySession } from '@/lib/auth/session'
 import { getLiveUserWarehouses, hasWarehouseAccess } from '@/lib/auth/warehouse-auth'
 import type { Plan } from '@/types'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 // GET /api/plans
 // Query params:
 // - date: filter by exact date (YYYY-MM-DD) or 'all'
@@ -224,15 +227,24 @@ export async function GET(request: NextRequest) {
     0
   )
 
-  return NextResponse.json({
-    plans,
-    stats: {
-      total_plans,
-      completed_plans,
-      total_missing,
+  return NextResponse.json(
+    {
+      plans,
+      stats: {
+        total_plans,
+        completed_plans,
+        total_missing,
+      },
+      available_shifts,
     },
-    available_shifts,
-  })
+    {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        Pragma: 'no-cache',
+        Expires: '0',
+      },
+    }
+  )
 }
 
 // POST /api/plans

@@ -161,7 +161,7 @@ export function PlanningOverviewClient({
     setFeedbackMsg({ type: 'success', text: 'แก้ไขข้อมูลแพลนเรียบร้อยแล้ว' })
     setTimeout(() => setFeedbackMsg(null), 3000)
     broadcastRealtime('plan-updated')
-    fetchPlans()
+    fetchPlans(true)
   }
 
   const handleConfirmDeletePlan = async () => {
@@ -180,7 +180,7 @@ export function PlanningOverviewClient({
       setTimeout(() => setFeedbackMsg(null), 3000)
       broadcastRealtime('plan-updated')
       setPlanToDelete(null)
-      fetchPlans()
+      fetchPlans(true)
     } catch (err: any) {
       setFeedbackMsg({ type: 'error', text: err.message || 'เกิดข้อผิดพลาดในการลบแพลน' })
       setTimeout(() => setFeedbackMsg(null), 4000)
@@ -204,9 +204,11 @@ export function PlanningOverviewClient({
     }
   }, [isSuperAdmin, allWarehouses, userWarehouses])
 
-  // Fetch plans
-  const fetchPlans = useCallback(async () => {
-    setLoading(true)
+  // Fetch plans (รองรับ silent update เบื้องหลัง เพื่อไม่ให้เกิด Layout Shift หรือกระพริบหน้าจอ)
+  const fetchPlans = useCallback(async (silent = false) => {
+    if (!silent) {
+      setLoading(true)
+    }
     try {
       const params = new URLSearchParams()
       if (selectedWarehouse && selectedWarehouse !== 'all') {
@@ -222,7 +224,10 @@ export function PlanningOverviewClient({
         params.set('search', debouncedSearch.trim())
       }
 
-      const res = await fetch(`/api/plans?${params.toString()}`)
+      const res = await fetch(`/api/plans?${params.toString()}`, {
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache' },
+      })
       if (!res.ok) throw new Error('Failed to fetch plans')
       const data = await res.json()
       setPlans(sortPlansByNearestTime(data.plans || [], selectedDate))
@@ -233,7 +238,9 @@ export function PlanningOverviewClient({
     } catch (err) {
       console.error(err)
     } finally {
-      setLoading(false)
+      if (!silent) {
+        setLoading(false)
+      }
     }
   }, [selectedWarehouse, selectedShift, selectedDate, debouncedSearch])
 
@@ -241,9 +248,9 @@ export function PlanningOverviewClient({
     fetchPlans()
   }, [fetchPlans])
 
-  // โหลดข้อมูลแพลนใหม่ทันทีเมื่อมีการอัปเดตแบบ Realtime
+  // โหลดข้อมูลแพลนใหม่ทันทีเมื่อมีการอัปเดตแบบ Realtime (อัปเดตแบบเงียบๆ ไม่กระพริบหน้าจอ)
   useRealtimeListener(['plan-updated', 'plan-roster-updated'], () => {
-    fetchPlans()
+    fetchPlans(true)
   })
 
   return (
@@ -336,10 +343,16 @@ export function PlanningOverviewClient({
 
           {/* Right Summary Stats & Create Button */}
           <div className="flex items-center gap-4 self-end lg:self-auto flex-shrink-0">
-            <div className="text-xs text-[#5B6B85] font-medium hidden sm:block">
-              ทั้งหมด <span className="font-bold text-[#16233D]">{stats.total_plans}</span> แพลน · ครบแล้ว{' '}
-              <span className="font-bold text-[#2E9E5B]">{stats.completed_plans}</span> · ยังขาดรวม{' '}
-              <span className="font-bold text-[#E5484D]">{stats.total_missing}</span> คน
+            <div className="text-xs text-[#5B6B85] font-medium hidden sm:flex items-center min-h-[38px] px-3 py-1.5 rounded-xl bg-[#F8FAFC] border border-[#E1E6EF]">
+              {loading && stats.total_plans === 0 ? (
+                <div className="h-3.5 bg-gray-200/80 rounded w-44 animate-pulse" />
+              ) : (
+                <>
+                  ทั้งหมด <span className="font-bold text-[#16233D] mx-1">{stats.total_plans}</span> แพลน · ครบแล้ว{' '}
+                  <span className="font-bold text-[#2E9E5B] mx-1">{stats.completed_plans}</span> · ยังขาดรวม{' '}
+                  <span className="font-bold text-[#E5484D] mx-1">{stats.total_missing}</span> คน
+                </>
+              )}
             </div>
 
             <Link
@@ -370,24 +383,33 @@ export function PlanningOverviewClient({
           </div>
         )}
 
-        {/* Loading State */}
+        {/* Loading State with Exact Card Dimensions (Prevents Layout Shift) */}
         {loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
               <div
                 key={i}
-                className="bg-white rounded-2xl border border-[#E1E6EF] p-5 shadow-sm animate-pulse h-48 flex flex-col justify-between"
+                className="bg-white rounded-2xl border border-[#E1E6EF] p-5 shadow-sm animate-pulse min-h-[254px] flex flex-col justify-between"
               >
-                <div className="flex justify-between items-center">
-                  <div className="h-4 bg-gray-200 rounded w-24"></div>
-                  <div className="h-6 w-6 bg-gray-200 rounded"></div>
-                </div>
                 <div>
-                  <div className="h-5 bg-gray-200 rounded w-32 mb-2"></div>
-                  <div className="h-3 bg-gray-200 rounded w-20"></div>
-                  <div className="h-2 bg-gray-200 rounded w-full mt-4"></div>
+                  <div className="flex justify-between items-center">
+                    <div className="h-4 bg-gray-200 rounded w-24"></div>
+                    <div className="flex gap-1">
+                      <div className="h-7 w-7 bg-gray-100 rounded-lg"></div>
+                      <div className="h-7 w-7 bg-gray-100 rounded-lg"></div>
+                    </div>
+                  </div>
+                  <div className="mt-2">
+                    <div className="h-5 bg-gray-200 rounded w-36 mb-1.5"></div>
+                    <div className="h-3 bg-gray-100 rounded w-28"></div>
+                    <div className="h-1.5 bg-gray-100 rounded-full w-full mt-4"></div>
+                    <div className="flex justify-between items-center mt-3">
+                      <div className="h-4 bg-gray-200 rounded w-20"></div>
+                      <div className="h-5 bg-gray-100 rounded-full w-14"></div>
+                    </div>
+                  </div>
                 </div>
-                <div className="h-8 bg-gray-200 rounded w-full"></div>
+                <div className="h-9 bg-gray-100 rounded-xl w-full mt-4"></div>
               </div>
             ))}
           </div>

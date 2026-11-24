@@ -92,8 +92,8 @@ export function NamelistAddClient({ session, initialDate, initialWarehouse }: Na
     async function load() {
       try {
         const [d, s] = await Promise.all([
-          fetch(`/api/dropdown/departments?warehouse=${encodeURIComponent(nlWarehouse)}`),
-          fetch(`/api/dropdown/shifts?warehouse=${encodeURIComponent(nlWarehouse)}`),
+          fetch(`/api/dropdown/departments?warehouse=${encodeURIComponent(nlWarehouse)}`, { cache: 'no-store' }),
+          fetch(`/api/dropdown/shifts?warehouse=${encodeURIComponent(nlWarehouse)}`, { cache: 'no-store' }),
         ])
         if (cancelled) return
         if (d.ok) setDepartments((await d.json()).departments || [])
@@ -114,7 +114,7 @@ export function NamelistAddClient({ session, initialDate, initialWarehouse }: Na
     let cancelled = false
     async function load() {
       try {
-        const res = await fetch(`/api/namelist/existing?date=${date}`)
+        const res = await fetch(`/api/namelist/existing?date=${date}`, { cache: 'no-store' })
         if (!res.ok) return
         const data = await res.json()
         if (!cancelled) setExistingEntries(data.entries || [])
@@ -371,27 +371,33 @@ export function NamelistAddClient({ session, initialDate, initialWarehouse }: Na
             </div>
           </div>
 
-          {selectableVisible.length > 0 && (
-            <div className="px-6 py-2.5 bg-[#FAFBFD] border-b border-[#E1E6EF] flex items-center justify-between text-xs text-[#5B6B85]">
-              <label className="flex items-center gap-2.5 font-bold text-[#5B6B85] text-xs cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={allVisibleSelected}
-                  onChange={toggleAllVisible}
-                  className="rounded border-[#C6DCFD] text-[#2E6FE0] focus:ring-[#2E6FE0] w-4 h-4 cursor-pointer"
-                />
-                <span>เลือกทั้งหมดที่แสดง ({selectableVisible.length} คน)</span>
-              </label>
-              <div className="text-xs text-[#5B6B85]">
-                แสดง {employees.length} จาก {total.toLocaleString('th-TH')} คน
-                {selected.size > 0 && (
-                  <span className="ml-2 font-bold text-[#2E6FE0]">
-                    · เลือกแล้ว {selected.size} คน
-                  </span>
-                )}
-              </div>
-            </div>
-          )}
+          <div className="px-6 py-2.5 bg-[#FAFBFD] border-b border-[#E1E6EF] flex items-center justify-between text-xs text-[#5B6B85] min-h-[41px]">
+            {loadingEmployees ? (
+              <div className="h-4 bg-gray-200/60 rounded w-44 animate-pulse" />
+            ) : selectableVisible.length > 0 ? (
+              <>
+                <label className="flex items-center gap-2.5 font-bold text-[#5B6B85] text-xs cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={allVisibleSelected}
+                    onChange={toggleAllVisible}
+                    className="rounded border-[#C6DCFD] text-[#2E6FE0] focus:ring-[#2E6FE0] w-4 h-4 cursor-pointer"
+                  />
+                  <span>เลือกทั้งหมดที่แสดง ({selectableVisible.length} คน)</span>
+                </label>
+                <div className="text-xs text-[#5B6B85]">
+                  แสดง {employees.length} จาก {total.toLocaleString('th-TH')} คน
+                  {selected.size > 0 && (
+                    <span className="ml-2 font-bold text-[#2E6FE0]">
+                      · เลือกแล้ว {selected.size} คน
+                    </span>
+                  )}
+                </div>
+              </>
+            ) : (
+              <span className="text-xs text-[#9AA5B8]">ไม่มีรายการที่เลือกได้</span>
+            )}
+          </div>
 
           <div className="max-h-[500px] overflow-y-auto overflow-x-auto">
             {loadingEmployees ? (
