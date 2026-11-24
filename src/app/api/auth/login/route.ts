@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { createSession } from '@/lib/auth/session'
+import { recordAuditLog } from '@/lib/audit-log'
 import bcrypt from 'bcryptjs'
 
 export async function POST(request: NextRequest) {
@@ -21,16 +22,40 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (error || !user) {
+      recordAuditLog({
+        request,
+        actor: { userId: null, name: email, email, role: 'unknown' },
+        action: 'LOGIN_FAILED',
+        menu: 'auth',
+        summary: `พยายามเข้าสู่ระบบไม่สำเร็จ (ไม่พบบัญชี ${email})`,
+        meta: { reason: 'ไม่พบบัญชีผู้ใช้งาน' },
+      })
       return NextResponse.json({ error: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' }, { status: 401 })
     }
 
     if (!user.is_active) {
+      recordAuditLog({
+        request,
+        actor: { userId: user.id, name: user.name, email: user.email, role: user.role },
+        action: 'LOGIN_FAILED',
+        menu: 'auth',
+        summary: `พยายามเข้าสู่ระบบด้วยบัญชีที่ถูกปิดใช้งาน (${user.email})`,
+        meta: { reason: 'บัญชีถูกปิดใช้งาน' },
+      })
       return NextResponse.json({ error: 'บัญชีนี้ถูกปิดใช้งาน กรุณาติดต่อผู้ดูแลระบบ' }, { status: 403 })
     }
 
     // Verify password
     const isValidPassword = await bcrypt.compare(password, user.password)
     if (!isValidPassword) {
+      recordAuditLog({
+        request,
+        actor: { userId: user.id, name: user.name, email: user.email, role: user.role },
+        action: 'LOGIN_FAILED',
+        menu: 'auth',
+        summary: `กรอกรหัสผ่านไม่ถูกต้อง (${user.email})`,
+        meta: { reason: 'รหัสผ่านไม่ถูกต้อง' },
+      })
       return NextResponse.json({ error: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' }, { status: 401 })
     }
 
@@ -70,6 +95,18 @@ export async function POST(request: NextRequest) {
     }
 
     response.cookies.set('dems_session', token, cookieOptions)
+
+    recordAuditLog({
+      request,
+      session,
+      action: 'LOGIN',
+      menu: 'auth',
+      warehouse: session.warehouses?.[0] || null,
+      targetId: user.id,
+      targetName: `${user.name} (${user.email})`,
+      summary: `เข้าสู่ระบบสำเร็จ${rememberMe ? ' (จดจำในระบบ)' : ''}`,
+      meta: { rememberMe: !!rememberMe, warehouses: session.warehouses },
+    })
 
     return response
   } catch (err: unknown) {

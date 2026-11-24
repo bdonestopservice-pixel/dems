@@ -3,6 +3,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { verifySession } from '@/lib/auth/session'
 import { validateThaiCitizenId, parseDobInput } from '@/lib/utils'
 import { appendEmployeeToSheet } from '@/lib/google-sheets'
+import { recordAuditLog } from '@/lib/audit-log'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -438,6 +439,24 @@ export async function POST(request: NextRequest) {
     } catch (sheetErr) {
       console.warn('Google Sheets sync warning (create):', sheetErr)
     }
+
+    recordAuditLog({
+      request,
+      session,
+      action: 'CREATE',
+      menu: 'employees',
+      warehouse: formattedEmployee.warehouse,
+      targetId: formattedEmployee.id,
+      targetName: `${formattedEmployee.po_id || '-'} ${formattedEmployee.prefix || ''}${formattedEmployee.first_name} ${formattedEmployee.last_name}`.trim(),
+      summary: `เพิ่มพนักงานใหม่ ${formattedEmployee.po_id || '-'} ${formattedEmployee.prefix || ''}${formattedEmployee.first_name} ${formattedEmployee.last_name} (คลัง ${formattedEmployee.warehouse})`,
+      meta: {
+        po_id: formattedEmployee.po_id,
+        ops_id: formattedEmployee.ops_id,
+        warehouse: formattedEmployee.warehouse,
+        start_date: formattedEmployee.start_date,
+        phone: formattedEmployee.phone,
+      },
+    })
 
     return NextResponse.json({ employee: formattedEmployee }, { status: 201 })
   } catch (err: unknown) {

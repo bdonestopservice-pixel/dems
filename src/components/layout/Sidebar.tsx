@@ -10,6 +10,7 @@ import {
   Download,
   SlidersHorizontal,
   Users,
+  History,
   LogOut,
   Menu,
 } from 'lucide-react'
@@ -43,6 +44,13 @@ const adminNav = [
     href: '/user-management',
     label: 'จัดการผู้ใช้งาน',
     icon: Users,
+    roles: ['super_admin'],
+    badge: 'Super Admin',
+  },
+  {
+    href: '/audit-logs',
+    label: 'ประวัติการใช้งาน',
+    icon: History,
     roles: ['super_admin'],
     badge: 'Super Admin',
   },

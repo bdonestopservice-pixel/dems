@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { verifySession } from '@/lib/auth/session'
+import { recordAuditLog } from '@/lib/audit-log'
 
 type Ctx = { params: Promise<{ id: string }> }
 
@@ -42,6 +43,18 @@ export async function PATCH(request: NextRequest, context: Ctx) {
   }
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  recordAuditLog({
+    request,
+    session,
+    action: 'UPDATE',
+    menu: 'dropdown',
+    targetId: data.id,
+    targetName: `ธนาคาร ${data.name} (${data.code})`,
+    summary: `แก้ไขข้อมูลธนาคาร "${data.name}" (${data.code})`,
+    meta: { code: data.code, warehouses: data.warehouses },
+  })
+
   return NextResponse.json({ bank: data })
 }
 
@@ -54,7 +67,19 @@ export async function DELETE(request: NextRequest, context: Ctx) {
 
   const { id } = await context.params
   const supabase = createServerSupabaseClient()
+  const { data: prevBank } = await supabase.from('banks').select('name, code').eq('id', id).maybeSingle()
   const { error } = await supabase.from('banks').delete().eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  recordAuditLog({
+    request,
+    session,
+    action: 'DELETE',
+    menu: 'dropdown',
+    targetId: id,
+    targetName: prevBank ? `ธนาคาร ${prevBank.name} (${prevBank.code})` : id,
+    summary: prevBank ? `ลบธนาคาร "${prevBank.name}" (${prevBank.code})` : `ลบธนาคาร (${id})`,
+  })
+
   return NextResponse.json({ success: true })
 }

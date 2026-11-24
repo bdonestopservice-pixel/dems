@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { verifySession } from '@/lib/auth/session'
 import { updateEmployeeInSheet } from '@/lib/google-sheets'
+import { recordAuditLog } from '@/lib/audit-log'
 
 // POST /api/employees/[id]/blacklist
 // Body: { is_blacklisted: boolean, blacklist_reason?: string }
@@ -153,6 +154,25 @@ export async function POST(
     } catch (sheetErr) {
       console.warn('Google Sheets sync warning (blacklist):', sheetErr)
     }
+
+    const empDisplay = `${formatted.po_id || '-'} ${formatted.prefix || ''}${formatted.first_name} ${formatted.last_name}`.trim()
+    recordAuditLog({
+      request,
+      session,
+      action: is_blacklisted ? 'BLACKLIST' : 'UNBLACKLIST',
+      menu: 'employees',
+      warehouse: formatted.warehouse,
+      targetId: formatted.id,
+      targetName: empDisplay,
+      summary: is_blacklisted
+        ? `ติดแบล็กลิสต์พนักงาน ${empDisplay} (เหตุผล: ${reasonTrimmed})`
+        : `ปลดแบล็กลิสต์พนักงาน ${empDisplay}`,
+      meta: {
+        po_id: formatted.po_id,
+        is_blacklisted: !!is_blacklisted,
+        reason: is_blacklisted ? reasonTrimmed : null,
+      },
+    })
 
     return NextResponse.json({
       success: true,

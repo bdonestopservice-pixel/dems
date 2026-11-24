@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { verifySession } from '@/lib/auth/session'
 import { hasWarehouseAccess } from '@/lib/auth/warehouse-auth'
+import { recordAuditLog } from '@/lib/audit-log'
 
 // POST /api/plans/[id]/send-namelist
 // Sends selected employees from plan roster to daily namelist
@@ -47,7 +48,7 @@ export async function POST(
   // 1. Fetch plan details
   const { data: plan, error: planErr } = await supabase
     .from('plans')
-    .select('id, date, warehouse, department_id, shift_id')
+    .select('id, date, warehouse, department_id, shift_id, departments:department_id (name)')
     .eq('id', id)
     .single()
 
@@ -106,6 +107,25 @@ export async function POST(
   if (updateErr) {
     console.error('Error updating plan_employees sent_to_namelist flag:', updateErr)
   }
+
+  const deptName = (plan as any).departments?.name || '—'
+  recordAuditLog({
+    request,
+    session,
+    action: 'SEND_NAMELIST',
+    menu: 'planning',
+    warehouse: plan.warehouse,
+    targetId: plan.id,
+    targetName: `${deptName} · ${plan.date}`,
+    summary: `ส่งรายชื่อจากแพลน ${deptName} (${plan.date}) เข้า Namelist จำนวน ${newEmployeesToInsert.length} คน (เลือก ${employee_ids.length} คน)`,
+    meta: {
+      date: plan.date,
+      department: deptName,
+      total_selected: employee_ids.length,
+      inserted_count: newEmployeesToInsert.length,
+      already_in_namelist_count: existingEmployeeIds.size,
+    },
+  })
 
   return NextResponse.json({
     success: true,

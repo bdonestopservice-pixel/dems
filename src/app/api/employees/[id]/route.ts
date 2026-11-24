@@ -3,6 +3,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { verifySession } from '@/lib/auth/session'
 import { parseDobInput, validateThaiCitizenId } from '@/lib/utils'
 import { updateEmployeeInSheet } from '@/lib/google-sheets'
+import { recordAuditLog, buildFieldChanges } from '@/lib/audit-log'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -162,13 +163,20 @@ export async function PUT(
 
     const supabase = createServerSupabaseClient()
 
-    // ตรวจสอบความซ้ำซ้อนของเลขบัตรประชาชนกับพนักงานคนอื่น (ยกเว้นพนักงานคนนี้เอง)
-    const { data: duplicateEmp, error: checkErr } = await supabase
-      .from('employees')
-      .select('id, po_id, first_name, last_name')
-      .eq('id_card', cleanIdCard)
-      .neq('id', id)
-      .maybeSingle()
+    // ตรวจสอบความซ้ำซ้อนของเลขบัตรประชาชน และดึงข้อมูลเดิมพร้อมกันเพื่อเก็บ Audit Diff (0ms added roundtrip)
+    const [{ data: duplicateEmp, error: checkErr }, { data: prevEmp }] = await Promise.all([
+      supabase
+        .from('employees')
+        .select('id, po_id, first_name, last_name')
+        .eq('id_card', cleanIdCard)
+        .neq('id', id)
+        .maybeSingle(),
+      supabase
+        .from('employees')
+        .select('po_id, ops_id, id_card, prefix, first_name, last_name, first_name_en, last_name_en, gender, dob, warehouse, start_date, phone, bank_id, bank_account, promptpay_status, note, is_active, banks:bank_id(name)')
+        .eq('id', id)
+        .maybeSingle(),
+    ])
 
     if (checkErr && checkErr.code !== 'PGRST116') {
       console.error('Check duplicate ID card error:', checkErr)
@@ -275,6 +283,51 @@ export async function PUT(
     } catch (sheetErr) {
       console.warn('Google Sheets sync warning (update):', sheetErr)
     }
+
+    const prevBankName = (prevEmp as any)?.banks?.name || null
+    const prevCleanNote = prevEmp?.note ? prevEmp.note.replace(/__BLACKLIST__:.*?__/g, '').trim() : null
+    const empChanges = buildFieldChanges(
+      prevEmp
+        ? { ...prevEmp, bank_name: prevBankName, note: prevCleanNote }
+        : null,
+      { ...formatted, bank_name: formatted.bank_name || null, note: formatted.note || null },
+      [
+        { key: 'prefix', label: 'คำนำหน้า' },
+        { key: 'first_name', label: 'ชื่อ (ไทย)' },
+        { key: 'last_name', label: 'นามสกุล (ไทย)' },
+        { key: 'first_name_en', label: 'ชื่อ (อังกฤษ)' },
+        { key: 'last_name_en', label: 'นามสกุล (อังกฤษ)' },
+        { key: 'id_card', label: 'เลขบัตรประชาชน' },
+        { key: 'phone', label: 'เบอร์ติดต่อ' },
+        { key: 'warehouse', label: 'คลังสินค้า' },
+        { key: 'start_date', label: 'วันที่เริ่มงาน' },
+        { key: 'dob', label: 'วันเกิด' },
+        { key: 'ops_id', label: 'รหัส OPS' },
+        { key: 'bank_name', label: 'ธนาคาร' },
+        { key: 'bank_account', label: 'เลขที่บัญชี' },
+        { key: 'promptpay_status', label: 'สถานะพร้อมเพย์' },
+        { key: 'is_active', label: 'สถานะพนักงาน' },
+        { key: 'note', label: 'หมายเหตุ' },
+      ]
+    )
+
+    const changedLabels = empChanges.slice(0, 4).map((c) => c.label).join(', ')
+    const empDisplay = `${formatted.po_id || '-'} ${formatted.prefix || ''}${formatted.first_name} ${formatted.last_name}`.trim()
+    recordAuditLog({
+      request,
+      session,
+      action: 'UPDATE',
+      menu: 'employees',
+      warehouse: formatted.warehouse,
+      targetId: formatted.id,
+      targetName: empDisplay,
+      summary:
+        empChanges.length > 0
+          ? `แก้ไขข้อมูลพนักงาน ${empDisplay} (${changedLabels}${empChanges.length > 4 ? ` และอีก ${empChanges.length - 4} รายการ` : ''})`
+          : `บันทึกข้อมูลพนักงาน ${empDisplay}`,
+      changes: empChanges,
+      meta: { po_id: formatted.po_id, changed_count: empChanges.length },
+    })
 
     return NextResponse.json({ employee: formatted })
   } catch (err: unknown) {

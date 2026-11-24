@@ -28,6 +28,7 @@ import { useWarehouses } from '@/components/providers/WarehouseProvider'
 import type { Employee, Warehouse, AuthSession } from '@/types'
 import { exportOpsExcel } from '@/lib/export-ops-excel'
 import { exportCustomerRegistryReport } from '@/lib/export-reports-excel'
+import { logExportAudit } from '@/lib/audit-client'
 
 interface EmployeesClientProps {
   session: AuthSession
@@ -225,6 +226,13 @@ export function EmployeesClient({ session }: EmployeesClientProps) {
         date: todayLocal(),
         warehouse: selectedWarehouse,
       })
+      logExportAudit({
+        menu: 'employees',
+        warehouse: selectedWarehouse,
+        targetName: `ทะเบียนลูกค้า (${employeesToExport.length} คน)`,
+        summary: `Export ทะเบียนลูกค้า (Excel) จำนวน ${employeesToExport.length} คน`,
+        meta: { type: 'customer_registry', count: employeesToExport.length, warehouse: selectedWarehouse },
+      })
       showToast({
         type: 'success',
         text: `Export ทะเบียนลูกค้า (${employeesToExport.length} คน) เรียบร้อยแล้ว`,
@@ -248,6 +256,13 @@ export function EmployeesClient({ session }: EmployeesClientProps) {
         return
       }
       await exportOpsExcel(employeesToExport)
+      logExportAudit({
+        menu: 'employees',
+        warehouse: selectedWarehouse,
+        targetName: `OPS ID (${employeesToExport.length} คน)`,
+        summary: `Export OPS ID (Excel) จำนวน ${employeesToExport.length} คน`,
+        meta: { type: 'ops_id', count: employeesToExport.length, warehouse: selectedWarehouse },
+      })
       showToast({
         type: 'success',
         text: `Export OPS ID (${employeesToExport.length} คน) เรียบร้อยแล้ว`,

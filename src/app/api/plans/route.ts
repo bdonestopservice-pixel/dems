@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { verifySession } from '@/lib/auth/session'
 import { getLiveUserWarehouses, hasWarehouseAccess } from '@/lib/auth/warehouse-auth'
+import { recordAuditLog } from '@/lib/audit-log'
 import type { Plan } from '@/types'
 
 export const dynamic = 'force-dynamic'
@@ -323,6 +324,21 @@ export async function POST(request: NextRequest) {
       console.error('Error inserting plans:', error)
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
+
+    const uniqueWh = Array.from(new Set(rowsToInsert.map((r) => r.warehouse)))
+    const uniqueDates = Array.from(new Set(rowsToInsert.map((r) => r.date)))
+    const totalReq = rowsToInsert.reduce((acc, r) => acc + r.required_count, 0)
+    recordAuditLog({
+      request,
+      session,
+      action: 'CREATE',
+      menu: 'planning',
+      warehouse: uniqueWh.length === 1 ? uniqueWh[0] : null,
+      targetId: data?.[0]?.id || null,
+      targetName: `${uniqueWh.join(', ')} (${uniqueDates.join(', ')})`,
+      summary: `สร้างแพลนพนักงานใหม่ ${data?.length || 0} แพลน รวมต้องการ ${totalReq} คน (คลัง ${uniqueWh.join(', ')})`,
+      meta: { plan_count: data?.length || 0, total_required: totalReq, warehouses: uniqueWh, dates: uniqueDates },
+    })
 
     return NextResponse.json({
       success: true,

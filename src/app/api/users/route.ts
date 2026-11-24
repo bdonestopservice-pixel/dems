@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { verifySession } from '@/lib/auth/session'
+import { recordAuditLog } from '@/lib/audit-log'
 import bcrypt from 'bcryptjs'
 
 // GET /api/users — List all users (super_admin only)
@@ -71,5 +72,18 @@ export async function POST(request: NextRequest) {
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  recordAuditLog({
+    request,
+    session,
+    action: 'CREATE',
+    menu: 'users',
+    warehouse: Array.isArray(warehouses) && warehouses.length === 1 ? warehouses[0] : null,
+    targetId: data.id,
+    targetName: `${data.name} (${data.email})`,
+    summary: `สร้างบัญชีผู้ใช้งานใหม่ ${data.name} (${data.email}) Role: ${data.role}`,
+    meta: { role: data.role, warehouses: data.warehouses },
+  })
+
   return NextResponse.json({ user: data }, { status: 201 })
 }

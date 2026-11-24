@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { verifySession } from '@/lib/auth/session'
+import { recordAuditLog } from '@/lib/audit-log'
 
 // GET /api/dropdown/work-statuses — global, all roles can read
 export async function GET(request: NextRequest) {
@@ -48,5 +49,16 @@ export async function POST(request: NextRequest) {
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  recordAuditLog({
+    request,
+    session,
+    action: 'CREATE',
+    menu: 'dropdown',
+    targetId: data.id,
+    targetName: `สถานะ ${data.name}`,
+    summary: `เพิ่มสถานะการทำงาน "${data.name}"`,
+  })
+
   return NextResponse.json({ work_status: data }, { status: 201 })
 }

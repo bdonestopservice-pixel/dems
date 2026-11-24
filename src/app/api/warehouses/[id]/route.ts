@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { verifySession } from '@/lib/auth/session'
+import { recordAuditLog } from '@/lib/audit-log'
 
 type Ctx = { params: Promise<{ id: string }> }
 
@@ -24,6 +25,18 @@ export async function PATCH(request: NextRequest, context: Ctx) {
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  recordAuditLog({
+    request,
+    session,
+    action: 'UPDATE',
+    menu: 'dropdown',
+    warehouse: id,
+    targetId: id,
+    targetName: `คลัง ${id} (${data.name})`,
+    summary: `แก้ไขชื่อคลังสินค้า ${id} เป็น "${data.name}"`,
+  })
+
   return NextResponse.json({ warehouse: data })
 }
 
@@ -39,5 +52,17 @@ export async function DELETE(request: NextRequest, context: Ctx) {
   const supabase = createServerSupabaseClient()
   const { error } = await supabase.from('warehouses').delete().eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  recordAuditLog({
+    request,
+    session,
+    action: 'DELETE',
+    menu: 'dropdown',
+    warehouse: id,
+    targetId: id,
+    targetName: `คลัง ${id}`,
+    summary: `ลบคลังสินค้า ${id}`,
+  })
+
   return NextResponse.json({ success: true })
 }

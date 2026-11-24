@@ -200,3 +200,52 @@ export interface PoIdReservation {
   created_at: string
 }
 
+export type AuditAction =
+  | 'LOGIN'
+  | 'LOGIN_FAILED'
+  | 'LOGOUT'
+  | 'CREATE'
+  | 'UPDATE'
+  | 'DELETE'
+  | 'BLACKLIST'
+  | 'UNBLACKLIST'
+  | 'SEND_NAMELIST'
+  | 'EXPORT'
+
+export type AuditMenu =
+  | 'auth'
+  | 'employees'
+  | 'planning'
+  | 'namelist'
+  | 'reports'
+  | 'dropdown'
+  | 'users'
+
+export interface AuditFieldChange {
+  field: string
+  label: string
+  before: string
+  after: string
+}
+
+export interface AuditLog {
+  id: string
+  user_id?: string | null
+  user_name: string
+  user_email: string
+  user_role: string
+  action: AuditAction
+  menu: AuditMenu
+  warehouse?: string | null
+  target_id?: string | null
+  target_name?: string | null
+  summary: string
+  details?: {
+    changes?: AuditFieldChange[]
+    meta?: Record<string, unknown>
+  } | null
+  ip_address?: string | null
+  user_agent?: string | null
+  created_at: string
+}
+

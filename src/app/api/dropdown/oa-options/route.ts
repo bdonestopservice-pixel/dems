@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { verifySession } from '@/lib/auth/session'
 import { hasWarehouseAccess } from '@/lib/auth/warehouse-auth'
+import { recordAuditLog } from '@/lib/audit-log'
 
 // GET /api/dropdown/oa-options?warehouse=SOCE
 export async function GET(request: NextRequest) {
@@ -56,5 +57,17 @@ export async function POST(request: NextRequest) {
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  recordAuditLog({
+    request,
+    session,
+    action: 'CREATE',
+    menu: 'dropdown',
+    warehouse: data.warehouse,
+    targetId: data.id,
+    targetName: `OA ${data.name} (${data.warehouse})`,
+    summary: `เพิ่มตัวเลือก OA "${data.name}" ในคลัง ${data.warehouse}`,
+  })
+
   return NextResponse.json({ oa_option: data }, { status: 201 })
 }

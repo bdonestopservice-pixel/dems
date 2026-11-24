@@ -8,6 +8,7 @@ import {
   exportNamelistToExcel,
   getShiftTypeCode,
 } from '@/lib/export-namelist-excel'
+import { logExportAudit } from '@/lib/audit-client'
 import type { NamelistEntry } from '@/types'
 
 interface ShiftOption {
@@ -157,6 +158,13 @@ export function ExportCustomerNamelistModal({
         warehouse,
         departmentName: selectedDept,
         shiftLabel: currentShift ? currentShift.label : null,
+      })
+      logExportAudit({
+        menu: 'namelist',
+        warehouse,
+        targetName: `Namelist ลูกค้า (${date} · ${deptLabel})`,
+        summary: `Export Namelist ให้ลูกค้า วันที่ ${date} แผนก ${deptLabel} กะ ${shiftLabel} (${count} คน)`,
+        meta: { date, warehouse, department: deptLabel, shift: shiftLabel, count },
       })
       onClose()
     } catch (err) {

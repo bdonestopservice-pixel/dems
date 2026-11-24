@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { verifySession } from '@/lib/auth/session'
 import { hasWarehouseAccess } from '@/lib/auth/warehouse-auth'
+import { recordAuditLog, buildFieldChanges } from '@/lib/audit-log'
 
 // GET /api/plans/[id]
 export async function GET(
@@ -117,7 +118,7 @@ export async function PATCH(
   // 1. Fetch current plan to check warehouse permission
   const { data: currentPlan, error: fetchErr } = await supabase
     .from('plans')
-    .select('*')
+    .select('*, shifts:shift_id (start_time, end_time), departments:department_id (name)')
     .eq('id', id)
     .single()
 
@@ -197,6 +198,45 @@ export async function PATCH(
     return NextResponse.json({ error: updateErr.message }, { status: 500 })
   }
 
+  const prevShiftText = currentPlan.shifts ? `${currentPlan.shifts.start_time}–${currentPlan.shifts.end_time}` : null
+  const nextShiftText = updated.shifts ? `${updated.shifts.start_time}–${updated.shifts.end_time}` : null
+  const planChanges = buildFieldChanges(
+    {
+      date: currentPlan.date,
+      department: currentPlan.departments?.name || currentPlan.department_id,
+      shift: prevShiftText,
+      required_count: currentPlan.required_count,
+    },
+    {
+      date: updated.date,
+      department: updated.departments?.name || updated.department_id,
+      shift: nextShiftText,
+      required_count: updated.required_count,
+    },
+    [
+      { key: 'date', label: 'วันที่' },
+      { key: 'department', label: 'แผนก' },
+      { key: 'shift', label: 'กะการทำงาน' },
+      { key: 'required_count', label: 'จำนวนคนที่ต้องการ' },
+    ]
+  )
+
+  const planTitle = `${updated.departments?.name || '—'} · ${updated.date} (${updated.warehouse})`
+  recordAuditLog({
+    request,
+    session,
+    action: 'UPDATE',
+    menu: 'planning',
+    warehouse: updated.warehouse,
+    targetId: updated.id,
+    targetName: planTitle,
+    summary:
+      planChanges.length > 0
+        ? `แก้ไขแพลน ${planTitle} (${planChanges.map((c) => c.label).join(', ')})`
+        : `บันทึกแก้ไขแพลน ${planTitle}`,
+    changes: planChanges,
+  })
+
   return NextResponse.json({
     success: true,
     plan: {
@@ -225,7 +265,7 @@ export async function DELETE(
   // Fetch plan to check warehouse access
   const { data: plan, error: fetchErr } = await supabase
     .from('plans')
-    .select('warehouse')
+    .select('id, date, warehouse, required_count, shifts:shift_id (start_time, end_time), departments:department_id (name)')
     .eq('id', id)
     .single()
 
@@ -242,6 +282,21 @@ export async function DELETE(
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
+
+  const deptName = (plan as any).departments?.name || '—'
+  const shiftStr = (plan as any).shifts ? `${(plan as any).shifts.start_time}–${(plan as any).shifts.end_time}` : ''
+  const planTitle = `${deptName}${shiftStr ? ` (${shiftStr})` : ''} · ${plan.date}`
+  recordAuditLog({
+    request,
+    session,
+    action: 'DELETE',
+    menu: 'planning',
+    warehouse: plan.warehouse,
+    targetId: plan.id,
+    targetName: planTitle,
+    summary: `ลบแพลน ${planTitle} คลัง ${plan.warehouse} (ต้องการ ${plan.required_count} คน)`,
+    meta: { date: plan.date, department: deptName, shift: shiftStr, required_count: plan.required_count },
+  })
 
   return NextResponse.json({ success: true })
 }

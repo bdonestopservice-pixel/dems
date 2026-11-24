@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { verifySession } from '@/lib/auth/session'
 import { hasWarehouseAccess } from '@/lib/auth/warehouse-auth'
+import { recordAuditLog } from '@/lib/audit-log'
 
 // POST /api/plans/[id]/roster
 // Adds selected employees to plan roster
@@ -25,7 +26,11 @@ export async function POST(
 
   // 1. Check plan existence and fetch existing employees concurrently in parallel
   const [planResult, existingResult] = await Promise.all([
-    supabase.from('plans').select('id, warehouse, required_count').eq('id', id).single(),
+    supabase
+      .from('plans')
+      .select('id, date, warehouse, required_count, departments:department_id (name)')
+      .eq('id', id)
+      .single(),
     supabase.from('plan_employees').select('employee_id').eq('plan_id', id),
   ])
 
@@ -132,9 +137,29 @@ export async function POST(
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
+  const addedCount = data?.length || 0
+  const deptName = (plan as any).departments?.name || '—'
+  const addedNames = (empCheck || []).slice(0, 5).map((e: any) => `${e.first_name} ${e.last_name}`)
+  recordAuditLog({
+    request,
+    session,
+    action: 'UPDATE',
+    menu: 'planning',
+    warehouse: plan.warehouse,
+    targetId: plan.id,
+    targetName: `${deptName} · ${plan.date}`,
+    summary: `เพิ่มพนักงานเข้าแพลน ${deptName} (${plan.date}) จำนวน ${addedCount} คน`,
+    meta: {
+      added_count: addedCount,
+      date: plan.date,
+      department: deptName,
+      sample_employees: addedNames,
+    },
+  })
+
   return NextResponse.json({
     success: true,
-    added_count: data?.length || 0,
+    added_count: addedCount,
   })
 }
 
@@ -159,12 +184,15 @@ export async function DELETE(
 
   const supabase = createServerSupabaseClient()
 
-  // Check plan warehouse permission
-  const { data: plan, error: planErr } = await supabase
-    .from('plans')
-    .select('warehouse')
-    .eq('id', id)
-    .single()
+  // Check plan warehouse permission & fetch employee display name in parallel
+  const [{ data: plan, error: planErr }, { data: removedEmp }] = await Promise.all([
+    supabase
+      .from('plans')
+      .select('id, date, warehouse, departments:department_id (name)')
+      .eq('id', id)
+      .single(),
+    supabase.from('employees').select('po_id, first_name, last_name').eq('id', employeeId).maybeSingle(),
+  ])
 
   if (planErr || !plan) {
     return NextResponse.json({ error: 'ไม่พบแพลนนี้' }, { status: 404 })
@@ -186,6 +214,20 @@ export async function DELETE(
     console.error('Error removing employee from plan:', error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
+
+  const empName = removedEmp ? `${removedEmp.po_id || '-'} ${removedEmp.first_name} ${removedEmp.last_name}`.trim() : employeeId
+  const deptName = (plan as any).departments?.name || '—'
+  recordAuditLog({
+    request,
+    session,
+    action: 'DELETE',
+    menu: 'planning',
+    warehouse: plan.warehouse,
+    targetId: plan.id,
+    targetName: empName,
+    summary: `นำพนักงาน ${empName} ออกจากแพลน ${deptName} (${plan.date})`,
+    meta: { plan_id: plan.id, employee_id: employeeId, date: plan.date, department: deptName },
+  })
 
   return NextResponse.json({ success: true })
 }

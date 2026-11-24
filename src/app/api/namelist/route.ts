@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { verifySession } from '@/lib/auth/session'
 import { getLiveUserWarehouses } from '@/lib/auth/warehouse-auth'
+import { recordAuditLog } from '@/lib/audit-log'
 import { NAMELIST_SELECT, NAMELIST_SELECT_INNER_DEPT, mapNamelistRow, chunk } from '@/lib/namelist'
 
 export const dynamic = 'force-dynamic'
@@ -172,8 +173,8 @@ export async function POST(request: NextRequest) {
     const supabase = createServerSupabaseClient()
 
     const [{ data: dept }, { data: shift }] = await Promise.all([
-      supabase.from('departments').select('id, warehouse').eq('id', department_id).single(),
-      supabase.from('shifts').select('id, warehouse').eq('id', shift_id).single(),
+      supabase.from('departments').select('id, name, warehouse').eq('id', department_id).single(),
+      supabase.from('shifts').select('id, start_time, end_time, warehouse').eq('id', shift_id).single(),
     ])
     if (!dept) return NextResponse.json({ error: 'ไม่พบแผนกที่เลือก' }, { status: 400 })
     if (!shift) return NextResponse.json({ error: 'ไม่พบกะที่เลือก' }, { status: 400 })
@@ -260,6 +261,29 @@ export async function POST(request: NextRequest) {
       console.error('Error inserting namelist:', insErr)
       return NextResponse.json({ error: insErr.message }, { status: 500 })
     }
+
+    const sampleEmps = (empCheck || [])
+      .filter((e: any) => toInsert.includes(e.id))
+      .slice(0, 5)
+      .map((e: any) => `${e.first_name} ${e.last_name}`)
+    recordAuditLog({
+      request,
+      session,
+      action: 'CREATE',
+      menu: 'namelist',
+      warehouse: dept.warehouse,
+      targetId: department_id,
+      targetName: `${dept.name || '—'} (${shift.start_time}–${shift.end_time}) · ${date}`,
+      summary: `เพิ่มรายชื่อเข้า Namelist วันที่ ${date} แผนก ${dept.name || '—'} กะ ${shift.start_time}–${shift.end_time} จำนวน ${toInsert.length} คน`,
+      meta: {
+        date,
+        department: dept.name,
+        shift: `${shift.start_time}–${shift.end_time}`,
+        inserted_count: toInsert.length,
+        duplicate_count: duplicates.size,
+        sample_employees: sampleEmps,
+      },
+    })
 
     return NextResponse.json({
       success: true,

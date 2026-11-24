@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { verifySession } from '@/lib/auth/session'
 import { getLiveUserWarehouses } from '@/lib/auth/warehouse-auth'
+import { recordAuditLog, buildFieldChanges } from '@/lib/audit-log'
 import { NAMELIST_SELECT, mapNamelistRow } from '@/lib/namelist'
 import type { AuthSession, NamelistEntry } from '@/types'
 
@@ -154,6 +155,52 @@ export async function PATCH(
   }
 
   const updated = await loadEntry(id)
+
+  if (updated) {
+    const nlChanges = buildFieldChanges(
+      {
+        date: entry.date,
+        department_name: entry.department_name,
+        shift: entry.shift_start ? `${entry.shift_start}–${entry.shift_end}` : null,
+        work_status: entry.work_status,
+        oa_status: entry.oa_status,
+        note: entry.note,
+      },
+      {
+        date: updated.date,
+        department_name: updated.department_name,
+        shift: updated.shift_start ? `${updated.shift_start}–${updated.shift_end}` : null,
+        work_status: updated.work_status,
+        oa_status: updated.oa_status,
+        note: updated.note,
+      },
+      [
+        { key: 'date', label: 'วันที่' },
+        { key: 'department_name', label: 'แผนก' },
+        { key: 'shift', label: 'กะการทำงาน' },
+        { key: 'work_status', label: 'สถานะการทำงาน' },
+        { key: 'oa_status', label: 'ต่างพื้นที่ (OA)' },
+        { key: 'note', label: 'หมายเหตุ' },
+      ]
+    )
+    const empDisplay = `${updated.po_id || '-'} ${updated.prefix || ''}${updated.first_name || ''} ${updated.last_name || ''}`.trim()
+    recordAuditLog({
+      request,
+      session,
+      action: 'UPDATE',
+      menu: 'namelist',
+      warehouse: updated.warehouse || entry.warehouse || null,
+      targetId: id,
+      targetName: `${empDisplay} (${updated.date})`,
+      summary:
+        nlChanges.length > 0
+          ? `แก้ไข Namelist ${empDisplay} วันที่ ${updated.date} (${nlChanges.map((c) => c.label).join(', ')})`
+          : `อัปเดต Namelist ${empDisplay} วันที่ ${updated.date}`,
+      changes: nlChanges,
+      meta: { date: updated.date, po_id: updated.po_id, department: updated.department_name },
+    })
+  }
+
   return NextResponse.json({ success: true, entry: updated })
 }
 
@@ -188,6 +235,25 @@ export async function DELETE(
       .eq('employee_id', entry.employee_id)
       .in('plan_id', planIds)
   }
+
+  const empDisplay = `${entry.po_id || '-'} ${entry.prefix || ''}${entry.first_name || ''} ${entry.last_name || ''}`.trim()
+  recordAuditLog({
+    request,
+    session,
+    action: 'DELETE',
+    menu: 'namelist',
+    warehouse: entry.warehouse || null,
+    targetId: id,
+    targetName: `${empDisplay} (${entry.date})`,
+    summary: `ลบรายชื่อ ${empDisplay} ออกจาก Namelist วันที่ ${entry.date} แผนก ${entry.department_name || '—'}`,
+    meta: {
+      date: entry.date,
+      po_id: entry.po_id,
+      department: entry.department_name,
+      shift: entry.shift_start ? `${entry.shift_start}–${entry.shift_end}` : null,
+      work_status: entry.work_status,
+    },
+  })
 
   return NextResponse.json({ success: true })
 }

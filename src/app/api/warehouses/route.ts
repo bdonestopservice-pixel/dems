@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { verifySession } from '@/lib/auth/session'
+import { recordAuditLog } from '@/lib/audit-log'
 
 export async function GET(request: NextRequest) {
   const token = request.cookies.get('dems_session')?.value
@@ -44,6 +45,18 @@ export async function POST(request: NextRequest) {
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  recordAuditLog({
+    request,
+    session,
+    action: 'CREATE',
+    menu: 'dropdown',
+    warehouse: data.id,
+    targetId: data.id,
+    targetName: `คลัง ${data.id} (${data.name})`,
+    summary: `เพิ่มคลังสินค้าใหม่ ${data.id} (${data.name})`,
+  })
+
   return NextResponse.json({ warehouse: data }, { status: 201 })
 }
 

@@ -15,6 +15,7 @@ import { cn, todayLocal } from '@/lib/utils'
 import { DateInput } from '@/components/ui/DateInput'
 import { WarehouseSelect } from '@/components/ui/WarehouseSelect'
 import { useWarehouses } from '@/components/providers/WarehouseProvider'
+import { logExportAudit } from '@/lib/audit-client'
 import { exportPpoWageReport } from '@/lib/export-reports-excel'
 import type { AuthSession, NamelistEntry, Warehouse } from '@/types'
 
@@ -400,6 +401,13 @@ export function ReportsClient({
     setExporting(true)
     try {
       await exportPpoWageReport(list, { date, warehouse })
+      logExportAudit({
+        menu: 'reports',
+        warehouse,
+        targetName: `รายงานค่าจ้าง PPO (${date})`,
+        summary: `Export รายงานค่าจ้าง PPO วันที่ ${date} คลัง ${warehouse === 'all' ? 'ทุกคลัง' : warehouse} (${list.length} คน จาก ${sheetsToExport.length} ใบ)`,
+        meta: { date, warehouse, employee_count: list.length, sheet_count: sheetsToExport.length },
+      })
       showToast({
         type: 'success',
         text: `Export PPO ไปค่าจ้าง (${list.length} คน จาก ${sheetsToExport.length} ใบ) เรียบร้อยแล้ว`,

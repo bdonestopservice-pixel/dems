@@ -22,6 +22,7 @@ import { Topbar } from '@/components/layout/Topbar'
 import { cn, formatThaiDate } from '@/lib/utils'
 import { useSidebar } from '@/components/layout/SidebarContext'
 import { exportPlanAttendanceSheet } from '@/lib/export-plan-pdf'
+import { logExportAudit } from '@/lib/audit-client'
 import { EditPlanModal } from '@/components/planning/EditPlanModal'
 import { DeletePlanModal } from '@/components/planning/DeletePlanModal'
 import { RemoveEmployeeFromPlanModal, type EmployeeToRemove } from '@/components/planning/RemoveEmployeeFromPlanModal'
@@ -227,6 +228,13 @@ export function PlanRosterClient({ session, planId }: PlanRosterClientProps) {
   const handleExportPDF = () => {
     if (!plan) return
     exportPlanAttendanceSheet({ plan, roster, adminName: session.name })
+    logExportAudit({
+      menu: 'planning',
+      warehouse: plan.warehouse,
+      targetName: `ใบลงเวลา PDF · ${plan.department_name || '—'} (${plan.date})`,
+      summary: `Export ใบลงเวลาทำงาน PDF แผนก ${plan.department_name || '—'} วันที่ ${plan.date} (${roster.length} คน)`,
+      meta: { plan_id: plan.id, date: plan.date, department: plan.department_name, count: roster.length },
+    })
   }
 
   if (loading) {

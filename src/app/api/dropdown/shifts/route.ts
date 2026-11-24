@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { verifySession } from '@/lib/auth/session'
 import { hasWarehouseAccess } from '@/lib/auth/warehouse-auth'
+import { recordAuditLog } from '@/lib/audit-log'
 
 // GET /api/dropdown/shifts?warehouse=SOCE
 export async function GET(request: NextRequest) {
@@ -56,5 +57,17 @@ export async function POST(request: NextRequest) {
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  recordAuditLog({
+    request,
+    session,
+    action: 'CREATE',
+    menu: 'dropdown',
+    warehouse: data.warehouse,
+    targetId: data.id,
+    targetName: `กะ ${data.start_time}–${data.end_time} (${data.warehouse})`,
+    summary: `เพิ่มกะการทำงาน ${data.start_time}–${data.end_time} (${data.type}) ในคลัง ${data.warehouse}`,
+  })
+
   return NextResponse.json({ shift: data }, { status: 201 })
 }
