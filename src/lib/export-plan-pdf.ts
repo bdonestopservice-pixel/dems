@@ -42,7 +42,7 @@ export function exportPlanAttendanceSheet(data: PlanExportData) {
  * - จุดลงลายมือชื่อ Checked by (Admin Sub, SPX Admin, SPX Supervisor)
  */
 function renderStandardPeopleOneAttendanceSheet(printWindow: Window, data: PlanExportData) {
-  const { plan, roster, adminName } = data
+  const { plan, roster } = data
 
   const thaiDate = formatThaiDate(plan.date)
   const shiftText = plan.shift_start && plan.shift_end
@@ -212,7 +212,7 @@ function renderStandardPeopleOneAttendanceSheet(printWindow: Window, data: PlanE
           <div class="sig-section">
             <div class="sig-row">
               <div class="sig-line-text">Checked by : .............................................................. Date ...................................</div>
-              <div class="sig-role">Admin Sub (<span class="admin-name-red">${adminName || 'ชื่อAdmin'}</span>)</div>
+              <div class="sig-role">Admin Sub (<span class="admin-name-red">ชื่อAdmin</span>)</div>
             </div>
             <div class="sig-row">
               <div class="sig-line-text">Checked by : .............................................................. Date ...................................</div>
@@ -263,7 +263,7 @@ function renderStandardPeopleOneAttendanceSheet(printWindow: Window, data: PlanE
               <tbody>
                 <tr>
                   <td style="width: 145px;">จำนวนพนักงานประจำ</td>
-                  <td style="width: 45px; text-align: center; font-weight: 700;">${roster.length}</td>
+                  <td style="width: 45px; text-align: center; font-weight: 700;"></td>
                 </tr>
                 <tr>
                   <td>จำนวนพนักงานที่มาทำงานตรงตามเวลาทำงาน</td>
@@ -275,7 +275,7 @@ function renderStandardPeopleOneAttendanceSheet(printWindow: Window, data: PlanE
                 </tr>
                 <tr>
                   <td style="font-weight: 700;">สรุปจำนวนพนักงานทั้งหมด</td>
-                  <td style="text-align: center; font-weight: 700;">${plan.required_count || roster.length}</td>
+                  <td style="text-align: center; font-weight: 700;"></td>
                 </tr>
               </tbody>
             </table>
@@ -428,7 +428,7 @@ function renderStandardPeopleOneAttendanceSheet(printWindow: Window, data: PlanE
       margin-bottom: 4px;
     }
     .doc-main-title {
-      font-size: 14px;
+      font-size: 15px;
       font-weight: 700;
       color: #000;
       margin-bottom: 6px;
@@ -459,27 +459,29 @@ function renderStandardPeopleOneAttendanceSheet(printWindow: Window, data: PlanE
     /* Metadata Table */
     .meta-table {
       border-collapse: collapse;
-      font-size: 10px;
+      font-size: 13px;
       margin-bottom: 6px;
     }
     .meta-table td {
       border: 1px solid #000;
-      padding: 2.5px 8px;
-      height: 20px;
+      padding: 3.5px 12px;
+      height: 25px;
     }
     .meta-label {
       font-weight: 700;
+      font-size: 13px;
       text-align: center;
-      width: 60px;
+      width: 72px;
       background: #f8fafc;
     }
     .meta-val {
       text-align: center;
-      min-width: 170px;
-      font-weight: 500;
+      min-width: 225px;
+      font-size: 13.5px;
+      font-weight: 700;
     }
     .meta-blank-col {
-      width: 70px;
+      width: 75px;
       background: #fff;
     }
 
