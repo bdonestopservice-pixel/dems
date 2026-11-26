@@ -101,7 +101,7 @@ function getShiftProximityScore(
   return shiftMinutes
 }
 
-const PAGE_SIZE = 10
+const PAGE_SIZE = 50
 
 export function NamelistClient({ session: initialSession, initialDate, initialWarehouse }: NamelistClientProps) {
   const { session } = useRealtimeSession()
